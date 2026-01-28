@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starfield Particle System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #000;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        #canvas {
+            display: block;
+            background: #000;
+        }
+
+        .controls {
+            height: 100px;
+            background: rgba(20, 20, 40, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            padding: 10px 20px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #6bb6ff;
+            min-width: 120px;
+        }
+
+        .control-group label {
+            font-size: 12px;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .control-group input[type="range"] {
+            width: 100px;
+            cursor: pointer;
+        }
+
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            background: #6bb6ff;
+        }
+
+        .control-group input[type="range"]::-moz-range-thumb {
+            background: #6bb6ff;
+        }
+
+        .value-display {
+            font-size: 11px;
+            color: #fff;
+            margin-top: 3px;
+        }
+
+        button {
+            background: #6bb6ff;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #89c9ff;
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="starCount">Star Count</label>
+            <input type="range" id="starCount" min="100" max="2000" value="500" step="100">
+            <span class="value-display" id="starCountValue">500</span>
+        </div>
+
+        <div class="control-group">
+            <label for="speed">Speed</label>
+            <input type="range" id="speed" min="0.1" max="5" value="1" step="0.1">
+            <span class="value-display" id="speedValue">1.0x</span>
+        </div>
+
+        <div class="control-group">
+            <label for="trailLength">Trail Length</label>
+            <input type="range" id="trailLength" min="0.05" max="0.5" value="0.2" step="0.05">
+            <span class="value-display" id="trailLengthValue">0.20</span>
+        </div>
+
+        <div class="control-group">
+            <label for="starSize">Star Size</label>
+            <input type="range" id="starSize" min="1" max="5" value="2" step="0.5">
+            <span class="value-display" id="starSizeValue">2.0</span>
+        </div>
+
+        <div class="control-group">
+            <label for="perspective">Perspective</label>
+            <input type="range" id="perspective" min="100" max="500" value="300" step="50">
+            <span class="value-display" id="perspectiveValue">300</span>
+        </div>
+
+        <button id="resetBtn">Reset</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Resize canvas
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight - 100;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Cosmic color palette
+        const colorPalette = [
+            { r: 255, g: 255, b: 255 },  // White
+            { r: 135, g: 206, b: 250 },  // Light Blue
+            { r: 255, g: 182, b: 193 },  // Light Pink
+            { r: 176, g: 224, b: 230 },  // Powder Blue
+            { r: 255, g: 218, b: 185 },  // Peach
+            { r: 221, g: 160, b: 221 },  // Plum
+            { r: 173, g: 216, b: 230 }   // Light Cyan
+        ];
+
+        // Configuration
+        let config = {
+            starCount: 500,
+            speed: 1,
+            trailLength: 0.2,
+            starSize: 2,
+            perspective: 300
+        };
+
+        // Star class
+        class Star {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.z = Math.random() * canvas.width;
+                this.prevX = 0;
+                this.prevY = 0;
+
+                // Random color from palette
+                this.color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+
+                // 60% center outward, 40% diagonal
+                if (Math.random() < 0.6) {
+                    // Center outward
+                    this.directionType = 0;
+                    this.x = (Math.random() - 0.5) * canvas.width;
+                    this.y = (Math.random() - 0.5) * canvas.height;
+                } else {
+                    // Diagonal movement (4 directions)
+                    this.directionType = Math.floor(Math.random() * 4) + 1;
+
+                    switch(this.directionType) {
+                        case 1: // Top-left to bottom-right
+                            this.x = -canvas.width / 2;
+                            this.y = -canvas.height / 2;
+                            this.vx = 2;
+                            this.vy = 2;
+                            break;
+                        case 2: // Top-right to bottom-left
+                            this.x = canvas.width / 2;
+                            this.y = -canvas.height / 2;
+                            this.vx = -2;
+                            this.vy = 2;
+                            break;
+                        case 3: // Bottom-left to top-right
+                            this.x = -canvas.width / 2;
+                            this.y = canvas.height / 2;
+                            this.vx = 2;
+                            this.vy = -2;
+                            break;
+                        case 4: // Bottom-right to top-left
+                            this.x = canvas.width / 2;
+                            this.y = canvas.height / 2;
+                            this.vx = -2;
+                            this.vy = -2;
+                            break;
+                    }
+                }
+            }
+
+            update() {
+                this.prevX = this.x;
+                this.prevY = this.y;
+
+                if (this.directionType === 0) {
+                    // Center outward movement
+                    this.z -= config.speed * 5;
+                    if (this.z <= 0) {
+                        this.reset();
+                    }
+                } else {
+                    // Diagonal movement
+                    this.x += this.vx * config.speed;
+                    this.y += this.vy * config.speed;
+                    this.z -= config.speed * 2;
+
+                    // Reset if out of bounds
+                    const sx = (this.x * config.perspective) / this.z + canvas.width / 2;
+                    const sy = (this.y * config.perspective) / this.z + canvas.height / 2;
+
+                    if (this.z <= 0 || sx < 0 || sx > canvas.width || sy < 0 || sy > canvas.height) {
+                        this.reset();
+                    }
+                }
+            }
+
+            draw() {
+                // Calculate screen position
+                const sx = (this.x * config.perspective) / this.z + canvas.width / 2;
+                const sy = (this.y * config.perspective) / this.z + canvas.height / 2;
+
+                const prevSx = (this.prevX * config.perspective) / (this.z + config.speed * 5) + canvas.width / 2;
+                const prevSy = (this.prevY * config.perspective) / (this.z + config.speed * 5) + canvas.height / 2;
+
+                // Calculate size and brightness based on depth
+                const size = (1 - this.z / canvas.width) * config.starSize * 2;
+                const alpha = Math.max(0.3, 1 - this.z / canvas.width);
+
+                // Draw trail
+                ctx.beginPath();
+                ctx.moveTo(prevSx, prevSy);
+                ctx.lineTo(sx, sy);
+                ctx.strokeStyle = `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${alpha * 0.6})`;
+                ctx.lineWidth = size * 0.5;
+                ctx.stroke();
+
+                // Draw glowing star
+                const gradient = ctx.createRadialGradient(sx, sy, 0, sx, sy, size * 2);
+                gradient.addColorStop(0, `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${alpha})`);
+                gradient.addColorStop(0.5, `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${alpha * 0.5})`);
+                gradient.addColorStop(1, `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, 0)`);
+
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(sx, sy, size * 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw bright center
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                ctx.beginPath();
+                ctx.arc(sx, sy, size * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Initialize stars
+        let stars = [];
+        function initStars() {
+            stars = [];
+            for (let i = 0; i < config.starCount; i++) {
+                stars.push(new Star());
+            }
+        }
+        initStars();
+
+        // Animation loop
+        function animate() {
+            // Partial clear for trail effect
+            ctx.fillStyle = `rgba(0, 0, 0, ${config.trailLength})`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Update and draw stars
+            stars.forEach(star => {
+                star.update();
+                star.draw();
+            });
+
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+        // Control handlers
+        const starCountSlider = document.getElementById('starCount');
+        const speedSlider = document.getElementById('speed');
+        const trailLengthSlider = document.getElementById('trailLength');
+        const starSizeSlider = document.getElementById('starSize');
+        const perspectiveSlider = document.getElementById('perspective');
+        const resetBtn = document.getElementById('resetBtn');
+
+        starCountSlider.addEventListener('input', (e) => {
+            config.starCount = parseInt(e.target.value);
+            document.getElementById('starCountValue').textContent = config.starCount;
+            initStars();
+        });
+
+        speedSlider.addEventListener('input', (e) => {
+            config.speed = parseFloat(e.target.value);
+            document.getElementById('speedValue').textContent = config.speed.toFixed(1) + 'x';
+        });
+
+        trailLengthSlider.addEventListener('input', (e) => {
+            config.trailLength = parseFloat(e.target.value);
+            document.getElementById('trailLengthValue').textContent = config.trailLength.toFixed(2);
+        });
+
+        starSizeSlider.addEventListener('input', (e) => {
+            config.starSize = parseFloat(e.target.value);
+            document.getElementById('starSizeValue').textContent = config.starSize.toFixed(1);
+        });
+
+        perspectiveSlider.addEventListener('input', (e) => {
+            config.perspective = parseInt(e.target.value);
+            document.getElementById('perspectiveValue').textContent = config.perspective;
+        });
+
+        resetBtn.addEventListener('click', () => {
+            config = {
+                starCount: 500,
+                speed: 1,
+                trailLength: 0.2,
+                starSize: 2,
+                perspective: 300
+            };
+
+            starCountSlider.value = 500;
+            speedSlider.value = 1;
+            trailLengthSlider.value = 0.2;
+            starSizeSlider.value = 2;
+            perspectiveSlider.value = 300;
+
+            document.getElementById('starCountValue').textContent = '500';
+            document.getElementById('speedValue').textContent = '1.0x';
+            document.getElementById('trailLengthValue').textContent = '0.20';
+            document.getElementById('starSizeValue').textContent = '2.0';
+            document.getElementById('perspectiveValue').textContent = '300';
+
+            initStars();
+        });
+    </script>
+</body>
+</html>

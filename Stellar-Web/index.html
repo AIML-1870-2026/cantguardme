@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stellar Web Explorer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #000;
+            overflow: hidden;
+            color: #fff;
+        }
+
+        canvas {
+            display: block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .title {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            color: #64a0ff;
+            text-shadow: 0 0 10px rgba(100, 160, 255, 0.5);
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        /* Toggle Buttons */
+        .toggle-btn {
+            position: fixed;
+            top: 20px;
+            width: 40px;
+            height: 40px;
+            background: rgba(20, 20, 30, 0.6);
+            border: 1px solid rgba(100, 160, 255, 0.6);
+            color: #64a0ff;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.3s, transform 0.3s;
+            backdrop-filter: blur(10px);
+        }
+
+        .toggle-btn:hover {
+            background: rgba(100, 160, 255, 0.3);
+        }
+
+        .toggle-btn.active {
+            background: rgba(100, 160, 255, 0.4);
+        }
+
+        #controlsToggle {
+            left: 20px;
+        }
+
+        #statsToggle {
+            right: 20px;
+        }
+
+        /* Panels - Now Transparent */
+        .panel {
+            position: fixed;
+            top: 0;
+            width: 280px;
+            height: 100%;
+            background: rgba(10, 10, 20, 0.4);
+            backdrop-filter: blur(15px);
+            padding: 80px 20px 20px;
+            transition: transform 0.3s ease;
+            z-index: 150;
+            overflow-y: auto;
+            border: 1px solid rgba(100, 160, 255, 0.2);
+        }
+
+        #controlsPanel {
+            left: 0;
+            transform: translateX(-100%);
+            border-left: none;
+        }
+
+        #controlsPanel.open {
+            transform: translateX(0);
+        }
+
+        #statsPanel {
+            right: 0;
+            transform: translateX(100%);
+            border-right: none;
+        }
+
+        #statsPanel.open {
+            transform: translateX(0);
+        }
+
+        .panel h2 {
+            color: #64a0ff;
+            margin-bottom: 20px;
+            font-size: 18px;
+            border-bottom: 1px solid rgba(100, 160, 255, 0.5);
+            padding-bottom: 10px;
+            text-shadow: 0 0 10px rgba(100, 160, 255, 0.3);
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group label {
+            display: block;
+            color: #ccc;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .control-group input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #64a0ff;
+        }
+
+        .value-display {
+            text-align: right;
+            color: #64a0ff;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .section-title {
+            color: #64a0ff;
+            font-size: 14px;
+            margin: 25px 0 15px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid rgba(100, 160, 255, 0.3);
+        }
+
+        /* Stats Panel */
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(100, 160, 255, 0.2);
+        }
+
+        .stat-label {
+            color: #ccc;
+            font-size: 14px;
+        }
+
+        .stat-value {
+            color: #64a0ff;
+            font-size: 16px;
+            font-weight: bold;
+            text-shadow: 0 0 8px rgba(100, 160, 255, 0.5);
+        }
+
+        /* Scrollbar styling */
+        .panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .panel::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .panel::-webkit-scrollbar-thumb {
+            background: rgba(100, 160, 255, 0.4);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <div class="title">Stellar Web Explorer</div>
+
+    <!-- Toggle Buttons -->
+    <button class="toggle-btn" id="controlsToggle">&#9776;</button>
+    <button class="toggle-btn" id="statsToggle">&#9776;</button>
+
+    <!-- Controls Panel -->
+    <div class="panel" id="controlsPanel">
+        <h2>Controls</h2>
+
+        <div class="section-title">Node Properties</div>
+
+        <div class="control-group">
+            <label for="nodeSpeed">Node Speed</label>
+            <input type="range" id="nodeSpeed" min="0.1" max="3" value="0.8" step="0.1">
+            <div class="value-display" id="nodeSpeedValue">0.8</div>
+        </div>
+
+        <div class="control-group">
+            <label for="nodeCount">Node Count</label>
+            <input type="range" id="nodeCount" min="20" max="150" value="60" step="5">
+            <div class="value-display" id="nodeCountValue">60</div>
+        </div>
+
+        <div class="control-group">
+            <label for="nodeSize">Node Size</label>
+            <input type="range" id="nodeSize" min="2" max="10" value="4" step="0.5">
+            <div class="value-display" id="nodeSizeValue">4</div>
+        </div>
+
+        <div class="section-title">Connection Properties</div>
+
+        <div class="control-group">
+            <label for="connectRadius">Connectivity Radius</label>
+            <input type="range" id="connectRadius" min="50" max="400" value="150" step="10">
+            <div class="value-display" id="connectRadiusValue">150</div>
+        </div>
+
+        <div class="control-group">
+            <label for="edgeThickness">Edge Thickness</label>
+            <input type="range" id="edgeThickness" min="0.5" max="3" value="1" step="0.1">
+            <div class="value-display" id="edgeThicknessValue">1.0</div>
+        </div>
+
+        <div class="section-title">3D Camera</div>
+
+        <div class="control-group">
+            <label for="rotationX">Rotation X</label>
+            <input type="range" id="rotationX" min="-180" max="180" value="0" step="5">
+            <div class="value-display" id="rotationXValue">0&deg;</div>
+        </div>
+
+        <div class="control-group">
+            <label for="rotationY">Rotation Y</label>
+            <input type="range" id="rotationY" min="-180" max="180" value="0" step="5">
+            <div class="value-display" id="rotationYValue">0&deg;</div>
+        </div>
+
+        <div class="control-group">
+            <label for="perspective">Perspective</label>
+            <input type="range" id="perspective" min="400" max="2000" value="800" step="50">
+            <div class="value-display" id="perspectiveValue">800</div>
+        </div>
+    </div>
+
+    <!-- Stats Panel -->
+    <div class="panel" id="statsPanel">
+        <h2>Network Statistics</h2>
+
+        <div class="stat-item">
+            <span class="stat-label">Total Nodes</span>
+            <span class="stat-value" id="statNodes">0</span>
+        </div>
+
+        <div class="stat-item">
+            <span class="stat-label">Total Edges</span>
+            <span class="stat-value" id="statEdges">0</span>
+        </div>
+
+        <div class="stat-item">
+            <span class="stat-label">Avg Connections</span>
+            <span class="stat-value" id="statAvgConn">0.0</span>
+        </div>
+
+        <div class="stat-item">
+            <span class="stat-label">Network Density</span>
+            <span class="stat-value" id="statDensity">0.0%</span>
+        </div>
+
+        <div class="stat-item">
+            <span class="stat-label">Max Connections</span>
+            <span class="stat-value" id="statMaxConn">0</span>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Resize canvas to full screen
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Vibrant color palette for nodes
+        const colorPalette = [
+            { r: 255, g: 100, b: 150 },  // Pink
+            { r: 100, g: 200, b: 255 },  // Cyan
+            { r: 255, g: 180, b: 100 },  // Orange
+            { r: 150, g: 100, b: 255 },  // Purple
+            { r: 100, g: 255, b: 180 },  // Mint
+            { r: 255, g: 100, b: 100 },  // Red
+            { r: 100, g: 255, b: 100 },  // Green
+            { r: 255, g: 255, b: 100 },  // Yellow
+            { r: 255, g: 150, b: 255 },  // Magenta
+            { r: 100, g: 180, b: 255 },  // Light Blue
+        ];
+
+        // Configuration
+        const config = {
+            nodeSpeed: 0.8,
+            nodeCount: 60,
+            nodeSize: 4,
+            connectRadius: 150,
+            edgeThickness: 1,
+            rotationX: 0,
+            rotationY: 0,
+            perspective: 800
+        };
+
+        // Space bounds
+        const SPACE_SIZE = 250;
+
+        // Node class
+        class Node {
+            constructor() {
+                this.x = (Math.random() - 0.5) * SPACE_SIZE * 2;
+                this.y = (Math.random() - 0.5) * SPACE_SIZE * 2;
+                this.z = (Math.random() - 0.5) * SPACE_SIZE * 2;
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = (Math.random() - 0.5) * 2;
+                this.vz = (Math.random() - 0.5) * 2;
+                // Assign random color from palette
+                this.color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+            }
+
+            update() {
+                this.x += this.vx * config.nodeSpeed;
+                this.y += this.vy * config.nodeSpeed;
+                this.z += this.vz * config.nodeSpeed;
+
+                // Toroidal wrapping
+                if (this.x > SPACE_SIZE) this.x = -SPACE_SIZE;
+                if (this.x < -SPACE_SIZE) this.x = SPACE_SIZE;
+                if (this.y > SPACE_SIZE) this.y = -SPACE_SIZE;
+                if (this.y < -SPACE_SIZE) this.y = SPACE_SIZE;
+                if (this.z > SPACE_SIZE) this.z = -SPACE_SIZE;
+                if (this.z < -SPACE_SIZE) this.z = SPACE_SIZE;
+            }
+
+            project() {
+                // Apply rotation
+                const radX = config.rotationX * Math.PI / 180;
+                const radY = config.rotationY * Math.PI / 180;
+
+                // Rotate around X axis
+                let y1 = this.y * Math.cos(radX) - this.z * Math.sin(radX);
+                let z1 = this.y * Math.sin(radX) + this.z * Math.cos(radX);
+
+                // Rotate around Y axis
+                let x2 = this.x * Math.cos(radY) + z1 * Math.sin(radY);
+                let z2 = -this.x * Math.sin(radY) + z1 * Math.cos(radY);
+
+                // Perspective projection
+                const scale = config.perspective / (config.perspective + z2);
+
+                return {
+                    x: x2 * scale + canvas.width / 2,
+                    y: y1 * scale + canvas.height / 2,
+                    scale: scale,
+                    z: z2
+                };
+            }
+        }
+
+        // Initialize nodes
+        let nodes = [];
+        function initNodes() {
+            nodes = [];
+            for (let i = 0; i < config.nodeCount; i++) {
+                nodes.push(new Node());
+            }
+        }
+        initNodes();
+
+        // Calculate 3D distance between two nodes
+        function distance3D(a, b) {
+            const dx = a.x - b.x;
+            const dy = a.y - b.y;
+            const dz = a.z - b.z;
+            return Math.sqrt(dx * dx + dy * dy + dz * dz);
+        }
+
+        // Blend two colors
+        function blendColors(c1, c2, ratio) {
+            return {
+                r: Math.round(c1.r * (1 - ratio) + c2.r * ratio),
+                g: Math.round(c1.g * (1 - ratio) + c2.g * ratio),
+                b: Math.round(c1.b * (1 - ratio) + c2.b * ratio)
+            };
+        }
+
+        // Statistics
+        let stats = {
+            edges: 0,
+            avgConnections: 0,
+            density: 0,
+            maxConnections: 0
+        };
+
+        // Main animation loop
+        function animate() {
+            // Semi-transparent clear for motion blur effect
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Update nodes
+            nodes.forEach(node => node.update());
+
+            // Project all nodes
+            const projected = nodes.map((node, i) => ({
+                ...node.project(),
+                index: i,
+                node: node
+            }));
+
+            // Sort by depth (back to front)
+            projected.sort((a, b) => b.z - a.z);
+
+            // Calculate edges and statistics
+            let edgeCount = 0;
+            const connectionCounts = new Array(nodes.length).fill(0);
+
+            // Draw edges with gradient colors
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    const dist = distance3D(nodes[i], nodes[j]);
+
+                    if (dist < config.connectRadius) {
+                        const p1 = nodes[i].project();
+                        const p2 = nodes[j].project();
+
+                        // Only draw if both nodes are in front of camera
+                        if (p1.z > -config.perspective && p2.z > -config.perspective) {
+                            const opacity = (1 - dist / config.connectRadius) * 0.5;
+                            const avgScale = (p1.scale + p2.scale) / 2;
+                            const finalOpacity = opacity * avgScale;
+
+                            // Create gradient between two node colors
+                            const gradient = ctx.createLinearGradient(p1.x, p1.y, p2.x, p2.y);
+                            const c1 = nodes[i].color;
+                            const c2 = nodes[j].color;
+                            gradient.addColorStop(0, `rgba(${c1.r}, ${c1.g}, ${c1.b}, ${finalOpacity})`);
+                            gradient.addColorStop(1, `rgba(${c2.r}, ${c2.g}, ${c2.b}, ${finalOpacity})`);
+
+                            ctx.beginPath();
+                            ctx.moveTo(p1.x, p1.y);
+                            ctx.lineTo(p2.x, p2.y);
+                            ctx.strokeStyle = gradient;
+                            ctx.lineWidth = config.edgeThickness * avgScale;
+                            ctx.stroke();
+
+                            edgeCount++;
+                            connectionCounts[i]++;
+                            connectionCounts[j]++;
+                        }
+                    }
+                }
+            }
+
+            // Draw nodes (back to front)
+            projected.forEach(p => {
+                // Only draw nodes in front of camera
+                if (p.z > -config.perspective) {
+                    const size = config.nodeSize * p.scale;
+                    const alpha = Math.min(1, p.scale);
+                    const color = p.node.color;
+
+                    // Glow effect with node's color
+                    const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, size * 3);
+                    gradient.addColorStop(0, `rgba(${color.r}, ${color.g}, ${color.b}, ${alpha})`);
+                    gradient.addColorStop(0.4, `rgba(${color.r}, ${color.g}, ${color.b}, ${alpha * 0.4})`);
+                    gradient.addColorStop(1, `rgba(${color.r}, ${color.g}, ${color.b}, 0)`);
+
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, size * 3, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Bright core
+                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, size * 0.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+
+            // Update statistics
+            const totalConnections = connectionCounts.reduce((a, b) => a + b, 0);
+            const maxPossibleEdges = (nodes.length * (nodes.length - 1)) / 2;
+
+            stats.edges = edgeCount;
+            stats.avgConnections = nodes.length > 0 ? (totalConnections / nodes.length).toFixed(1) : 0;
+            stats.density = maxPossibleEdges > 0 ? ((edgeCount / maxPossibleEdges) * 100).toFixed(1) : 0;
+            stats.maxConnections = Math.max(...connectionCounts);
+
+            updateStatsDisplay();
+
+            requestAnimationFrame(animate);
+        }
+
+        // Update statistics display
+        function updateStatsDisplay() {
+            document.getElementById('statNodes').textContent = nodes.length;
+            document.getElementById('statEdges').textContent = stats.edges;
+            document.getElementById('statAvgConn').textContent = stats.avgConnections;
+            document.getElementById('statDensity').textContent = stats.density + '%';
+            document.getElementById('statMaxConn').textContent = stats.maxConnections;
+        }
+
+        // Panel toggles
+        const controlsToggle = document.getElementById('controlsToggle');
+        const statsToggle = document.getElementById('statsToggle');
+        const controlsPanel = document.getElementById('controlsPanel');
+        const statsPanel = document.getElementById('statsPanel');
+
+        controlsToggle.addEventListener('click', () => {
+            controlsPanel.classList.toggle('open');
+            controlsToggle.classList.toggle('active');
+        });
+
+        statsToggle.addEventListener('click', () => {
+            statsPanel.classList.toggle('open');
+            statsToggle.classList.toggle('active');
+        });
+
+        // Control event listeners
+        function setupControl(id, configKey, displaySuffix = '') {
+            const slider = document.getElementById(id);
+            const display = document.getElementById(id + 'Value');
+
+            slider.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                config[configKey] = value;
+                display.textContent = value + displaySuffix;
+
+                // Reinitialize nodes if count changes
+                if (configKey === 'nodeCount') {
+                    initNodes();
+                }
+            });
+        }
+
+        setupControl('nodeSpeed', 'nodeSpeed');
+        setupControl('nodeCount', 'nodeCount');
+        setupControl('nodeSize', 'nodeSize');
+        setupControl('connectRadius', 'connectRadius');
+        setupControl('edgeThickness', 'edgeThickness');
+        setupControl('rotationX', 'rotationX', '\u00B0');
+        setupControl('rotationY', 'rotationY', '\u00B0');
+        setupControl('perspective', 'perspective');
+
+        // Start animation
+        animate();
+    </script>
+</body>
+</html>
