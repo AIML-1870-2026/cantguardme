@@ -125,19 +125,28 @@
         .game-over-title { color: #ff4444; font-size: 2em; margin-bottom: 15px; }
         .stat-row { display: flex; justify-content: space-between; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 5px; margin: 5px 0; }
 
-        .mobile-controls { display: none; justify-content: center; margin-top: 15px; }
+        .mobile-controls { display: none; justify-content: center; gap: 40px; margin-top: 15px; }
+        .controls-container { display: flex; flex-direction: column; align-items: center; }
+        .controls-label { font-size: 0.9em; font-weight: bold; margin-bottom: 8px; }
+        .controls-label.p1 { color: #00ff88; }
+        .controls-label.p2 { color: #ff00ff; }
         .dpad { display: grid; grid-template-columns: repeat(3, 50px); gap: 5px; }
         .dpad-btn { width: 50px; height: 50px; font-size: 1.3em; border: none; border-radius: 8px; background: rgba(0,255,136,0.3); color: white; cursor: pointer; }
         .dpad-btn:nth-child(1) { grid-column: 2; }
         .dpad-btn:nth-child(2) { grid-column: 1; grid-row: 2; }
         .dpad-btn:nth-child(3) { grid-column: 3; grid-row: 2; }
         .dpad-btn:nth-child(4) { grid-column: 2; grid-row: 3; }
+        .dpad.p2 .dpad-btn { background: rgba(255,0,255,0.3); }
+        .two-player-controls { display: none; }
 
         @media (max-width: 700px) {
             .game-title { font-size: 2.2em; }
             #gameCanvas { width: 300px !important; height: 300px !important; }
             .mobile-controls { display: flex; }
             .skin-grid { grid-template-columns: repeat(2, 1fr); }
+            .mobile-controls { gap: 20px; }
+            .dpad-btn { width: 40px; height: 40px; font-size: 1.1em; }
+            .dpad { grid-template-columns: repeat(3, 40px); }
         }
     </style>
 </head>
@@ -165,7 +174,7 @@
 
         <div class="menu-buttons">
             <button class="menu-btn primary" onclick="startGame('classic')">Classic Mode</button>
-            <button class="menu-btn secondary" onclick="startGame('twoPlayer')">Two Player</button>
+            <button class="menu-btn secondary" onclick="startTwoPlayer()">Two Player</button>
             <button class="menu-btn tertiary" onclick="startGame('ai')">VS AI</button>
             <button class="menu-btn quaternary" onclick="openEditor()">Level Editor</button>
         </div>
@@ -187,12 +196,24 @@
                 </div>
             </div>
         </div>
-        <div class="mobile-controls">
-            <div class="dpad">
-                <button class="dpad-btn" onclick="setDir(0,-1)">↑</button>
-                <button class="dpad-btn" onclick="setDir(-1,0)">←</button>
-                <button class="dpad-btn" onclick="setDir(1,0)">→</button>
-                <button class="dpad-btn" onclick="setDir(0,1)">↓</button>
+        <div class="mobile-controls" id="mobileControls">
+            <div class="controls-container" id="p1Controls">
+                <div class="controls-label p1">PLAYER 1</div>
+                <div class="dpad">
+                    <button class="dpad-btn" onclick="setDir(0,-1)">↑</button>
+                    <button class="dpad-btn" onclick="setDir(-1,0)">←</button>
+                    <button class="dpad-btn" onclick="setDir(1,0)">→</button>
+                    <button class="dpad-btn" onclick="setDir(0,1)">↓</button>
+                </div>
+            </div>
+            <div class="controls-container two-player-controls" id="p2Controls">
+                <div class="controls-label p2">PLAYER 2</div>
+                <div class="dpad p2">
+                    <button class="dpad-btn" onclick="setDir2(0,-1)">↑</button>
+                    <button class="dpad-btn" onclick="setDir2(-1,0)">←</button>
+                    <button class="dpad-btn" onclick="setDir2(1,0)">→</button>
+                    <button class="dpad-btn" onclick="setDir2(0,1)">↓</button>
+                </div>
             </div>
         </div>
     </div>
@@ -234,6 +255,31 @@
             <p style="font-size:3em;margin:15px 0" id="newLevel">2</p>
             <div id="unlockInfo" style="background:rgba(0,255,136,0.2);padding:12px;border-radius:8px;border:2px solid #00ff88"></div>
             <button class="modal-btn" onclick="closeLevelUp()">Awesome!</button>
+        </div>
+    </div>
+
+    <div class="modal" id="tutorialModal">
+        <div class="modal-box" style="border-color:#00ccff">
+            <h2 style="color:#00ccff;font-size:2em" id="tutorialTitle">🎮 TWO PLAYER MODE</h2>
+            <div id="tutorialContent" style="text-align:left;margin:15px 0;line-height:1.6">
+                <div style="background:rgba(0,255,136,0.15);padding:12px;border-radius:8px;border-left:4px solid #00ff88;margin-bottom:12px">
+                    <strong style="color:#00ff88">🟢 PLAYER 1 (Green Snake)</strong><br>
+                    <span style="color:#ccc">Keyboard: Arrow Keys or WASD</span><br>
+                    <span style="color:#ccc">Touch: Left D-Pad</span>
+                </div>
+                <div style="background:rgba(255,0,255,0.15);padding:12px;border-radius:8px;border-left:4px solid #ff00ff;margin-bottom:12px">
+                    <strong style="color:#ff00ff">🟣 PLAYER 2 (Magenta Snake)</strong><br>
+                    <span style="color:#ccc">Keyboard: I J K L keys</span><br>
+                    <span style="color:#ccc">Touch: Right D-Pad</span>
+                </div>
+                <div style="background:rgba(255,136,0,0.15);padding:12px;border-radius:8px;border-left:4px solid #ff8800">
+                    <strong style="color:#ff8800">🏆 HOW TO WIN</strong><br>
+                    <span style="color:#ccc">• First to 200 points wins!</span><br>
+                    <span style="color:#ccc">• Or be the last snake standing</span><br>
+                    <span style="color:#ccc">• Crashing into opponent = death</span>
+                </div>
+            </div>
+            <button class="modal-btn" onclick="closeTutorial()">Let's Play!</button>
         </div>
     </div>
 
@@ -377,8 +423,27 @@
         else if (x === 1 && y === 0 && G.dir.x !== -1) G.nextDir = {x,y};
     }
 
+    function setDir2(x, y) {
+        if (!G.running || G.mode !== 'twoPlayer') return;
+        if (x === 0 && y === -1 && G.dir2.y !== 1) G.dir2 = {x,y};
+        else if (x === 0 && y === 1 && G.dir2.y !== -1) G.dir2 = {x,y};
+        else if (x === -1 && y === 0 && G.dir2.x !== 1) G.dir2 = {x,y};
+        else if (x === 1 && y === 0 && G.dir2.x !== -1) G.dir2 = {x,y};
+    }
+
     function startGame(mode) {
         G.mode = mode;
+
+        // Show/hide P2 controls based on mode
+        const p2Controls = document.getElementById('p2Controls');
+        const mobileControls = document.getElementById('mobileControls');
+        if (mode === 'twoPlayer') {
+            p2Controls.style.display = 'flex';
+            mobileControls.style.display = 'flex';
+        } else {
+            p2Controls.style.display = 'none';
+        }
+
         resetGame();
         document.getElementById('mainMenu').style.display = 'none';
         document.getElementById('gameScreen').style.display = 'block';
@@ -387,6 +452,19 @@
         G.tick = 0;
         gameInterval = setInterval(update, G.baseSpeed);
         animFrame = requestAnimationFrame(render);
+    }
+
+    function showTwoPlayerTutorial() {
+        document.getElementById('tutorialModal').style.display = 'flex';
+    }
+
+    function closeTutorial() {
+        document.getElementById('tutorialModal').style.display = 'none';
+        startGame('twoPlayer');
+    }
+
+    function startTwoPlayer() {
+        showTwoPlayerTutorial();
     }
 
     function resetGame() {
