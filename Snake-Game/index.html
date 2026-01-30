@@ -114,6 +114,23 @@
         .skin-name { font-size: 0.85em; font-weight: bold; }
         .skin-lvl { font-size: 0.7em; color: #ff8800; }
 
+        .progression-modal { max-width: 650px; }
+        .unlock-list { text-align: left; max-height: 55vh; overflow-y: auto; }
+        .unlock-item {
+            display: flex; align-items: flex-start; gap: 12px; padding: 10px;
+            background: rgba(0,0,0,0.3); border-radius: 8px; margin-bottom: 8px;
+            border-left: 4px solid #444;
+        }
+        .unlock-item.unlocked { border-left-color: #00ff88; }
+        .unlock-item.current { border-left-color: #ff8800; background: rgba(255,136,0,0.15); }
+        .unlock-icon { font-size: 1.8em; min-width: 40px; text-align: center; }
+        .unlock-info { flex: 1; }
+        .unlock-level { font-size: 0.75em; color: #ff8800; font-weight: bold; }
+        .unlock-name { font-weight: bold; color: #00ff88; }
+        .unlock-desc { font-size: 0.85em; color: #ccc; margin-top: 2px; }
+        .unlock-key { display: inline-block; background: #333; padding: 2px 8px; border-radius: 4px; font-size: 0.75em; color: #ffff00; margin-top: 4px; }
+        .menu-btn.info { background: linear-gradient(135deg, #2ecc71, #27ae60); color: #000; }
+
         .toast {
             position: fixed; top: 20px; right: 20px; background: rgba(0,0,0,0.9);
             padding: 12px 20px; border-radius: 8px; border: 2px solid #00ff88;
@@ -177,6 +194,7 @@
             <button class="menu-btn secondary" onclick="startTwoPlayer()">Two Player</button>
             <button class="menu-btn tertiary" onclick="startGame('ai')">VS AI</button>
             <button class="menu-btn quaternary" onclick="openEditor()">Level Editor</button>
+            <button class="menu-btn info" onclick="openProgression()">Progression Guide</button>
         </div>
     </div>
 
@@ -283,6 +301,15 @@
         </div>
     </div>
 
+    <div class="modal" id="progressionModal">
+        <div class="modal-box progression-modal" style="border-color:#2ecc71">
+            <h2 style="color:#2ecc71;font-size:1.8em">📈 Progression Guide</h2>
+            <p style="color:#aaa;font-size:0.9em;margin:10px 0">Unlock features as you level up!</p>
+            <div class="unlock-list" id="unlockList"></div>
+            <button class="modal-btn" style="background:#2ecc71" onclick="closeProgression()">Close</button>
+        </div>
+    </div>
+
     <script>
     const CELL = 20, GRID = 30, SIZE = 600;
 
@@ -328,6 +355,32 @@
         20: { icon: '⚡', name: 'Plasma Skin', desc: 'Ultimate energy!' }
     };
 
+    // Complete progression guide with all features
+    const PROGRESSION = [
+        { lvl: 1, icon: '🐍', name: 'Basic Snake', desc: 'Move with arrow keys or WASD. Eat red apples to grow!', key: '↑↓←→ or WASD', type: 'core' },
+        { lvl: 1, icon: '🍎', name: 'Red Apples', desc: '+10 points, +1 length. The classic food!', type: 'food' },
+        { lvl: 2, icon: '⚡', name: 'Speed Boost Power-Up', desc: 'Collect yellow lightning for 2x speed (5 seconds)', type: 'powerup' },
+        { lvl: 3, icon: '🛡️', name: 'Shield Power-Up', desc: 'Blue shield absorbs ONE collision with wall or self', type: 'powerup' },
+        { lvl: 3, icon: '🎨', name: 'Neon Skin', desc: 'Glowing cyan snake with trails!', type: 'skin' },
+        { lvl: 4, icon: '🌟', name: 'Golden Apples', desc: '+30 points! Disappears after 5 seconds', type: 'food' },
+        { lvl: 4, icon: '🌙', name: 'Midnight Theme', desc: 'Dark blue aesthetic background', type: 'theme' },
+        { lvl: 5, icon: '🧱', name: 'Obstacles', desc: 'Brown walls appear on the board - avoid them!', type: 'hazard' },
+        { lvl: 5, icon: '🔥', name: 'Inferno Skin', desc: 'Fire-colored snake with blazing trails!', type: 'skin' },
+        { lvl: 6, icon: '🌅', name: 'Sunset Theme', desc: 'Warm purple hues background', type: 'theme' },
+        { lvl: 7, icon: '🔥', name: 'Combo System', desc: 'Eat same food type consecutively for up to 5x multiplier!', type: 'mechanic' },
+        { lvl: 7, icon: '🌈', name: 'Rainbow Skin', desc: 'Color-shifting snake with white trails!', type: 'skin' },
+        { lvl: 8, icon: '👻', name: 'Ghost Mode Power-Up', desc: 'Purple ghost lets you pass through walls & self (4 sec)', type: 'powerup' },
+        { lvl: 8, icon: '🌲', name: 'Forest Theme', desc: 'Deep green forest background', type: 'theme' },
+        { lvl: 10, icon: '✨', name: 'Galaxy Skin', desc: 'Cosmic purple snake with ethereal trails!', type: 'skin' },
+        { lvl: 11, icon: '🌊', name: 'Ocean Theme', desc: 'Deep sea blue background', type: 'theme' },
+        { lvl: 12, icon: '❄️', name: 'Frost Skin', desc: 'Icy mint snake with cool shimmer!', type: 'skin' },
+        { lvl: 14, icon: '🌋', name: 'Lava Theme', desc: 'Hot red and orange volcanic background', type: 'theme' },
+        { lvl: 15, icon: '👑', name: 'Golden Skin', desc: 'Majestic gold snake fit for royalty!', type: 'skin' },
+        { lvl: 17, icon: '🪐', name: 'Cosmic Theme', desc: 'Deep space purple background', type: 'theme' },
+        { lvl: 18, icon: '🕳️', name: 'Void Skin', desc: 'Dark matter snake with red glow!', type: 'skin' },
+        { lvl: 20, icon: '⚡', name: 'Plasma Skin', desc: 'Ultimate energy snake - max prestige!', type: 'skin' }
+    ];
+
     let G = {
         level: 1, xp: 0, coins: 0, highScore: 0,
         skin: 'classic', theme: 'classic',
@@ -338,7 +391,7 @@
         score: 0, score2: 0, aiScore: 0, combo: 1, lastFood: null,
         running: false, paused: false, mode: 'classic',
         speed: false, speedTime: 0, shield: false, ghost: false, ghostTime: 0,
-        baseSpeed: 150, tick: 0,
+        baseSpeed: 100, tick: 0,
         lastTickTime: 0, interpFactor: 0
     };
 
@@ -1035,6 +1088,70 @@
         document.getElementById('customModal').style.display = 'none';
         updateSkinPreview();
         save();
+    }
+
+    function openProgression() {
+        renderProgression();
+        document.getElementById('progressionModal').style.display = 'flex';
+    }
+
+    function closeProgression() {
+        document.getElementById('progressionModal').style.display = 'none';
+    }
+
+    function renderProgression() {
+        const list = document.getElementById('unlockList');
+        list.innerHTML = '';
+
+        // Group by level
+        const byLevel = {};
+        PROGRESSION.forEach(p => {
+            if (!byLevel[p.lvl]) byLevel[p.lvl] = [];
+            byLevel[p.lvl].push(p);
+        });
+
+        // Find next unlock level
+        let nextLevel = 21;
+        for (let i = G.level + 1; i <= 20; i++) {
+            if (byLevel[i]) { nextLevel = i; break; }
+        }
+
+        Object.keys(byLevel).sort((a,b) => a - b).forEach(lvl => {
+            const items = byLevel[lvl];
+            const unlocked = G.level >= lvl;
+            const isCurrent = parseInt(lvl) === nextLevel;
+            const xpNeeded = LEVEL_XP[lvl - 1] || 0;
+
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = `unlock-item ${unlocked ? 'unlocked' : ''} ${isCurrent ? 'current' : ''}`;
+
+                let keyHtml = '';
+                if (item.key) {
+                    keyHtml = `<span class="unlock-key">⌨️ ${item.key}</span>`;
+                }
+
+                let typeColor = '#888';
+                if (item.type === 'powerup') typeColor = '#ffff00';
+                else if (item.type === 'skin') typeColor = '#e91e63';
+                else if (item.type === 'theme') typeColor = '#9b59b6';
+                else if (item.type === 'food') typeColor = '#ff4444';
+                else if (item.type === 'hazard') typeColor = '#ff8800';
+                else if (item.type === 'mechanic') typeColor = '#00ccff';
+                else if (item.type === 'core') typeColor = '#00ff88';
+
+                div.innerHTML = `
+                    <div class="unlock-icon">${item.icon}</div>
+                    <div class="unlock-info">
+                        <div class="unlock-level">Level ${lvl} ${unlocked ? '✓' : `(${xpNeeded} XP)`}</div>
+                        <div class="unlock-name" style="color:${typeColor}">${item.name}</div>
+                        <div class="unlock-desc">${item.desc}</div>
+                        ${keyHtml}
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        });
     }
 
     function renderSkins() {
