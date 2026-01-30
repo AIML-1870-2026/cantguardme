@@ -1,0 +1,2195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Ultimate</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            color: white;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Main Menu Styles */
+        #mainMenu {
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .game-title {
+            font-size: 4em;
+            font-weight: bold;
+            background: linear-gradient(90deg, #00ff88, #00ccff, #ff8800, #00ff88);
+            background-size: 300% 100%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradientShift 3s ease infinite;
+            text-shadow: 0 0 30px rgba(0, 255, 136, 0.5);
+            margin-bottom: 10px;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .player-stats {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+
+        .stat-box {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px 25px;
+            border-radius: 10px;
+            border: 2px solid #00ff88;
+            min-width: 150px;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .xp-bar-container {
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto 30px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            padding: 5px;
+            border: 2px solid #00ccff;
+        }
+
+        .xp-bar {
+            height: 20px;
+            background: linear-gradient(90deg, #00ff88, #00ccff);
+            border-radius: 5px;
+            transition: width 0.5s ease;
+        }
+
+        .xp-text {
+            font-size: 0.9em;
+            color: #ccc;
+            margin-top: 5px;
+        }
+
+        .menu-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+            margin-top: 30px;
+        }
+
+        .menu-btn {
+            padding: 15px 40px;
+            font-size: 1.2em;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 280px;
+            font-weight: bold;
+        }
+
+        .menu-btn.primary {
+            background: linear-gradient(135deg, #00ff88, #00cc6a);
+            color: #000;
+        }
+
+        .menu-btn.secondary {
+            background: linear-gradient(135deg, #00ccff, #0099cc);
+            color: #000;
+        }
+
+        .menu-btn.tertiary {
+            background: linear-gradient(135deg, #ff8800, #cc6600);
+            color: #000;
+        }
+
+        .menu-btn.quaternary {
+            background: linear-gradient(135deg, #9b59b6, #7d3c98);
+            color: #fff;
+        }
+
+        .menu-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+
+        .menu-btn:disabled {
+            background: #444;
+            color: #888;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .unlock-preview {
+            margin-top: 40px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            border: 2px solid #ff8800;
+        }
+
+        .unlock-preview h3 {
+            color: #ff8800;
+            margin-bottom: 10px;
+        }
+
+        /* Game Screen Styles */
+        #gameScreen {
+            display: none;
+        }
+
+        .game-layout {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .game-canvas-container {
+            position: relative;
+        }
+
+        #gameCanvas {
+            background: #000;
+            border: 3px solid #00ff88;
+            border-radius: 5px;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+        }
+
+        #particleCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+
+        .game-info {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid #00ccff;
+            min-width: 200px;
+        }
+
+        .info-item {
+            margin-bottom: 15px;
+        }
+
+        .info-label {
+            font-size: 0.9em;
+            color: #888;
+        }
+
+        .info-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .power-ups-display {
+            margin-top: 20px;
+        }
+
+        .power-up-active {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            background: rgba(0, 255, 136, 0.2);
+            border-radius: 5px;
+            margin-bottom: 8px;
+        }
+
+        .power-up-icon {
+            font-size: 1.5em;
+        }
+
+        .power-up-timer {
+            font-size: 0.9em;
+            color: #00ff88;
+        }
+
+        .game-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .control-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .control-btn.pause {
+            background: #ff8800;
+            color: #000;
+        }
+
+        .control-btn.quit {
+            background: #ff4444;
+            color: #fff;
+        }
+
+        .control-btn:hover {
+            transform: scale(1.05);
+        }
+
+        /* Tutorial Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            padding: 40px;
+            border-radius: 20px;
+            border: 3px solid #00ff88;
+            max-width: 500px;
+            text-align: center;
+            box-shadow: 0 0 40px rgba(0, 255, 136, 0.5);
+        }
+
+        .modal-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 2em;
+            color: #00ff88;
+            margin-bottom: 20px;
+        }
+
+        .modal-text {
+            font-size: 1.1em;
+            line-height: 1.6;
+            margin-bottom: 30px;
+            color: #ccc;
+        }
+
+        .modal-btn {
+            padding: 15px 40px;
+            font-size: 1.1em;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            background: #00ff88;
+            color: #000;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .modal-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+
+        .skip-tutorials {
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            color: #888;
+        }
+
+        /* Game Over Screen */
+        .game-over-content {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            padding: 40px;
+            border-radius: 20px;
+            border: 3px solid #ff4444;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .game-over-title {
+            font-size: 2.5em;
+            color: #ff4444;
+            margin-bottom: 20px;
+        }
+
+        .game-over-stats {
+            margin: 30px 0;
+        }
+
+        .game-over-stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+
+        /* Level Up Screen */
+        .level-up-content {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            padding: 40px;
+            border-radius: 20px;
+            border: 3px solid #ff8800;
+            max-width: 500px;
+            text-align: center;
+            animation: levelUpPulse 0.5s ease;
+        }
+
+        @keyframes levelUpPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .level-up-title {
+            font-size: 2.5em;
+            color: #ff8800;
+            margin-bottom: 20px;
+        }
+
+        .unlock-item {
+            background: rgba(0, 255, 136, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border: 2px solid #00ff88;
+        }
+
+        /* Combo Display */
+        .combo-display {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3em;
+            font-weight: bold;
+            color: #ff8800;
+            text-shadow: 0 0 20px rgba(255, 136, 0, 0.8);
+            animation: comboPopup 0.5s ease;
+            pointer-events: none;
+        }
+
+        @keyframes comboPopup {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            50% { transform: translate(-50%, -50%) scale(1.2); }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        /* Notification Toast */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px 25px;
+            border-radius: 10px;
+            border: 2px solid #00ff88;
+            animation: slideIn 0.5s ease;
+            z-index: 2000;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* AI/2Player Mode Selection */
+        .mode-selection {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .mode-option {
+            padding: 20px 30px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 2px solid #00ccff;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .mode-option:hover, .mode-option.selected {
+            border-color: #00ff88;
+            background: rgba(0, 255, 136, 0.2);
+        }
+
+        /* Level Editor */
+        #editorScreen {
+            display: none;
+            padding: 20px;
+        }
+
+        .editor-toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .editor-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .editor-btn.active {
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+
+        #editorCanvas {
+            background: #000;
+            border: 3px solid #00ff88;
+            border-radius: 5px;
+            cursor: crosshair;
+        }
+
+        .level-code-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .level-code-input {
+            width: 100%;
+            max-width: 400px;
+            padding: 10px;
+            border-radius: 5px;
+            border: 2px solid #00ccff;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-family: monospace;
+        }
+
+        /* Mobile Controls */
+        .mobile-controls {
+            display: none;
+            justify-content: center;
+            gap: 5px;
+            margin-top: 20px;
+        }
+
+        .mobile-btn {
+            width: 60px;
+            height: 60px;
+            font-size: 1.5em;
+            border: none;
+            border-radius: 10px;
+            background: rgba(0, 255, 136, 0.3);
+            color: white;
+            cursor: pointer;
+        }
+
+        .mobile-dpad {
+            display: grid;
+            grid-template-columns: repeat(3, 60px);
+            grid-template-rows: repeat(3, 60px);
+            gap: 5px;
+        }
+
+        .mobile-dpad .mobile-btn:nth-child(1) { grid-column: 2; grid-row: 1; }
+        .mobile-dpad .mobile-btn:nth-child(2) { grid-column: 1; grid-row: 2; }
+        .mobile-dpad .mobile-btn:nth-child(3) { grid-column: 3; grid-row: 2; }
+        .mobile-dpad .mobile-btn:nth-child(4) { grid-column: 2; grid-row: 3; }
+
+        @media (max-width: 768px) {
+            .game-title { font-size: 2.5em; }
+            .game-layout { flex-direction: column; align-items: center; }
+            #gameCanvas, #particleCanvas { width: 320px !important; height: 320px !important; }
+            .mobile-controls { display: flex; }
+        }
+
+        /* Dimension Themes */
+        .dimension-crystal .game-canvas-container { filter: hue-rotate(180deg); }
+        .dimension-lava .game-canvas-container { filter: sepia(0.5) saturate(2); }
+        .dimension-void .game-canvas-container { filter: invert(0.1) hue-rotate(270deg); }
+
+        /* Pause overlay */
+        .pause-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            font-size: 3em;
+            color: #00ff88;
+            border-radius: 5px;
+        }
+
+        /* Dash cooldown indicator */
+        .dash-indicator {
+            width: 100%;
+            height: 8px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 4px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .dash-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #ffff00, #ff8800);
+            transition: width 0.1s linear;
+        }
+
+        /* Settings */
+        .settings-content {
+            text-align: left;
+        }
+
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Main Menu -->
+    <div id="mainMenu" class="container">
+        <h1 class="game-title">SNAKE ULTIMATE</h1>
+        <p style="color: #aaa; margin-bottom: 20px;">The Ultimate Progressive Snake Experience</p>
+
+        <div class="player-stats">
+            <div class="stat-box">
+                <div class="stat-label">LEVEL</div>
+                <div class="stat-value" id="menuLevel">1</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">HIGH SCORE</div>
+                <div class="stat-value" id="menuHighScore">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">COINS</div>
+                <div class="stat-value" id="menuCoins">0</div>
+            </div>
+        </div>
+
+        <div class="xp-bar-container">
+            <div class="xp-bar" id="menuXpBar" style="width: 0%"></div>
+        </div>
+        <div class="xp-text" id="menuXpText">0 / 100 XP to Level 2</div>
+
+        <div class="menu-buttons">
+            <button class="menu-btn primary" onclick="startGame('classic')">Classic Mode</button>
+            <button class="menu-btn secondary" onclick="startGame('twoPlayer')">Two Player Mode</button>
+            <button class="menu-btn tertiary" onclick="showAISelection()">AI Opponent</button>
+            <button class="menu-btn quaternary" onclick="openEditor()">Level Editor</button>
+            <button class="menu-btn" style="background: #444;" id="timeAttackBtn" onclick="startGame('timeAttack')" disabled>Time Attack (Lvl 13)</button>
+            <button class="menu-btn" style="background: #444;" id="survivalBtn" onclick="startGame('survival')" disabled>Survival Mode (Lvl 17)</button>
+        </div>
+
+        <div class="unlock-preview" id="unlockPreview">
+            <h3>Next Unlock</h3>
+            <p id="nextUnlockText">Speed Boost Power-Up at Level 2</p>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="gameScreen" class="container">
+        <div class="game-layout">
+            <div class="game-canvas-container" id="canvasContainer">
+                <canvas id="gameCanvas" width="600" height="600"></canvas>
+                <canvas id="particleCanvas" width="600" height="600"></canvas>
+                <div class="pause-overlay" id="pauseOverlay">PAUSED</div>
+            </div>
+
+            <div class="game-info">
+                <div class="info-item">
+                    <div class="info-label">SCORE</div>
+                    <div class="info-value" id="scoreDisplay">0</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">HIGH SCORE</div>
+                    <div class="info-value" id="highScoreDisplay">0</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">LENGTH</div>
+                    <div class="info-value" id="lengthDisplay">3</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">COMBO</div>
+                    <div class="info-value" id="comboDisplay">1x</div>
+                </div>
+                <div class="info-item" id="timerItem" style="display: none;">
+                    <div class="info-label">TIME</div>
+                    <div class="info-value" id="timerDisplay">60</div>
+                </div>
+
+                <div class="power-ups-display" id="powerUpsDisplay"></div>
+
+                <div id="dashContainer" style="display: none;">
+                    <div class="info-label">DASH (SPACE)</div>
+                    <div class="dash-indicator">
+                        <div class="dash-bar" id="dashBar" style="width: 100%"></div>
+                    </div>
+                </div>
+
+                <div class="game-controls">
+                    <button class="control-btn pause" onclick="togglePause()">Pause</button>
+                    <button class="control-btn quit" onclick="quitGame()">Quit</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="mobile-controls">
+            <div class="mobile-dpad">
+                <button class="mobile-btn" onclick="setDirection('up')">↑</button>
+                <button class="mobile-btn" onclick="setDirection('left')">←</button>
+                <button class="mobile-btn" onclick="setDirection('right')">→</button>
+                <button class="mobile-btn" onclick="setDirection('down')">↓</button>
+            </div>
+            <button class="mobile-btn" id="dashBtn" onclick="doDash()" style="margin-left: 20px; display: none;">⚡</button>
+        </div>
+    </div>
+
+    <!-- Level Editor -->
+    <div id="editorScreen" class="container">
+        <h2 style="text-align: center; margin-bottom: 20px;">Level Editor</h2>
+        <div class="editor-toolbar">
+            <button class="editor-btn active" id="wallTool" onclick="setEditorTool('wall')" style="background: #00ff88; color: #000;">Place Wall</button>
+            <button class="editor-btn" id="eraseTool" onclick="setEditorTool('erase')" style="background: #ff4444; color: #fff;">Erase</button>
+            <button class="editor-btn" onclick="clearEditor()" style="background: #ff8800; color: #000;">Clear All</button>
+            <button class="editor-btn" onclick="testLevel()" style="background: #00ccff; color: #000;">Test Level</button>
+            <button class="editor-btn" onclick="saveLevel()" style="background: #9b59b6; color: #fff;">Save Code</button>
+            <button class="editor-btn" onclick="loadLevel()" style="background: #27ae60; color: #fff;">Load Code</button>
+            <button class="editor-btn" onclick="closeEditor()" style="background: #444; color: #fff;">Back to Menu</button>
+        </div>
+        <div style="text-align: center;">
+            <canvas id="editorCanvas" width="600" height="600"></canvas>
+        </div>
+        <div class="level-code-container">
+            <input type="text" class="level-code-input" id="levelCodeInput" placeholder="Level code will appear here...">
+        </div>
+    </div>
+
+    <!-- Tutorial Modal -->
+    <div class="modal-overlay" id="tutorialModal">
+        <div class="modal-content">
+            <div class="modal-icon" id="tutorialIcon"></div>
+            <h2 class="modal-title" id="tutorialTitle"></h2>
+            <p class="modal-text" id="tutorialText"></p>
+            <button class="modal-btn" onclick="closeTutorial()">Got it!</button>
+            <div class="skip-tutorials">
+                <input type="checkbox" id="skipTutorials" onchange="toggleSkipTutorials()">
+                <label for="skipTutorials">Skip all tutorials</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div class="modal-overlay" id="gameOverModal">
+        <div class="game-over-content">
+            <h2 class="game-over-title" id="gameOverTitle">GAME OVER</h2>
+            <div class="game-over-stats">
+                <div class="game-over-stat">
+                    <span>Score</span>
+                    <span id="finalScore">0</span>
+                </div>
+                <div class="game-over-stat">
+                    <span>Length</span>
+                    <span id="finalLength">3</span>
+                </div>
+                <div class="game-over-stat">
+                    <span>XP Earned</span>
+                    <span id="xpEarned">0</span>
+                </div>
+                <div class="game-over-stat">
+                    <span>Coins Earned</span>
+                    <span id="coinsEarned">0</span>
+                </div>
+            </div>
+            <button class="modal-btn" onclick="closeGameOver()">Continue</button>
+        </div>
+    </div>
+
+    <!-- Level Up Modal -->
+    <div class="modal-overlay" id="levelUpModal">
+        <div class="level-up-content">
+            <h2 class="level-up-title">LEVEL UP!</h2>
+            <p style="font-size: 3em; margin: 20px 0;" id="newLevelDisplay">2</p>
+            <div class="unlock-item" id="levelUpUnlock"></div>
+            <button class="modal-btn" onclick="closeLevelUp()">Awesome!</button>
+        </div>
+    </div>
+
+    <!-- AI Selection Modal -->
+    <div class="modal-overlay" id="aiModal">
+        <div class="modal-content">
+            <h2 class="modal-title">Select AI Difficulty</h2>
+            <div class="mode-selection">
+                <div class="mode-option" onclick="startGame('ai', 'easy')">
+                    <h3>Easy</h3>
+                    <p style="color: #888;">Slow reactions</p>
+                </div>
+                <div class="mode-option" onclick="startGame('ai', 'medium')">
+                    <h3>Medium</h3>
+                    <p style="color: #888;">Balanced play</p>
+                </div>
+                <div class="mode-option" onclick="startGame('ai', 'hard')">
+                    <h3>Hard</h3>
+                    <p style="color: #888;">Expert AI</p>
+                </div>
+            </div>
+            <button class="modal-btn" style="background: #ff4444; margin-top: 20px;" onclick="closeAIModal()">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        // ==================== GAME STATE ====================
+        const CELL_SIZE = 20;
+        const GRID_SIZE = 30;
+        const CANVAS_SIZE = 600;
+
+        let gameState = {
+            // Player Progress (Persistent)
+            playerLevel: 1,
+            xp: 0,
+            coins: 0,
+            highScore: 0,
+            unlockedFeatures: ['basic'],
+            tutorialsShown: [],
+            skipTutorials: false,
+
+            // Current Game State
+            snake: [],
+            snake2: [],
+            aiSnake: [],
+            direction: { x: 1, y: 0 },
+            direction2: { x: -1, y: 0 },
+            aiDirection: { x: -1, y: 0 },
+            nextDirection: null,
+            nextDirection2: null,
+            food: null,
+            powerUps: [],
+            obstacles: [],
+            portals: [],
+            particles: [],
+
+            // Game Status
+            score: 0,
+            score2: 0,
+            aiScore: 0,
+            combo: 1,
+            lastFoodType: null,
+            gameRunning: false,
+            gamePaused: false,
+            gameMode: 'classic',
+            aiDifficulty: 'medium',
+
+            // Active Power-Up Effects
+            speedBoost: false,
+            speedBoostTimer: 0,
+            shield: false,
+            scoreMultiplier: false,
+            scoreMultiplierTimer: 0,
+            ghostMode: false,
+            ghostModeTimer: 0,
+            magnetMode: false,
+            magnetModeTimer: 0,
+
+            // Dash Ability
+            dashCooldown: 0,
+            dashReady: true,
+
+            // Time Attack / Survival
+            timeRemaining: 60,
+            arenaSize: 30,
+
+            // Dimension
+            currentDimension: 'classic',
+
+            // Editor
+            editorWalls: [],
+            editorTool: 'wall',
+            customWalls: [],
+
+            // Speed
+            baseSpeed: 100,
+            currentSpeed: 100
+        };
+
+        // Level requirements
+        const LEVEL_XP = [0, 100, 250, 450, 700, 1000, 1400, 1900, 2500, 3200, 4000, 4900, 5900, 7000, 8500, 10200, 12100, 14200, 16500, 19000];
+
+        const LEVEL_UNLOCKS = {
+            2: { name: 'Speed Boost', icon: '⚡', desc: 'Collect yellow lightning for temporary speed boost (5 sec)' },
+            3: { name: 'Shield', icon: '🛡️', desc: 'Protects from ONE collision with walls or yourself' },
+            4: { name: 'Golden Apples', icon: '🌟', desc: 'Worth 3x points but disappear after 5 seconds!' },
+            5: { name: 'Obstacles', icon: '🧱', desc: 'Static walls appear on the board. Navigate carefully!' },
+            6: { name: 'Score Multiplier', icon: '✖️', desc: 'Double all points for 8 seconds!' },
+            7: { name: 'Combo System', icon: '🔥', desc: 'Eat same food type consecutively for up to 5x multiplier!' },
+            8: { name: 'Ghost Mode', icon: '👻', desc: 'Pass through walls and yourself for 4 seconds!' },
+            9: { name: 'Magnet', icon: '🧲', desc: 'Attracts nearby food toward you for 6 seconds!' },
+            10: { name: 'Portals', icon: '🌀', desc: 'Orange and blue portals teleport you across the map!' },
+            11: { name: 'Dash Ability', icon: '⚡', desc: 'Press SPACE to dash 3 tiles forward! (5 sec cooldown)' },
+            12: { name: 'Poison Apples', icon: '☠️', desc: 'Purple apples shrink you by 1 but give +50 points!' },
+            13: { name: 'Time Attack', icon: '⏱️', desc: '60 seconds to maximize your score!' },
+            14: { name: 'Moving Obstacles', icon: '🎯', desc: 'Some obstacles now patrol the board!' },
+            15: { name: 'Dimension Portals', icon: '🌌', desc: 'Purple portals transport you to new dimensions!' },
+            17: { name: 'Survival Mode', icon: '💀', desc: 'The arena shrinks over time. Survive as long as possible!' },
+            19: { name: 'Snake Customization', icon: '🎨', desc: 'Choose your snake color and pattern!' },
+            20: { name: 'Prestige Mode', icon: '✨', desc: 'Reset for permanent bonuses and particle trails!' }
+        };
+
+        // Tutorials
+        const TUTORIALS = {
+            welcome: { icon: '👋', title: 'WELCOME TO SNAKE ULTIMATE!', text: 'Use arrow keys or WASD to control your snake.\nEat red apples to grow and score points.\nAvoid walls and your own body!' },
+            speedBoost: { icon: '⚡', title: 'SPEED BOOST UNLOCKED!', text: 'Collect the yellow lightning for temporary 2x speed!\nDuration: 5 seconds' },
+            shield: { icon: '🛡️', title: 'SHIELD UNLOCKED!', text: 'The blue shield protects you from ONE collision!\nLook for the cyan glow around your snake.' },
+            goldenApple: { icon: '🌟', title: 'GOLDEN APPLES UNLOCKED!', text: 'Golden apples are worth 3x points!\nBut hurry - they disappear after 5 seconds!' },
+            obstacles: { icon: '🧱', title: 'OBSTACLES UNLOCKED!', text: 'Static walls now appear on the board.\nNavigate carefully around them!' },
+            multiplier: { icon: '✖️', title: 'SCORE MULTIPLIER UNLOCKED!', text: 'Orange multiplier icon doubles all points!\nDuration: 8 seconds. Stacks with combos!' },
+            combo: { icon: '🔥', title: 'COMBO SYSTEM UNLOCKED!', text: 'Eat the same food type consecutively!\n2 in a row = 2x, up to 5x maximum!' },
+            ghostMode: { icon: '👻', title: 'GHOST MODE UNLOCKED!', text: 'Pass through walls and yourself!\nDuration: 4 seconds. Your snake becomes transparent.' },
+            magnet: { icon: '🧲', title: 'MAGNET UNLOCKED!', text: 'Food within 5 tiles moves toward you!\nDuration: 6 seconds.' },
+            portals: { icon: '🌀', title: 'PORTALS UNLOCKED!', text: 'Enter orange portal, exit blue portal!\nYour direction is maintained.' },
+            dash: { icon: '⚡', title: 'DASH ABILITY UNLOCKED!', text: 'Press SPACE to dash 3 tiles forward!\nCooldown: 5 seconds.' },
+            poisonApple: { icon: '☠️', title: 'POISON APPLES UNLOCKED!', text: 'Purple apples shrink you by 1 segment!\nBut they give +50 points. Worth it?' },
+            twoPlayer: { icon: '👥', title: 'TWO PLAYER MODE', text: 'Player 1: Arrow Keys\nPlayer 2: IJKL\nFirst to 200 points or last one standing wins!' },
+            aiMode: { icon: '🤖', title: 'AI OPPONENT', text: 'Compete against an AI snake!\nFirst to 200 points wins.\nChoose your difficulty!' },
+            editor: { icon: '🎨', title: 'LEVEL EDITOR', text: 'Click to place walls, right-click to erase.\nTest your creation and share level codes!' }
+        };
+
+        // Canvas contexts
+        let canvas, ctx, particleCanvas, particleCtx, editorCanvas, editorCtx;
+        let gameLoop, particleLoop;
+
+        // ==================== INITIALIZATION ====================
+        function init() {
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+            particleCanvas = document.getElementById('particleCanvas');
+            particleCtx = particleCanvas.getContext('2d');
+            editorCanvas = document.getElementById('editorCanvas');
+            editorCtx = editorCanvas.getContext('2d');
+
+            loadProgress();
+            updateMenuDisplay();
+            setupControls();
+            setupEditorControls();
+
+            // Show welcome tutorial on first visit
+            if (!gameState.tutorialsShown.includes('welcome') && !gameState.skipTutorials) {
+                showTutorial('welcome');
+            }
+        }
+
+        function loadProgress() {
+            const saved = localStorage.getItem('snakeUltimateProgress');
+            if (saved) {
+                const data = JSON.parse(saved);
+                gameState.playerLevel = data.playerLevel || 1;
+                gameState.xp = data.xp || 0;
+                gameState.coins = data.coins || 0;
+                gameState.highScore = data.highScore || 0;
+                gameState.unlockedFeatures = data.unlockedFeatures || ['basic'];
+                gameState.tutorialsShown = data.tutorialsShown || [];
+                gameState.skipTutorials = data.skipTutorials || false;
+            }
+        }
+
+        function saveProgress() {
+            const data = {
+                playerLevel: gameState.playerLevel,
+                xp: gameState.xp,
+                coins: gameState.coins,
+                highScore: gameState.highScore,
+                unlockedFeatures: gameState.unlockedFeatures,
+                tutorialsShown: gameState.tutorialsShown,
+                skipTutorials: gameState.skipTutorials
+            };
+            localStorage.setItem('snakeUltimateProgress', JSON.stringify(data));
+        }
+
+        function updateMenuDisplay() {
+            document.getElementById('menuLevel').textContent = gameState.playerLevel;
+            document.getElementById('menuHighScore').textContent = gameState.highScore;
+            document.getElementById('menuCoins').textContent = gameState.coins;
+
+            // XP Bar
+            const currentLevelXp = LEVEL_XP[gameState.playerLevel - 1] || 0;
+            const nextLevelXp = LEVEL_XP[gameState.playerLevel] || LEVEL_XP[LEVEL_XP.length - 1];
+            const xpProgress = ((gameState.xp - currentLevelXp) / (nextLevelXp - currentLevelXp)) * 100;
+            document.getElementById('menuXpBar').style.width = Math.min(100, Math.max(0, xpProgress)) + '%';
+            document.getElementById('menuXpText').textContent = `${gameState.xp} / ${nextLevelXp} XP to Level ${gameState.playerLevel + 1}`;
+
+            // Next unlock preview
+            const nextUnlock = LEVEL_UNLOCKS[gameState.playerLevel + 1];
+            if (nextUnlock) {
+                document.getElementById('nextUnlockText').textContent = `${nextUnlock.icon} ${nextUnlock.name} at Level ${gameState.playerLevel + 1}`;
+            } else {
+                document.getElementById('nextUnlockText').textContent = 'All features unlocked!';
+            }
+
+            // Enable/disable special modes
+            document.getElementById('timeAttackBtn').disabled = gameState.playerLevel < 13;
+            document.getElementById('survivalBtn').disabled = gameState.playerLevel < 17;
+            if (gameState.playerLevel >= 13) {
+                document.getElementById('timeAttackBtn').style.background = 'linear-gradient(135deg, #e74c3c, #c0392b)';
+                document.getElementById('timeAttackBtn').textContent = 'Time Attack Mode';
+            }
+            if (gameState.playerLevel >= 17) {
+                document.getElementById('survivalBtn').style.background = 'linear-gradient(135deg, #2c3e50, #1a252f)';
+                document.getElementById('survivalBtn').textContent = 'Survival Mode';
+            }
+        }
+
+        // ==================== CONTROLS ====================
+        function setupControls() {
+            document.addEventListener('keydown', (e) => {
+                if (!gameState.gameRunning) return;
+
+                // Player 1 controls
+                if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+                    if (gameState.direction.y !== 1) gameState.nextDirection = { x: 0, y: -1 };
+                } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+                    if (gameState.direction.y !== -1) gameState.nextDirection = { x: 0, y: 1 };
+                } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+                    if (gameState.direction.x !== 1) gameState.nextDirection = { x: -1, y: 0 };
+                } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                    if (gameState.direction.x !== -1) gameState.nextDirection = { x: 1, y: 0 };
+                }
+
+                // Player 2 controls (Two Player Mode)
+                if (gameState.gameMode === 'twoPlayer') {
+                    if (e.key === 'i' || e.key === 'I') {
+                        if (gameState.direction2.y !== 1) gameState.nextDirection2 = { x: 0, y: -1 };
+                    } else if (e.key === 'k' || e.key === 'K') {
+                        if (gameState.direction2.y !== -1) gameState.nextDirection2 = { x: 0, y: 1 };
+                    } else if (e.key === 'j' || e.key === 'J') {
+                        if (gameState.direction2.x !== 1) gameState.nextDirection2 = { x: -1, y: 0 };
+                    } else if (e.key === 'l' || e.key === 'L') {
+                        if (gameState.direction2.x !== -1) gameState.nextDirection2 = { x: 1, y: 0 };
+                    }
+                }
+
+                // Dash (Space)
+                if (e.key === ' ' && gameState.playerLevel >= 11 && gameState.dashReady) {
+                    doDash();
+                }
+
+                // Pause
+                if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+                    togglePause();
+                }
+            });
+        }
+
+        function setDirection(dir) {
+            if (!gameState.gameRunning) return;
+            switch(dir) {
+                case 'up': if (gameState.direction.y !== 1) gameState.nextDirection = { x: 0, y: -1 }; break;
+                case 'down': if (gameState.direction.y !== -1) gameState.nextDirection = { x: 0, y: 1 }; break;
+                case 'left': if (gameState.direction.x !== 1) gameState.nextDirection = { x: -1, y: 0 }; break;
+                case 'right': if (gameState.direction.x !== -1) gameState.nextDirection = { x: 1, y: 0 }; break;
+            }
+        }
+
+        function doDash() {
+            if (!gameState.dashReady || gameState.playerLevel < 11) return;
+
+            gameState.dashReady = false;
+            gameState.dashCooldown = 5000;
+
+            // Move snake 3 tiles forward
+            const head = gameState.snake[0];
+            for (let i = 0; i < 3; i++) {
+                const newX = (head.x + gameState.direction.x * (i + 1) + GRID_SIZE) % GRID_SIZE;
+                const newY = (head.y + gameState.direction.y * (i + 1) + GRID_SIZE) % GRID_SIZE;
+                createParticles(newX * CELL_SIZE + CELL_SIZE/2, newY * CELL_SIZE + CELL_SIZE/2, '#ffff00', 5);
+            }
+
+            const newHead = {
+                x: (head.x + gameState.direction.x * 3 + GRID_SIZE) % GRID_SIZE,
+                y: (head.y + gameState.direction.y * 3 + GRID_SIZE) % GRID_SIZE
+            };
+            gameState.snake.unshift(newHead);
+            gameState.snake.pop();
+        }
+
+        // ==================== GAME START ====================
+        function startGame(mode, difficulty = 'medium') {
+            gameState.gameMode = mode;
+            gameState.aiDifficulty = difficulty;
+
+            // Show relevant tutorial
+            if (mode === 'twoPlayer' && !gameState.tutorialsShown.includes('twoPlayer') && !gameState.skipTutorials) {
+                showTutorial('twoPlayer');
+            } else if (mode === 'ai' && !gameState.tutorialsShown.includes('aiMode') && !gameState.skipTutorials) {
+                showTutorial('aiMode');
+            }
+
+            resetGame();
+
+            document.getElementById('mainMenu').style.display = 'none';
+            document.getElementById('gameScreen').style.display = 'block';
+            document.getElementById('aiModal').style.display = 'none';
+
+            // Show dash button if unlocked
+            if (gameState.playerLevel >= 11) {
+                document.getElementById('dashContainer').style.display = 'block';
+                document.getElementById('dashBtn').style.display = 'block';
+            }
+
+            // Timer for time attack
+            if (mode === 'timeAttack') {
+                document.getElementById('timerItem').style.display = 'block';
+                gameState.timeRemaining = 60;
+            } else {
+                document.getElementById('timerItem').style.display = 'none';
+            }
+
+            gameState.gameRunning = true;
+            gameState.gamePaused = false;
+
+            gameLoop = setInterval(update, gameState.currentSpeed);
+            particleLoop = setInterval(updateParticles, 16);
+
+            if (mode === 'timeAttack') {
+                setInterval(() => {
+                    if (gameState.gameRunning && !gameState.gamePaused && gameState.timeRemaining > 0) {
+                        gameState.timeRemaining--;
+                        document.getElementById('timerDisplay').textContent = gameState.timeRemaining;
+                        if (gameState.timeRemaining <= 0) {
+                            endGame('Time\'s up!');
+                        }
+                    }
+                }, 1000);
+            }
+
+            if (mode === 'survival') {
+                setInterval(() => {
+                    if (gameState.gameRunning && !gameState.gamePaused && gameState.arenaSize > 10) {
+                        gameState.arenaSize--;
+                        showToast('Arena shrinking!');
+                    }
+                }, 10000);
+            }
+        }
+
+        function resetGame() {
+            // Reset snake
+            gameState.snake = [
+                { x: 5, y: 15 },
+                { x: 4, y: 15 },
+                { x: 3, y: 15 }
+            ];
+
+            // Player 2 snake
+            if (gameState.gameMode === 'twoPlayer') {
+                gameState.snake2 = [
+                    { x: 25, y: 15 },
+                    { x: 26, y: 15 },
+                    { x: 27, y: 15 }
+                ];
+                gameState.direction2 = { x: -1, y: 0 };
+                gameState.score2 = 0;
+            }
+
+            // AI snake
+            if (gameState.gameMode === 'ai') {
+                gameState.aiSnake = [
+                    { x: 25, y: 15 },
+                    { x: 26, y: 15 },
+                    { x: 27, y: 15 }
+                ];
+                gameState.aiDirection = { x: -1, y: 0 };
+                gameState.aiScore = 0;
+            }
+
+            gameState.direction = { x: 1, y: 0 };
+            gameState.nextDirection = null;
+            gameState.score = 0;
+            gameState.combo = 1;
+            gameState.lastFoodType = null;
+            gameState.powerUps = [];
+            gameState.obstacles = [];
+            gameState.portals = [];
+            gameState.particles = [];
+            gameState.arenaSize = 30;
+
+            // Reset power-up states
+            gameState.speedBoost = false;
+            gameState.shield = false;
+            gameState.scoreMultiplier = false;
+            gameState.ghostMode = false;
+            gameState.magnetMode = false;
+            gameState.dashReady = true;
+            gameState.dashCooldown = 0;
+
+            // Set speed
+            gameState.currentSpeed = gameState.baseSpeed;
+
+            // Spawn initial food
+            spawnFood();
+
+            // Spawn obstacles if unlocked
+            if (gameState.playerLevel >= 5) {
+                spawnObstacles(3);
+            }
+
+            // Spawn portals if unlocked
+            if (gameState.playerLevel >= 10) {
+                spawnPortals();
+            }
+
+            // Apply custom walls from editor
+            if (gameState.customWalls.length > 0) {
+                gameState.obstacles = [...gameState.customWalls];
+            }
+
+            updateDisplay();
+        }
+
+        // ==================== SPAWNING ====================
+        function spawnFood() {
+            let pos;
+            do {
+                pos = {
+                    x: Math.floor(Math.random() * gameState.arenaSize),
+                    y: Math.floor(Math.random() * gameState.arenaSize)
+                };
+            } while (isOccupied(pos.x, pos.y));
+
+            // Determine food type
+            let type = 'normal';
+            const rand = Math.random();
+
+            if (gameState.playerLevel >= 12 && rand < 0.10 && gameState.snake.length >= 4) {
+                type = 'poison';
+            } else if (gameState.playerLevel >= 4 && rand < 0.25) {
+                type = 'golden';
+            }
+
+            gameState.food = {
+                x: pos.x,
+                y: pos.y,
+                type: type,
+                timer: type === 'golden' ? 5000 : null
+            };
+        }
+
+        function spawnPowerUp() {
+            if (gameState.powerUps.length >= 2) return;
+            if (Math.random() > 0.02) return;
+
+            const availablePowerUps = [];
+            if (gameState.playerLevel >= 2) availablePowerUps.push('speed');
+            if (gameState.playerLevel >= 3) availablePowerUps.push('shield');
+            if (gameState.playerLevel >= 6) availablePowerUps.push('multiplier');
+            if (gameState.playerLevel >= 8) availablePowerUps.push('ghost');
+            if (gameState.playerLevel >= 9) availablePowerUps.push('magnet');
+
+            if (availablePowerUps.length === 0) return;
+
+            let pos;
+            do {
+                pos = {
+                    x: Math.floor(Math.random() * gameState.arenaSize),
+                    y: Math.floor(Math.random() * gameState.arenaSize)
+                };
+            } while (isOccupied(pos.x, pos.y));
+
+            const type = availablePowerUps[Math.floor(Math.random() * availablePowerUps.length)];
+            gameState.powerUps.push({ x: pos.x, y: pos.y, type: type });
+        }
+
+        function spawnObstacles(count) {
+            for (let i = 0; i < count; i++) {
+                let pos;
+                do {
+                    pos = {
+                        x: Math.floor(Math.random() * (gameState.arenaSize - 4)) + 2,
+                        y: Math.floor(Math.random() * (gameState.arenaSize - 4)) + 2
+                    };
+                } while (isOccupied(pos.x, pos.y));
+
+                gameState.obstacles.push({ x: pos.x, y: pos.y, moving: gameState.playerLevel >= 14 && Math.random() < 0.3 });
+            }
+        }
+
+        function spawnPortals() {
+            // Spawn 2 portal pairs
+            for (let i = 0; i < 2; i++) {
+                let pos1, pos2;
+                do {
+                    pos1 = {
+                        x: Math.floor(Math.random() * (gameState.arenaSize - 4)) + 2,
+                        y: Math.floor(Math.random() * (gameState.arenaSize - 4)) + 2
+                    };
+                } while (isOccupied(pos1.x, pos1.y));
+
+                do {
+                    pos2 = {
+                        x: Math.floor(Math.random() * (gameState.arenaSize - 4)) + 2,
+                        y: Math.floor(Math.random() * (gameState.arenaSize - 4)) + 2
+                    };
+                } while (isOccupied(pos2.x, pos2.y) || (pos2.x === pos1.x && pos2.y === pos1.y));
+
+                gameState.portals.push(
+                    { x: pos1.x, y: pos1.y, type: 'orange', pairId: i },
+                    { x: pos2.x, y: pos2.y, type: 'blue', pairId: i }
+                );
+            }
+        }
+
+        function isOccupied(x, y) {
+            // Check snake
+            if (gameState.snake.some(s => s.x === x && s.y === y)) return true;
+            if (gameState.snake2.some(s => s.x === x && s.y === y)) return true;
+            if (gameState.aiSnake.some(s => s.x === x && s.y === y)) return true;
+
+            // Check food
+            if (gameState.food && gameState.food.x === x && gameState.food.y === y) return true;
+
+            // Check obstacles
+            if (gameState.obstacles.some(o => o.x === x && o.y === y)) return true;
+
+            // Check power-ups
+            if (gameState.powerUps.some(p => p.x === x && p.y === y)) return true;
+
+            // Check portals
+            if (gameState.portals.some(p => p.x === x && p.y === y)) return true;
+
+            return false;
+        }
+
+        // ==================== GAME UPDATE ====================
+        function update() {
+            if (gameState.gamePaused) return;
+
+            // Apply direction changes
+            if (gameState.nextDirection) {
+                gameState.direction = gameState.nextDirection;
+                gameState.nextDirection = null;
+            }
+            if (gameState.nextDirection2) {
+                gameState.direction2 = gameState.nextDirection2;
+                gameState.nextDirection2 = null;
+            }
+
+            // Update Player 1
+            updateSnake(gameState.snake, gameState.direction, 1);
+
+            // Update Player 2
+            if (gameState.gameMode === 'twoPlayer') {
+                updateSnake(gameState.snake2, gameState.direction2, 2);
+            }
+
+            // Update AI
+            if (gameState.gameMode === 'ai') {
+                updateAI();
+                updateSnake(gameState.aiSnake, gameState.aiDirection, 3);
+            }
+
+            // Update moving obstacles
+            if (gameState.playerLevel >= 14) {
+                updateMovingObstacles();
+            }
+
+            // Spawn power-ups
+            spawnPowerUp();
+
+            // Update power-up timers
+            updatePowerUpTimers();
+
+            // Update dash cooldown
+            if (!gameState.dashReady) {
+                gameState.dashCooldown -= gameState.currentSpeed;
+                if (gameState.dashCooldown <= 0) {
+                    gameState.dashReady = true;
+                }
+                document.getElementById('dashBar').style.width = ((5000 - gameState.dashCooldown) / 5000 * 100) + '%';
+            }
+
+            // Golden apple timer
+            if (gameState.food && gameState.food.type === 'golden') {
+                gameState.food.timer -= gameState.currentSpeed;
+                if (gameState.food.timer <= 0) {
+                    spawnFood();
+                }
+            }
+
+            // Magnet effect
+            if (gameState.magnetMode && gameState.food) {
+                const head = gameState.snake[0];
+                const dx = head.x - gameState.food.x;
+                const dy = head.y - gameState.food.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist <= 5 && dist > 0) {
+                    gameState.food.x += Math.sign(dx);
+                    gameState.food.y += Math.sign(dy);
+                }
+            }
+
+            // Check win conditions for multiplayer modes
+            if (gameState.gameMode === 'twoPlayer' || gameState.gameMode === 'ai') {
+                if (gameState.score >= 200) {
+                    endGame('Player 1 Wins!');
+                } else if (gameState.score2 >= 200 || gameState.aiScore >= 200) {
+                    endGame(gameState.gameMode === 'twoPlayer' ? 'Player 2 Wins!' : 'AI Wins!');
+                }
+            }
+
+            draw();
+            updateDisplay();
+        }
+
+        function updateSnake(snake, direction, player) {
+            if (snake.length === 0) return;
+
+            const head = snake[0];
+            let newHead = {
+                x: head.x + direction.x,
+                y: head.y + direction.y
+            };
+
+            // Check portal teleportation
+            const portal = gameState.portals.find(p => p.x === newHead.x && p.y === newHead.y);
+            if (portal) {
+                const exitPortal = gameState.portals.find(p => p.pairId === portal.pairId && p.type !== portal.type);
+                if (exitPortal) {
+                    newHead = { x: exitPortal.x + direction.x, y: exitPortal.y + direction.y };
+                    createParticles(exitPortal.x * CELL_SIZE + CELL_SIZE/2, exitPortal.y * CELL_SIZE + CELL_SIZE/2, '#00ccff', 15);
+                }
+            }
+
+            // Wall collision
+            const isOutOfBounds = newHead.x < 0 || newHead.x >= gameState.arenaSize ||
+                                  newHead.y < 0 || newHead.y >= gameState.arenaSize;
+
+            if (isOutOfBounds) {
+                if (gameState.ghostMode && player === 1) {
+                    newHead.x = (newHead.x + gameState.arenaSize) % gameState.arenaSize;
+                    newHead.y = (newHead.y + gameState.arenaSize) % gameState.arenaSize;
+                } else if (gameState.shield && player === 1) {
+                    gameState.shield = false;
+                    showToast('Shield used!');
+                    return;
+                } else {
+                    handleDeath(player);
+                    return;
+                }
+            }
+
+            // Obstacle collision
+            const hitObstacle = gameState.obstacles.some(o => o.x === newHead.x && o.y === newHead.y);
+            if (hitObstacle) {
+                if (gameState.ghostMode && player === 1) {
+                    // Pass through
+                } else if (gameState.shield && player === 1) {
+                    gameState.shield = false;
+                    showToast('Shield used!');
+                    return;
+                } else {
+                    handleDeath(player);
+                    return;
+                }
+            }
+
+            // Self collision
+            const selfCollision = snake.slice(1).some(s => s.x === newHead.x && s.y === newHead.y);
+            if (selfCollision) {
+                if (gameState.ghostMode && player === 1) {
+                    // Pass through
+                } else if (gameState.shield && player === 1) {
+                    gameState.shield = false;
+                    showToast('Shield used!');
+                    return;
+                } else {
+                    handleDeath(player);
+                    return;
+                }
+            }
+
+            // Collision with other snakes
+            if (gameState.gameMode === 'twoPlayer' || gameState.gameMode === 'ai') {
+                const otherSnake = player === 1 ? (gameState.gameMode === 'twoPlayer' ? gameState.snake2 : gameState.aiSnake) : gameState.snake;
+                if (otherSnake.some(s => s.x === newHead.x && s.y === newHead.y)) {
+                    handleDeath(player);
+                    return;
+                }
+            }
+
+            snake.unshift(newHead);
+
+            // Check food collision
+            if (gameState.food && newHead.x === gameState.food.x && newHead.y === gameState.food.y) {
+                let points = 10;
+                let grow = true;
+
+                if (gameState.food.type === 'golden') {
+                    points = 30;
+                } else if (gameState.food.type === 'poison') {
+                    points = 50;
+                    grow = false;
+                    if (snake.length > 1) snake.pop();
+                }
+
+                // Apply combo
+                if (gameState.playerLevel >= 7) {
+                    if (gameState.lastFoodType === gameState.food.type) {
+                        gameState.combo = Math.min(5, gameState.combo + 1);
+                    } else {
+                        gameState.combo = 1;
+                    }
+                    gameState.lastFoodType = gameState.food.type;
+
+                    if (gameState.combo >= 3) {
+                        showCombo();
+                    }
+                }
+
+                // Apply multipliers
+                points *= gameState.combo;
+                if (gameState.scoreMultiplier) points *= 2;
+
+                // Add score
+                if (player === 1) {
+                    gameState.score += points;
+                } else if (player === 2) {
+                    gameState.score2 += points;
+                } else if (player === 3) {
+                    gameState.aiScore += points;
+                }
+
+                // Create particles
+                const color = gameState.food.type === 'golden' ? '#ffd700' : gameState.food.type === 'poison' ? '#9b59b6' : '#ff4444';
+                createParticles(gameState.food.x * CELL_SIZE + CELL_SIZE/2, gameState.food.y * CELL_SIZE + CELL_SIZE/2, color, 15);
+
+                spawnFood();
+
+                // Don't grow for poison
+                if (!grow) return;
+            } else {
+                snake.pop();
+            }
+
+            // Check power-up collision
+            const powerUpIndex = gameState.powerUps.findIndex(p => p.x === newHead.x && p.y === newHead.y);
+            if (powerUpIndex !== -1 && player === 1) {
+                const powerUp = gameState.powerUps[powerUpIndex];
+                activatePowerUp(powerUp.type);
+                gameState.powerUps.splice(powerUpIndex, 1);
+                createParticles(newHead.x * CELL_SIZE + CELL_SIZE/2, newHead.y * CELL_SIZE + CELL_SIZE/2, '#00ccff', 15);
+
+                // Reset combo when collecting power-up
+                gameState.combo = 1;
+            }
+        }
+
+        function handleDeath(player) {
+            if (player === 1) {
+                if (gameState.gameMode === 'twoPlayer' || gameState.gameMode === 'ai') {
+                    gameState.snake = [];
+                    endGame(gameState.gameMode === 'twoPlayer' ? 'Player 2 Wins!' : 'AI Wins!');
+                } else {
+                    endGame('Game Over');
+                }
+            } else if (player === 2) {
+                gameState.snake2 = [];
+                endGame('Player 1 Wins!');
+            } else if (player === 3) {
+                gameState.aiSnake = [];
+                endGame('Player 1 Wins!');
+            }
+        }
+
+        function updateAI() {
+            if (gameState.aiSnake.length === 0 || !gameState.food) return;
+
+            const head = gameState.aiSnake[0];
+            const target = gameState.food;
+
+            // Simple pathfinding with difficulty adjustment
+            let directions = [
+                { x: 0, y: -1 },
+                { x: 0, y: 1 },
+                { x: -1, y: 0 },
+                { x: 1, y: 0 }
+            ];
+
+            // Filter out reverse direction
+            directions = directions.filter(d => !(d.x === -gameState.aiDirection.x && d.y === -gameState.aiDirection.y));
+
+            // Score each direction
+            directions.forEach(d => {
+                const newPos = { x: head.x + d.x, y: head.y + d.y };
+                d.score = 0;
+
+                // Prefer direction toward food
+                const distToFood = Math.abs(newPos.x - target.x) + Math.abs(newPos.y - target.y);
+                d.score -= distToFood;
+
+                // Avoid walls
+                if (newPos.x < 0 || newPos.x >= GRID_SIZE || newPos.y < 0 || newPos.y >= GRID_SIZE) {
+                    d.score -= 1000;
+                }
+
+                // Avoid self
+                if (gameState.aiSnake.some(s => s.x === newPos.x && s.y === newPos.y)) {
+                    d.score -= 1000;
+                }
+
+                // Avoid player
+                if (gameState.snake.some(s => s.x === newPos.x && s.y === newPos.y)) {
+                    d.score -= 1000;
+                }
+
+                // Avoid obstacles
+                if (gameState.obstacles.some(o => o.x === newPos.x && o.y === newPos.y)) {
+                    d.score -= 1000;
+                }
+            });
+
+            // Add randomness based on difficulty
+            const randomFactor = gameState.aiDifficulty === 'easy' ? 0.3 : gameState.aiDifficulty === 'medium' ? 0.1 : 0.02;
+            if (Math.random() < randomFactor) {
+                const validDirs = directions.filter(d => d.score > -500);
+                if (validDirs.length > 0) {
+                    gameState.aiDirection = validDirs[Math.floor(Math.random() * validDirs.length)];
+                    return;
+                }
+            }
+
+            // Choose best direction
+            directions.sort((a, b) => b.score - a.score);
+            if (directions[0].score > -500) {
+                gameState.aiDirection = { x: directions[0].x, y: directions[0].y };
+            }
+        }
+
+        function updateMovingObstacles() {
+            gameState.obstacles.forEach(obs => {
+                if (!obs.moving) return;
+                if (Math.random() < 0.05) {
+                    const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+                    const dir = dirs[Math.floor(Math.random() * dirs.length)];
+                    const newX = obs.x + dir.x;
+                    const newY = obs.y + dir.y;
+                    if (newX >= 2 && newX < GRID_SIZE - 2 && newY >= 2 && newY < GRID_SIZE - 2) {
+                        if (!isOccupied(newX, newY)) {
+                            obs.x = newX;
+                            obs.y = newY;
+                        }
+                    }
+                }
+            });
+        }
+
+        function updatePowerUpTimers() {
+            if (gameState.speedBoost) {
+                gameState.speedBoostTimer -= gameState.baseSpeed;
+                if (gameState.speedBoostTimer <= 0) {
+                    gameState.speedBoost = false;
+                    clearInterval(gameLoop);
+                    gameState.currentSpeed = gameState.baseSpeed;
+                    gameLoop = setInterval(update, gameState.currentSpeed);
+                }
+            }
+
+            if (gameState.scoreMultiplier) {
+                gameState.scoreMultiplierTimer -= gameState.currentSpeed;
+                if (gameState.scoreMultiplierTimer <= 0) {
+                    gameState.scoreMultiplier = false;
+                }
+            }
+
+            if (gameState.ghostMode) {
+                gameState.ghostModeTimer -= gameState.currentSpeed;
+                if (gameState.ghostModeTimer <= 0) {
+                    gameState.ghostMode = false;
+                }
+            }
+
+            if (gameState.magnetMode) {
+                gameState.magnetModeTimer -= gameState.currentSpeed;
+                if (gameState.magnetModeTimer <= 0) {
+                    gameState.magnetMode = false;
+                }
+            }
+
+            updatePowerUpDisplay();
+        }
+
+        function activatePowerUp(type) {
+            // Show tutorial on first use
+            const tutorialKey = type === 'speed' ? 'speedBoost' : type === 'multiplier' ? 'multiplier' : type + 'Mode';
+            if (!gameState.tutorialsShown.includes(tutorialKey) && !gameState.skipTutorials && TUTORIALS[tutorialKey]) {
+                // Skip showing tutorial mid-game for now
+            }
+
+            switch(type) {
+                case 'speed':
+                    gameState.speedBoost = true;
+                    gameState.speedBoostTimer = 5000;
+                    clearInterval(gameLoop);
+                    gameState.currentSpeed = gameState.baseSpeed / 2;
+                    gameLoop = setInterval(update, gameState.currentSpeed);
+                    showToast('Speed Boost activated!');
+                    break;
+                case 'shield':
+                    gameState.shield = true;
+                    showToast('Shield activated!');
+                    break;
+                case 'multiplier':
+                    gameState.scoreMultiplier = true;
+                    gameState.scoreMultiplierTimer = 8000;
+                    showToast('2x Score Multiplier!');
+                    break;
+                case 'ghost':
+                    gameState.ghostMode = true;
+                    gameState.ghostModeTimer = 4000;
+                    showToast('Ghost Mode activated!');
+                    break;
+                case 'magnet':
+                    gameState.magnetMode = true;
+                    gameState.magnetModeTimer = 6000;
+                    showToast('Magnet activated!');
+                    break;
+            }
+        }
+
+        // ==================== DRAWING ====================
+        function draw() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+            // Draw grid lines
+            ctx.strokeStyle = '#111';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= GRID_SIZE; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * CELL_SIZE, 0);
+                ctx.lineTo(i * CELL_SIZE, CANVAS_SIZE);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i * CELL_SIZE);
+                ctx.lineTo(CANVAS_SIZE, i * CELL_SIZE);
+                ctx.stroke();
+            }
+
+            // Draw arena boundary for survival mode
+            if (gameState.gameMode === 'survival' && gameState.arenaSize < 30) {
+                ctx.fillStyle = 'rgba(255, 68, 68, 0.3)';
+                const offset = (30 - gameState.arenaSize) * CELL_SIZE / 2;
+                ctx.fillRect(0, 0, CANVAS_SIZE, offset);
+                ctx.fillRect(0, CANVAS_SIZE - offset, CANVAS_SIZE, offset);
+                ctx.fillRect(0, 0, offset, CANVAS_SIZE);
+                ctx.fillRect(CANVAS_SIZE - offset, 0, offset, CANVAS_SIZE);
+            }
+
+            // Draw obstacles
+            gameState.obstacles.forEach(obs => {
+                ctx.fillStyle = obs.moving ? '#ff6b6b' : '#8b4513';
+                ctx.fillRect(obs.x * CELL_SIZE + 2, obs.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+            });
+
+            // Draw portals
+            gameState.portals.forEach(portal => {
+                const gradient = ctx.createRadialGradient(
+                    portal.x * CELL_SIZE + CELL_SIZE/2, portal.y * CELL_SIZE + CELL_SIZE/2, 2,
+                    portal.x * CELL_SIZE + CELL_SIZE/2, portal.y * CELL_SIZE + CELL_SIZE/2, CELL_SIZE/2
+                );
+                if (portal.type === 'orange') {
+                    gradient.addColorStop(0, '#ff8800');
+                    gradient.addColorStop(1, '#cc5500');
+                } else {
+                    gradient.addColorStop(0, '#00ccff');
+                    gradient.addColorStop(1, '#0066aa');
+                }
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(portal.x * CELL_SIZE + CELL_SIZE/2, portal.y * CELL_SIZE + CELL_SIZE/2, CELL_SIZE/2 - 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Draw food
+            if (gameState.food) {
+                let foodColor = '#ff4444';
+                if (gameState.food.type === 'golden') {
+                    foodColor = '#ffd700';
+                } else if (gameState.food.type === 'poison') {
+                    foodColor = '#9b59b6';
+                }
+
+                ctx.fillStyle = foodColor;
+                ctx.beginPath();
+                ctx.arc(
+                    gameState.food.x * CELL_SIZE + CELL_SIZE/2,
+                    gameState.food.y * CELL_SIZE + CELL_SIZE/2,
+                    CELL_SIZE/2 - 2,
+                    0, Math.PI * 2
+                );
+                ctx.fill();
+
+                // Sparkle effect for golden
+                if (gameState.food.type === 'golden') {
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(
+                        gameState.food.x * CELL_SIZE + CELL_SIZE/2,
+                        gameState.food.y * CELL_SIZE + CELL_SIZE/2,
+                        CELL_SIZE/2 + 2,
+                        0, Math.PI * 2
+                    );
+                    ctx.stroke();
+                }
+            }
+
+            // Draw power-ups
+            gameState.powerUps.forEach(pu => {
+                let color, icon;
+                switch(pu.type) {
+                    case 'speed': color = '#ffff00'; icon = '⚡'; break;
+                    case 'shield': color = '#00ccff'; icon = '🛡️'; break;
+                    case 'multiplier': color = '#ff8800'; icon = '✖️'; break;
+                    case 'ghost': color = '#9b59b6'; icon = '👻'; break;
+                    case 'magnet': color = '#ff6b6b'; icon = '🧲'; break;
+                }
+
+                ctx.fillStyle = color;
+                ctx.fillRect(pu.x * CELL_SIZE + 2, pu.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+                ctx.fillStyle = '#000';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(icon, pu.x * CELL_SIZE + CELL_SIZE/2, pu.y * CELL_SIZE + CELL_SIZE/2 + 4);
+            });
+
+            // Draw Player 1 snake
+            drawSnake(gameState.snake, '#00ff88', gameState.ghostMode);
+
+            // Draw Player 2 snake
+            if (gameState.gameMode === 'twoPlayer') {
+                drawSnake(gameState.snake2, '#ff00ff', false);
+            }
+
+            // Draw AI snake
+            if (gameState.gameMode === 'ai') {
+                drawSnake(gameState.aiSnake, '#ff6b6b', false);
+            }
+        }
+
+        function drawSnake(snake, color, transparent) {
+            snake.forEach((segment, index) => {
+                const alpha = transparent ? 0.5 : 1 - (index / snake.length * 0.3);
+                ctx.fillStyle = color;
+                ctx.globalAlpha = alpha;
+
+                if (index === 0) {
+                    // Head - slightly larger and rounded
+                    ctx.beginPath();
+                    ctx.arc(
+                        segment.x * CELL_SIZE + CELL_SIZE/2,
+                        segment.y * CELL_SIZE + CELL_SIZE/2,
+                        CELL_SIZE/2 - 1,
+                        0, Math.PI * 2
+                    );
+                    ctx.fill();
+
+                    // Shield glow
+                    if (gameState.shield && color === '#00ff88') {
+                        ctx.strokeStyle = '#00ccff';
+                        ctx.lineWidth = 3;
+                        ctx.beginPath();
+                        ctx.arc(
+                            segment.x * CELL_SIZE + CELL_SIZE/2,
+                            segment.y * CELL_SIZE + CELL_SIZE/2,
+                            CELL_SIZE/2 + 2,
+                            0, Math.PI * 2
+                        );
+                        ctx.stroke();
+                    }
+                } else {
+                    ctx.fillRect(
+                        segment.x * CELL_SIZE + 1,
+                        segment.y * CELL_SIZE + 1,
+                        CELL_SIZE - 2,
+                        CELL_SIZE - 2
+                    );
+                }
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        // ==================== PARTICLES ====================
+        function createParticles(x, y, color, count) {
+            for (let i = 0; i < count; i++) {
+                gameState.particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8 - 2,
+                    color: color,
+                    life: 1,
+                    size: Math.random() * 4 + 2
+                });
+            }
+        }
+
+        function updateParticles() {
+            particleCtx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+            gameState.particles = gameState.particles.filter(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.2; // Gravity
+                p.life -= 0.02;
+
+                if (p.life > 0) {
+                    particleCtx.globalAlpha = p.life;
+                    particleCtx.fillStyle = p.color;
+                    particleCtx.beginPath();
+                    particleCtx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+                    particleCtx.fill();
+                    return true;
+                }
+                return false;
+            });
+            particleCtx.globalAlpha = 1;
+        }
+
+        // ==================== UI UPDATES ====================
+        function updateDisplay() {
+            document.getElementById('scoreDisplay').textContent = gameState.score;
+            document.getElementById('highScoreDisplay').textContent = Math.max(gameState.highScore, gameState.score);
+            document.getElementById('lengthDisplay').textContent = gameState.snake.length;
+            document.getElementById('comboDisplay').textContent = gameState.combo + 'x';
+
+            if (gameState.combo >= 3) {
+                document.getElementById('comboDisplay').style.color = '#ff8800';
+            } else {
+                document.getElementById('comboDisplay').style.color = '#00ff88';
+            }
+        }
+
+        function updatePowerUpDisplay() {
+            const container = document.getElementById('powerUpsDisplay');
+            container.innerHTML = '';
+
+            if (gameState.speedBoost) {
+                container.innerHTML += `<div class="power-up-active"><span class="power-up-icon">⚡</span><span>Speed ${(gameState.speedBoostTimer/1000).toFixed(1)}s</span></div>`;
+            }
+            if (gameState.shield) {
+                container.innerHTML += `<div class="power-up-active"><span class="power-up-icon">🛡️</span><span>Shield Ready</span></div>`;
+            }
+            if (gameState.scoreMultiplier) {
+                container.innerHTML += `<div class="power-up-active"><span class="power-up-icon">✖️</span><span>2x Points ${(gameState.scoreMultiplierTimer/1000).toFixed(1)}s</span></div>`;
+            }
+            if (gameState.ghostMode) {
+                container.innerHTML += `<div class="power-up-active"><span class="power-up-icon">👻</span><span>Ghost ${(gameState.ghostModeTimer/1000).toFixed(1)}s</span></div>`;
+            }
+            if (gameState.magnetMode) {
+                container.innerHTML += `<div class="power-up-active"><span class="power-up-icon">🧲</span><span>Magnet ${(gameState.magnetModeTimer/1000).toFixed(1)}s</span></div>`;
+            }
+        }
+
+        function showCombo() {
+            // Already showing combo in display
+        }
+
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // ==================== GAME END ====================
+        function endGame(message) {
+            gameState.gameRunning = false;
+            clearInterval(gameLoop);
+            clearInterval(particleLoop);
+
+            // Calculate rewards
+            const xpEarned = Math.floor(gameState.score / 5);
+            const coinsEarned = Math.floor(gameState.score / 10);
+
+            // Update progress
+            gameState.xp += xpEarned;
+            gameState.coins += coinsEarned;
+            if (gameState.score > gameState.highScore) {
+                gameState.highScore = gameState.score;
+            }
+
+            // Check for level up
+            let leveledUp = false;
+            while (gameState.playerLevel < 20 && gameState.xp >= LEVEL_XP[gameState.playerLevel]) {
+                gameState.playerLevel++;
+                leveledUp = true;
+            }
+
+            saveProgress();
+
+            // Show game over screen
+            document.getElementById('gameOverTitle').textContent = message;
+            document.getElementById('finalScore').textContent = gameState.score;
+            document.getElementById('finalLength').textContent = gameState.snake.length || 0;
+            document.getElementById('xpEarned').textContent = '+' + xpEarned;
+            document.getElementById('coinsEarned').textContent = '+' + coinsEarned;
+            document.getElementById('gameOverModal').style.display = 'flex';
+
+            // Show level up if applicable
+            if (leveledUp) {
+                setTimeout(() => {
+                    document.getElementById('gameOverModal').style.display = 'none';
+                    showLevelUp();
+                }, 2000);
+            }
+        }
+
+        function showLevelUp() {
+            document.getElementById('newLevelDisplay').textContent = gameState.playerLevel;
+            const unlock = LEVEL_UNLOCKS[gameState.playerLevel];
+            if (unlock) {
+                document.getElementById('levelUpUnlock').innerHTML = `<span style="font-size: 2em;">${unlock.icon}</span><br><strong>${unlock.name}</strong><br>${unlock.desc}`;
+            } else {
+                document.getElementById('levelUpUnlock').innerHTML = 'Keep playing to unlock more features!';
+            }
+            document.getElementById('levelUpModal').style.display = 'flex';
+        }
+
+        function closeGameOver() {
+            document.getElementById('gameOverModal').style.display = 'none';
+            quitGame();
+        }
+
+        function closeLevelUp() {
+            document.getElementById('levelUpModal').style.display = 'none';
+            quitGame();
+        }
+
+        // ==================== PAUSE / QUIT ====================
+        function togglePause() {
+            if (!gameState.gameRunning) return;
+            gameState.gamePaused = !gameState.gamePaused;
+            document.getElementById('pauseOverlay').style.display = gameState.gamePaused ? 'flex' : 'none';
+        }
+
+        function quitGame() {
+            gameState.gameRunning = false;
+            clearInterval(gameLoop);
+            clearInterval(particleLoop);
+            document.getElementById('gameScreen').style.display = 'none';
+            document.getElementById('mainMenu').style.display = 'block';
+            updateMenuDisplay();
+        }
+
+        // ==================== TUTORIALS ====================
+        function showTutorial(key) {
+            const tutorial = TUTORIALS[key];
+            if (!tutorial) return;
+
+            document.getElementById('tutorialIcon').textContent = tutorial.icon;
+            document.getElementById('tutorialTitle').textContent = tutorial.title;
+            document.getElementById('tutorialText').textContent = tutorial.text;
+            document.getElementById('tutorialModal').style.display = 'flex';
+
+            gameState.tutorialsShown.push(key);
+            saveProgress();
+        }
+
+        function closeTutorial() {
+            document.getElementById('tutorialModal').style.display = 'none';
+        }
+
+        function toggleSkipTutorials() {
+            gameState.skipTutorials = document.getElementById('skipTutorials').checked;
+            saveProgress();
+        }
+
+        // ==================== AI SELECTION ====================
+        function showAISelection() {
+            document.getElementById('aiModal').style.display = 'flex';
+        }
+
+        function closeAIModal() {
+            document.getElementById('aiModal').style.display = 'none';
+        }
+
+        // ==================== LEVEL EDITOR ====================
+        function setupEditorControls() {
+            editorCanvas.addEventListener('mousedown', startDrawing);
+            editorCanvas.addEventListener('mousemove', draw_editor);
+            editorCanvas.addEventListener('mouseup', stopDrawing);
+            editorCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+            let isDrawing = false;
+
+            function startDrawing(e) {
+                isDrawing = true;
+                draw_editor(e);
+            }
+
+            function draw_editor(e) {
+                if (!isDrawing) return;
+
+                const rect = editorCanvas.getBoundingClientRect();
+                const x = Math.floor((e.clientX - rect.left) / CELL_SIZE);
+                const y = Math.floor((e.clientY - rect.top) / CELL_SIZE);
+
+                if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) return;
+
+                if (e.buttons === 1 && gameState.editorTool === 'wall') {
+                    // Left click - add wall
+                    if (!gameState.editorWalls.some(w => w.x === x && w.y === y)) {
+                        gameState.editorWalls.push({ x, y });
+                    }
+                } else if (e.buttons === 2 || gameState.editorTool === 'erase') {
+                    // Right click - remove wall
+                    gameState.editorWalls = gameState.editorWalls.filter(w => !(w.x === x && w.y === y));
+                }
+
+                renderEditor();
+            }
+
+            function stopDrawing() {
+                isDrawing = false;
+            }
+        }
+
+        function setEditorTool(tool) {
+            gameState.editorTool = tool;
+            document.getElementById('wallTool').classList.toggle('active', tool === 'wall');
+            document.getElementById('eraseTool').classList.toggle('active', tool === 'erase');
+        }
+
+        function renderEditor() {
+            editorCtx.fillStyle = '#000';
+            editorCtx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+            // Grid
+            editorCtx.strokeStyle = '#111';
+            for (let i = 0; i <= GRID_SIZE; i++) {
+                editorCtx.beginPath();
+                editorCtx.moveTo(i * CELL_SIZE, 0);
+                editorCtx.lineTo(i * CELL_SIZE, CANVAS_SIZE);
+                editorCtx.stroke();
+                editorCtx.beginPath();
+                editorCtx.moveTo(0, i * CELL_SIZE);
+                editorCtx.lineTo(CANVAS_SIZE, i * CELL_SIZE);
+                editorCtx.stroke();
+            }
+
+            // Walls
+            editorCtx.fillStyle = '#8b4513';
+            gameState.editorWalls.forEach(w => {
+                editorCtx.fillRect(w.x * CELL_SIZE + 2, w.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+            });
+        }
+
+        function openEditor() {
+            // Show tutorial
+            if (!gameState.tutorialsShown.includes('editor') && !gameState.skipTutorials) {
+                showTutorial('editor');
+            }
+
+            document.getElementById('mainMenu').style.display = 'none';
+            document.getElementById('editorScreen').style.display = 'block';
+            gameState.editorWalls = [];
+            renderEditor();
+        }
+
+        function closeEditor() {
+            document.getElementById('editorScreen').style.display = 'none';
+            document.getElementById('mainMenu').style.display = 'block';
+        }
+
+        function clearEditor() {
+            gameState.editorWalls = [];
+            renderEditor();
+        }
+
+        function testLevel() {
+            gameState.customWalls = [...gameState.editorWalls];
+            document.getElementById('editorScreen').style.display = 'none';
+            startGame('classic');
+        }
+
+        function saveLevel() {
+            const code = btoa(JSON.stringify(gameState.editorWalls));
+            document.getElementById('levelCodeInput').value = code;
+            navigator.clipboard.writeText(code).then(() => {
+                showToast('Level code copied to clipboard!');
+            });
+        }
+
+        function loadLevel() {
+            const code = document.getElementById('levelCodeInput').value.trim();
+            if (!code) {
+                showToast('Please enter a level code');
+                return;
+            }
+            try {
+                gameState.editorWalls = JSON.parse(atob(code));
+                renderEditor();
+                showToast('Level loaded!');
+            } catch (e) {
+                showToast('Invalid level code');
+            }
+        }
+
+        // Initialize on load
+        window.onload = init;
+    </script>
+</body>
+</html>
