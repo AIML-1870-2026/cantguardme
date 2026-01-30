@@ -332,16 +332,18 @@
         level: 1, xp: 0, coins: 0, highScore: 0,
         skin: 'classic', theme: 'classic',
         snake: [], dir: {x:1,y:0}, nextDir: null,
+        prevSnake: [], prevSnake2: [], prevAiSnake: [],
         snake2: [], dir2: {x:-1,y:0}, aiSnake: [], aiDir: {x:-1,y:0},
         food: null, powerUps: [], obstacles: [], particles: [], trails: [],
         score: 0, score2: 0, aiScore: 0, combo: 1, lastFood: null,
         running: false, paused: false, mode: 'classic',
         speed: false, speedTime: 0, shield: false, ghost: false, ghostTime: 0,
-        baseSpeed: 120, tick: 0
+        baseSpeed: 150, tick: 0,
+        lastTickTime: 0, interpFactor: 0
     };
 
     let canvas, ctx, editorCanvas, editorCtx;
-    let gameInterval, animFrame;
+    let gameInterval, animFrame, lastFrameTime = 0;
     let editorWalls = [], editorTool = 'wall', customWalls = [];
 
     function init() {
@@ -450,6 +452,8 @@
         G.running = true;
         G.paused = false;
         G.tick = 0;
+        G.lastTickTime = performance.now();
+        lastFrameTime = G.lastTickTime;
         gameInterval = setInterval(update, G.baseSpeed);
         animFrame = requestAnimationFrame(render);
     }
@@ -469,6 +473,7 @@
 
     function resetGame() {
         G.snake = [{x:5,y:15},{x:4,y:15},{x:3,y:15}];
+        G.prevSnake = G.snake.map(s => ({...s}));
         G.dir = {x:1,y:0};
         G.nextDir = null;
         G.score = 0;
@@ -481,18 +486,21 @@
         G.speed = false;
         G.shield = false;
         G.ghost = false;
+        G.interpFactor = 0;
 
         if (G.mode === 'twoPlayer') {
             G.snake2 = [{x:24,y:15},{x:25,y:15},{x:26,y:15}];
+            G.prevSnake2 = G.snake2.map(s => ({...s}));
             G.dir2 = {x:-1,y:0};
             G.score2 = 0;
-        } else G.snake2 = [];
+        } else { G.snake2 = []; G.prevSnake2 = []; }
 
         if (G.mode === 'ai') {
             G.aiSnake = [{x:24,y:15},{x:25,y:15},{x:26,y:15}];
+            G.prevAiSnake = G.aiSnake.map(s => ({...s}));
             G.aiDir = {x:-1,y:0};
             G.aiScore = 0;
-        } else G.aiSnake = [];
+        } else { G.aiSnake = []; G.prevAiSnake = []; }
 
         if (customWalls.length > 0) {
             G.obstacles = customWalls.map(w => ({...w}));
@@ -565,8 +573,14 @@
     function update() {
         if (G.paused) return;
         G.tick++;
+        G.lastTickTime = performance.now();
 
         if (G.nextDir) { G.dir = G.nextDir; G.nextDir = null; }
+
+        // Save previous positions for interpolation
+        G.prevSnake = G.snake.map(s => ({...s}));
+        if (G.snake2.length) G.prevSnake2 = G.snake2.map(s => ({...s}));
+        if (G.aiSnake.length) G.prevAiSnake = G.aiSnake.map(s => ({...s}));
 
         moveSnake(G.snake, G.dir, 1);
 
@@ -632,12 +646,7 @@
 
         snake.unshift(newHead);
 
-        if (player === 1) {
-            const skin = SKINS[G.skin];
-            if (skin.trail) {
-                G.trails.push({ x: newHead.x * CELL + CELL/2, y: newHead.y * CELL + CELL/2, life: 1, color: skin.trailCol });
-            }
-        }
+        // Trails are now added in the render loop for smoother effect
 
         if (G.food && newHead.x === G.food.x && newHead.y === G.food.y) {
             let pts = G.food.type === 'golden' ? 30 : 10;
@@ -709,10 +718,29 @@
         }
     }
 
-    function render() {
+    function render(timestamp) {
         if (!G.running) return;
+
+        // Handle first frame
+        if (!timestamp) timestamp = performance.now();
+
+        // Calculate interpolation factor (0 to 1) between game ticks
+        const timeSinceTick = timestamp - G.lastTickTime;
+        G.interpFactor = Math.min(1, Math.max(0, timeSinceTick / G.baseSpeed));
+
+        // Apply easing for smoother motion
+        G.interpFactor = easeOutQuad(G.interpFactor);
+
         draw();
         animFrame = requestAnimationFrame(render);
+    }
+
+    function easeOutQuad(t) {
+        return t * (2 - t);
+    }
+
+    function lerp(a, b, t) {
+        return a + (b - a) * t;
     }
 
     function draw() {
@@ -778,9 +806,21 @@
             ctx.shadowBlur = 0;
         });
 
-        drawSnake(G.snake, G.skin, G.ghost);
-        if (G.snake2.length) drawSnake(G.snake2, 'classic', false, '#ff00ff');
-        if (G.aiSnake.length) drawSnake(G.aiSnake, 'classic', false, '#ff6b6b');
+        // Add smooth trails for snake with trail skin
+        const skin = SKINS[G.skin];
+        if (skin.trail && G.snake.length > 0 && G.prevSnake.length > 0) {
+            const head = G.snake[0];
+            const prevHead = G.prevSnake[0];
+            const tx = lerp(prevHead.x, head.x, G.interpFactor) * CELL + CELL/2;
+            const ty = lerp(prevHead.y, head.y, G.interpFactor) * CELL + CELL/2;
+            if (Math.random() < 0.3) {
+                G.trails.push({ x: tx, y: ty, life: 1, color: skin.trailCol });
+            }
+        }
+
+        drawSnake(G.snake, G.prevSnake, G.skin, G.ghost, G.dir);
+        if (G.snake2.length) drawSnake(G.snake2, G.prevSnake2, 'classic', false, G.dir2, '#ff00ff');
+        if (G.aiSnake.length) drawSnake(G.aiSnake, G.prevAiSnake, 'classic', false, G.aiDir, '#ff6b6b');
 
         G.particles = G.particles.filter(p => {
             p.x += p.vx;
@@ -800,40 +840,55 @@
         ctx.globalAlpha = 1;
     }
 
-    function drawSnake(snake, skinId, transparent, override) {
+    function drawSnake(snake, prevSnake, skinId, transparent, dir, override) {
         if (snake.length === 0) return;
         const skin = SKINS[skinId] || SKINS.classic;
         const baseAlpha = transparent ? 0.5 : 1;
+        const t = G.interpFactor;
 
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
-        for (let i = snake.length - 1; i >= 1; i--) {
-            const curr = snake[i];
-            const prev = snake[i - 1];
-            const progress = i / snake.length;
-            const alpha = baseAlpha * (1 - progress * 0.35);
+        // Calculate interpolated positions
+        const interpPositions = snake.map((seg, i) => {
+            const prev = prevSnake[i] || seg;
+            return {
+                x: lerp(prev.x, seg.x, t) * CELL + CELL/2,
+                y: lerp(prev.y, seg.y, t) * CELL + CELL/2
+            };
+        });
 
-            let col;
-            if (override) col = override;
-            else if (skinId === 'rainbow') col = skin.colors[(i + G.tick) % skin.colors.length];
-            else col = skin.colors[Math.min(Math.floor(progress * (skin.colors.length - 1)), skin.colors.length - 1)];
+        // Draw body segments as a smooth curve
+        if (interpPositions.length > 1) {
+            for (let i = interpPositions.length - 1; i >= 1; i--) {
+                const curr = interpPositions[i];
+                const prev = interpPositions[i - 1];
+                const progress = i / snake.length;
+                const alpha = baseAlpha * (1 - progress * 0.35);
 
-            ctx.globalAlpha = alpha;
-            ctx.strokeStyle = col;
-            ctx.lineWidth = CELL - 4;
-            ctx.beginPath();
-            ctx.moveTo(prev.x * CELL + CELL/2, prev.y * CELL + CELL/2);
-            ctx.lineTo(curr.x * CELL + CELL/2, curr.y * CELL + CELL/2);
-            ctx.stroke();
+                let col;
+                if (override) col = override;
+                else if (skinId === 'rainbow') col = skin.colors[(i + G.tick) % skin.colors.length];
+                else col = skin.colors[Math.min(Math.floor(progress * (skin.colors.length - 1)), skin.colors.length - 1)];
 
-            ctx.fillStyle = col;
-            ctx.beginPath();
-            ctx.arc(curr.x * CELL + CELL/2, curr.y * CELL + CELL/2, (CELL - 4)/2, 0, Math.PI * 2);
-            ctx.fill();
+                ctx.globalAlpha = alpha;
+                ctx.strokeStyle = col;
+                ctx.lineWidth = CELL - 4;
+                ctx.beginPath();
+                ctx.moveTo(prev.x, prev.y);
+                ctx.lineTo(curr.x, curr.y);
+                ctx.stroke();
+
+                // Draw segment circle for smooth joints
+                ctx.fillStyle = col;
+                ctx.beginPath();
+                ctx.arc(curr.x, curr.y, (CELL - 4)/2, 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
 
-        const head = snake[0];
+        // Draw head with glow
+        const headPos = interpPositions[0];
         const headCol = override || skin.colors[0];
 
         ctx.globalAlpha = baseAlpha;
@@ -841,32 +896,32 @@
         ctx.shadowColor = override || skin.glow;
         ctx.fillStyle = headCol;
         ctx.beginPath();
-        ctx.arc(head.x * CELL + CELL/2, head.y * CELL + CELL/2, CELL/2, 0, Math.PI * 2);
+        ctx.arc(headPos.x, headPos.y, CELL/2, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
 
+        // Draw eyes
         ctx.fillStyle = '#000';
-        const dir = snake === G.snake ? G.dir : (snake === G.snake2 ? G.dir2 : G.aiDir);
         let e1x, e1y, e2x, e2y;
-        const hx = head.x * CELL + CELL/2, hy = head.y * CELL + CELL/2;
 
-        if (dir.x === 1) { e1x = e2x = hx + 4; e1y = hy - 4; e2y = hy + 4; }
-        else if (dir.x === -1) { e1x = e2x = hx - 4; e1y = hy - 4; e2y = hy + 4; }
-        else if (dir.y === 1) { e1y = e2y = hy + 4; e1x = hx - 4; e2x = hx + 4; }
-        else { e1y = e2y = hy - 4; e1x = hx - 4; e2x = hx + 4; }
+        if (dir.x === 1) { e1x = e2x = headPos.x + 4; e1y = headPos.y - 4; e2y = headPos.y + 4; }
+        else if (dir.x === -1) { e1x = e2x = headPos.x - 4; e1y = headPos.y - 4; e2y = headPos.y + 4; }
+        else if (dir.y === 1) { e1y = e2y = headPos.y + 4; e1x = headPos.x - 4; e2x = headPos.x + 4; }
+        else { e1y = e2y = headPos.y - 4; e1x = headPos.x - 4; e2x = headPos.x + 4; }
 
         ctx.beginPath();
         ctx.arc(e1x, e1y, 3, 0, Math.PI * 2);
         ctx.arc(e2x, e2y, 3, 0, Math.PI * 2);
         ctx.fill();
 
+        // Shield effect
         if (G.shield && snake === G.snake) {
             ctx.strokeStyle = '#00ccff';
             ctx.lineWidth = 3;
             ctx.shadowBlur = 15;
             ctx.shadowColor = '#00ccff';
             ctx.beginPath();
-            ctx.arc(hx, hy, CELL/2 + 5, 0, Math.PI * 2);
+            ctx.arc(headPos.x, headPos.y, CELL/2 + 5, 0, Math.PI * 2);
             ctx.stroke();
             ctx.shadowBlur = 0;
         }
