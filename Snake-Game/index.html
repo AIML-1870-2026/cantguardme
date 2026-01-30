@@ -165,6 +165,24 @@
             margin-bottom: 10px;
         }
 
+        /* Customization Button */
+        .customize-btn {
+            margin-top: 20px;
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #e91e63, #9c27b0);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .customize-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(233, 30, 99, 0.5);
+        }
+
         /* Game Screen Styles */
         #gameScreen {
             display: none;
@@ -183,13 +201,19 @@
         }
 
         #gameCanvas {
-            background: #000;
             border: 3px solid #00ff88;
             border-radius: 5px;
             box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
         }
 
         #particleCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+
+        #trailCanvas {
             position: absolute;
             top: 0;
             left: 0;
@@ -271,7 +295,7 @@
             transform: scale(1.05);
         }
 
-        /* Tutorial Modal */
+        /* Modal Styles */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -290,7 +314,9 @@
             padding: 40px;
             border-radius: 20px;
             border: 3px solid #00ff88;
-            max-width: 500px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
             text-align: center;
             box-shadow: 0 0 40px rgba(0, 255, 136, 0.5);
         }
@@ -337,6 +363,54 @@
             justify-content: center;
             gap: 10px;
             color: #888;
+        }
+
+        /* Customization Modal */
+        .skin-grid, .theme-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .skin-option, .theme-option {
+            padding: 15px;
+            border-radius: 10px;
+            border: 3px solid transparent;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .skin-option:hover, .theme-option:hover {
+            border-color: #00ccff;
+        }
+
+        .skin-option.selected, .theme-option.selected {
+            border-color: #00ff88;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
+        }
+
+        .skin-option.locked, .theme-option.locked {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .skin-preview {
+            width: 80px;
+            height: 20px;
+            margin: 10px auto;
+            border-radius: 10px;
+        }
+
+        .skin-name {
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .unlock-level {
+            font-size: 0.8em;
+            color: #ff8800;
         }
 
         /* Game Over Screen */
@@ -396,26 +470,6 @@
             border-radius: 10px;
             margin: 15px 0;
             border: 2px solid #00ff88;
-        }
-
-        /* Combo Display */
-        .combo-display {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 3em;
-            font-weight: bold;
-            color: #ff8800;
-            text-shadow: 0 0 20px rgba(255, 136, 0, 0.8);
-            animation: comboPopup 0.5s ease;
-            pointer-events: none;
-        }
-
-        @keyframes comboPopup {
-            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
-            50% { transform: translate(-50%, -50%) scale(1.2); }
-            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
         }
 
         /* Notification Toast */
@@ -543,14 +597,10 @@
         @media (max-width: 768px) {
             .game-title { font-size: 2.5em; }
             .game-layout { flex-direction: column; align-items: center; }
-            #gameCanvas, #particleCanvas { width: 320px !important; height: 320px !important; }
+            #gameCanvas, #particleCanvas, #trailCanvas { width: 320px !important; height: 320px !important; }
             .mobile-controls { display: flex; }
+            .skin-grid, .theme-grid { grid-template-columns: repeat(2, 1fr); }
         }
-
-        /* Dimension Themes */
-        .dimension-crystal .game-canvas-container { filter: hue-rotate(180deg); }
-        .dimension-lava .game-canvas-container { filter: sepia(0.5) saturate(2); }
-        .dimension-void .game-canvas-container { filter: invert(0.1) hue-rotate(270deg); }
 
         /* Pause overlay */
         .pause-overlay {
@@ -584,19 +634,20 @@
             transition: width 0.1s linear;
         }
 
-        /* Settings */
-        .settings-content {
-            text-align: left;
-        }
-
-        .setting-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        /* Current Skin Display */
+        .current-skin-display {
+            margin-top: 20px;
             padding: 15px;
             background: rgba(0, 0, 0, 0.3);
-            border-radius: 5px;
-            margin-bottom: 10px;
+            border-radius: 10px;
+            border: 2px solid #9b59b6;
+        }
+
+        .current-skin-preview {
+            height: 30px;
+            border-radius: 15px;
+            margin: 10px auto;
+            max-width: 200px;
         }
     </style>
 </head>
@@ -626,6 +677,12 @@
         </div>
         <div class="xp-text" id="menuXpText">0 / 100 XP to Level 2</div>
 
+        <div class="current-skin-display">
+            <div class="stat-label">CURRENT SKIN</div>
+            <div class="current-skin-preview" id="currentSkinPreview"></div>
+            <button class="customize-btn" onclick="openCustomization()">Customize Snake</button>
+        </div>
+
         <div class="menu-buttons">
             <button class="menu-btn primary" onclick="startGame('classic')">Classic Mode</button>
             <button class="menu-btn secondary" onclick="startGame('twoPlayer')">Two Player Mode</button>
@@ -645,6 +702,7 @@
     <div id="gameScreen" class="container">
         <div class="game-layout">
             <div class="game-canvas-container" id="canvasContainer">
+                <canvas id="trailCanvas" width="600" height="600"></canvas>
                 <canvas id="gameCanvas" width="600" height="600"></canvas>
                 <canvas id="particleCanvas" width="600" height="600"></canvas>
                 <div class="pause-overlay" id="pauseOverlay">PAUSED</div>
@@ -733,6 +791,21 @@
         </div>
     </div>
 
+    <!-- Customization Modal -->
+    <div class="modal-overlay" id="customizeModal">
+        <div class="modal-content">
+            <h2 class="modal-title">Customize Your Snake</h2>
+
+            <h3 style="color: #00ccff; margin: 20px 0 10px;">Snake Skins</h3>
+            <div class="skin-grid" id="skinGrid"></div>
+
+            <h3 style="color: #00ccff; margin: 20px 0 10px;">Game Themes</h3>
+            <div class="theme-grid" id="themeGrid"></div>
+
+            <button class="modal-btn" style="margin-top: 20px;" onclick="closeCustomization()">Done</button>
+        </div>
+    </div>
+
     <!-- Game Over Modal -->
     <div class="modal-overlay" id="gameOverModal">
         <div class="game-over-content">
@@ -792,13 +865,158 @@
     </div>
 
     <script>
-        // ==================== GAME STATE ====================
+        // ==================== CONSTANTS ====================
         const CELL_SIZE = 20;
         const GRID_SIZE = 30;
         const CANVAS_SIZE = 600;
 
+        // ==================== SNAKE SKINS ====================
+        const SNAKE_SKINS = {
+            classic: {
+                name: 'Classic',
+                unlockLevel: 1,
+                colors: ['#00ff88', '#00dd77', '#00bb66'],
+                glow: '#00ff88',
+                pattern: 'solid',
+                trail: false
+            },
+            neon: {
+                name: 'Neon Pulse',
+                unlockLevel: 3,
+                colors: ['#00ffff', '#00ddff', '#00bbff'],
+                glow: '#00ffff',
+                pattern: 'pulse',
+                trail: true,
+                trailColor: 'rgba(0, 255, 255, 0.3)'
+            },
+            fire: {
+                name: 'Inferno',
+                unlockLevel: 5,
+                colors: ['#ff4400', '#ff6600', '#ff8800'],
+                glow: '#ff4400',
+                pattern: 'gradient',
+                trail: true,
+                trailColor: 'rgba(255, 68, 0, 0.3)'
+            },
+            rainbow: {
+                name: 'Rainbow',
+                unlockLevel: 7,
+                colors: ['#ff0000', '#ff7700', '#ffff00', '#00ff00', '#0000ff', '#8b00ff'],
+                glow: '#ffffff',
+                pattern: 'rainbow',
+                trail: true,
+                trailColor: 'rgba(255, 255, 255, 0.2)'
+            },
+            galaxy: {
+                name: 'Galaxy',
+                unlockLevel: 10,
+                colors: ['#9b59b6', '#8e44ad', '#6c3483'],
+                glow: '#9b59b6',
+                pattern: 'sparkle',
+                trail: true,
+                trailColor: 'rgba(155, 89, 182, 0.4)'
+            },
+            ice: {
+                name: 'Frost',
+                unlockLevel: 12,
+                colors: ['#a8e6cf', '#88d8b0', '#56ab91'],
+                glow: '#a8e6cf',
+                pattern: 'shimmer',
+                trail: true,
+                trailColor: 'rgba(168, 230, 207, 0.3)'
+            },
+            gold: {
+                name: 'Golden',
+                unlockLevel: 15,
+                colors: ['#ffd700', '#ffcc00', '#ffaa00'],
+                glow: '#ffd700',
+                pattern: 'metallic',
+                trail: true,
+                trailColor: 'rgba(255, 215, 0, 0.4)'
+            },
+            void: {
+                name: 'Void Walker',
+                unlockLevel: 18,
+                colors: ['#1a1a2e', '#16213e', '#0f3460'],
+                glow: '#e94560',
+                pattern: 'void',
+                trail: true,
+                trailColor: 'rgba(233, 69, 96, 0.5)'
+            },
+            plasma: {
+                name: 'Plasma',
+                unlockLevel: 20,
+                colors: ['#ff00ff', '#ff00aa', '#aa00ff'],
+                glow: '#ff00ff',
+                pattern: 'plasma',
+                trail: true,
+                trailColor: 'rgba(255, 0, 255, 0.4)'
+            }
+        };
+
+        // ==================== GAME THEMES ====================
+        const GAME_THEMES = {
+            classic: {
+                name: 'Classic',
+                unlockLevel: 1,
+                background: '#000000',
+                gridColor: '#111111',
+                borderColor: '#00ff88'
+            },
+            midnight: {
+                name: 'Midnight',
+                unlockLevel: 4,
+                background: '#0d1b2a',
+                gridColor: '#1b263b',
+                borderColor: '#00ccff'
+            },
+            sunset: {
+                name: 'Sunset',
+                unlockLevel: 6,
+                background: '#2d132c',
+                gridColor: '#3d1a3d',
+                borderColor: '#ff8800'
+            },
+            forest: {
+                name: 'Forest',
+                unlockLevel: 8,
+                background: '#1a2f1a',
+                gridColor: '#2a3f2a',
+                borderColor: '#00ff44'
+            },
+            ocean: {
+                name: 'Ocean',
+                unlockLevel: 11,
+                background: '#0a1628',
+                gridColor: '#142238',
+                borderColor: '#00ddff'
+            },
+            lava: {
+                name: 'Lava',
+                unlockLevel: 14,
+                background: '#1a0a0a',
+                gridColor: '#2a1515',
+                borderColor: '#ff4400'
+            },
+            aurora: {
+                name: 'Aurora',
+                unlockLevel: 16,
+                background: '#0f0c29',
+                gridColor: '#1a1640',
+                borderColor: '#00ff88'
+            },
+            cosmic: {
+                name: 'Cosmic',
+                unlockLevel: 19,
+                background: '#0a0a1a',
+                gridColor: '#151530',
+                borderColor: '#9b59b6'
+            }
+        };
+
+        // ==================== GAME STATE ====================
         let gameState = {
-            // Player Progress (Persistent)
+            // Player Progress
             playerLevel: 1,
             xp: 0,
             coins: 0,
@@ -806,9 +1024,12 @@
             unlockedFeatures: ['basic'],
             tutorialsShown: [],
             skipTutorials: false,
+            currentSkin: 'classic',
+            currentTheme: 'classic',
 
-            // Current Game State
+            // Snake state with smooth animation
             snake: [],
+            snakePositions: [], // For smooth interpolation
             snake2: [],
             aiSnake: [],
             direction: { x: 1, y: 0 },
@@ -816,24 +1037,34 @@
             aiDirection: { x: -1, y: 0 },
             nextDirection: null,
             nextDirection2: null,
+
+            // Game objects
             food: null,
             powerUps: [],
             obstacles: [],
             portals: [],
             particles: [],
+            trailPoints: [],
 
-            // Game Status
+            // Scores
             score: 0,
             score2: 0,
             aiScore: 0,
             combo: 1,
             lastFoodType: null,
+
+            // Game status
             gameRunning: false,
             gamePaused: false,
             gameMode: 'classic',
             aiDifficulty: 'medium',
 
-            // Active Power-Up Effects
+            // Animation
+            animationProgress: 0,
+            lastUpdateTime: 0,
+            pulsePhase: 0,
+
+            // Power-ups
             speedBoost: false,
             speedBoostTimer: 0,
             shield: false,
@@ -844,16 +1075,13 @@
             magnetMode: false,
             magnetModeTimer: 0,
 
-            // Dash Ability
+            // Dash
             dashCooldown: 0,
             dashReady: true,
 
-            // Time Attack / Survival
+            // Modes
             timeRemaining: 60,
             arenaSize: 30,
-
-            // Dimension
-            currentDimension: 'classic',
 
             // Editor
             editorWalls: [],
@@ -870,46 +1098,37 @@
 
         const LEVEL_UNLOCKS = {
             2: { name: 'Speed Boost', icon: '⚡', desc: 'Collect yellow lightning for temporary speed boost (5 sec)' },
-            3: { name: 'Shield', icon: '🛡️', desc: 'Protects from ONE collision with walls or yourself' },
-            4: { name: 'Golden Apples', icon: '🌟', desc: 'Worth 3x points but disappear after 5 seconds!' },
-            5: { name: 'Obstacles', icon: '🧱', desc: 'Static walls appear on the board. Navigate carefully!' },
-            6: { name: 'Score Multiplier', icon: '✖️', desc: 'Double all points for 8 seconds!' },
-            7: { name: 'Combo System', icon: '🔥', desc: 'Eat same food type consecutively for up to 5x multiplier!' },
-            8: { name: 'Ghost Mode', icon: '👻', desc: 'Pass through walls and yourself for 4 seconds!' },
-            9: { name: 'Magnet', icon: '🧲', desc: 'Attracts nearby food toward you for 6 seconds!' },
-            10: { name: 'Portals', icon: '🌀', desc: 'Orange and blue portals teleport you across the map!' },
-            11: { name: 'Dash Ability', icon: '⚡', desc: 'Press SPACE to dash 3 tiles forward! (5 sec cooldown)' },
-            12: { name: 'Poison Apples', icon: '☠️', desc: 'Purple apples shrink you by 1 but give +50 points!' },
+            3: { name: 'Neon Pulse Skin', icon: '🎨', desc: 'A glowing cyan snake with pulsing effects!' },
+            4: { name: 'Midnight Theme', icon: '🌙', desc: 'A dark blue aesthetic for night owls' },
+            5: { name: 'Inferno Skin', icon: '🔥', desc: 'A fiery orange snake that leaves flame trails!' },
+            6: { name: 'Sunset Theme', icon: '🌅', desc: 'Warm purple hues for a cozy vibe' },
+            7: { name: 'Rainbow Skin', icon: '🌈', desc: 'A magnificent color-shifting snake!' },
+            8: { name: 'Forest Theme', icon: '🌲', desc: 'Deep greens of an enchanted forest' },
+            9: { name: 'Magnet', icon: '🧲', desc: 'Attracts nearby food toward you!' },
+            10: { name: 'Galaxy Skin', icon: '✨', desc: 'Cosmic purple with sparkling stars!' },
+            11: { name: 'Ocean Theme', icon: '🌊', desc: 'Deep sea blues and teals' },
+            12: { name: 'Frost Skin', icon: '❄️', desc: 'Icy cool with shimmering effects!' },
             13: { name: 'Time Attack', icon: '⏱️', desc: '60 seconds to maximize your score!' },
-            14: { name: 'Moving Obstacles', icon: '🎯', desc: 'Some obstacles now patrol the board!' },
-            15: { name: 'Dimension Portals', icon: '🌌', desc: 'Purple portals transport you to new dimensions!' },
-            17: { name: 'Survival Mode', icon: '💀', desc: 'The arena shrinks over time. Survive as long as possible!' },
-            19: { name: 'Snake Customization', icon: '🎨', desc: 'Choose your snake color and pattern!' },
-            20: { name: 'Prestige Mode', icon: '✨', desc: 'Reset for permanent bonuses and particle trails!' }
+            14: { name: 'Lava Theme', icon: '🌋', desc: 'Hot reds and oranges!' },
+            15: { name: 'Golden Skin', icon: '👑', desc: 'Majestic golden snake with metallic shine!' },
+            16: { name: 'Aurora Theme', icon: '🌌', desc: 'Northern lights inspired colors' },
+            17: { name: 'Survival Mode', icon: '💀', desc: 'The arena shrinks over time!' },
+            18: { name: 'Void Walker Skin', icon: '🕳️', desc: 'Dark matter with glowing edges!' },
+            19: { name: 'Cosmic Theme', icon: '🪐', desc: 'Deep space purple aesthetic' },
+            20: { name: 'Plasma Skin', icon: '⚡', desc: 'Ultimate plasma energy snake!' }
         };
 
         // Tutorials
         const TUTORIALS = {
             welcome: { icon: '👋', title: 'WELCOME TO SNAKE ULTIMATE!', text: 'Use arrow keys or WASD to control your snake.\nEat red apples to grow and score points.\nAvoid walls and your own body!' },
-            speedBoost: { icon: '⚡', title: 'SPEED BOOST UNLOCKED!', text: 'Collect the yellow lightning for temporary 2x speed!\nDuration: 5 seconds' },
-            shield: { icon: '🛡️', title: 'SHIELD UNLOCKED!', text: 'The blue shield protects you from ONE collision!\nLook for the cyan glow around your snake.' },
-            goldenApple: { icon: '🌟', title: 'GOLDEN APPLES UNLOCKED!', text: 'Golden apples are worth 3x points!\nBut hurry - they disappear after 5 seconds!' },
-            obstacles: { icon: '🧱', title: 'OBSTACLES UNLOCKED!', text: 'Static walls now appear on the board.\nNavigate carefully around them!' },
-            multiplier: { icon: '✖️', title: 'SCORE MULTIPLIER UNLOCKED!', text: 'Orange multiplier icon doubles all points!\nDuration: 8 seconds. Stacks with combos!' },
-            combo: { icon: '🔥', title: 'COMBO SYSTEM UNLOCKED!', text: 'Eat the same food type consecutively!\n2 in a row = 2x, up to 5x maximum!' },
-            ghostMode: { icon: '👻', title: 'GHOST MODE UNLOCKED!', text: 'Pass through walls and yourself!\nDuration: 4 seconds. Your snake becomes transparent.' },
-            magnet: { icon: '🧲', title: 'MAGNET UNLOCKED!', text: 'Food within 5 tiles moves toward you!\nDuration: 6 seconds.' },
-            portals: { icon: '🌀', title: 'PORTALS UNLOCKED!', text: 'Enter orange portal, exit blue portal!\nYour direction is maintained.' },
-            dash: { icon: '⚡', title: 'DASH ABILITY UNLOCKED!', text: 'Press SPACE to dash 3 tiles forward!\nCooldown: 5 seconds.' },
-            poisonApple: { icon: '☠️', title: 'POISON APPLES UNLOCKED!', text: 'Purple apples shrink you by 1 segment!\nBut they give +50 points. Worth it?' },
             twoPlayer: { icon: '👥', title: 'TWO PLAYER MODE', text: 'Player 1: Arrow Keys\nPlayer 2: IJKL\nFirst to 200 points or last one standing wins!' },
             aiMode: { icon: '🤖', title: 'AI OPPONENT', text: 'Compete against an AI snake!\nFirst to 200 points wins.\nChoose your difficulty!' },
             editor: { icon: '🎨', title: 'LEVEL EDITOR', text: 'Click to place walls, right-click to erase.\nTest your creation and share level codes!' }
         };
 
         // Canvas contexts
-        let canvas, ctx, particleCanvas, particleCtx, editorCanvas, editorCtx;
-        let gameLoop, particleLoop;
+        let canvas, ctx, particleCanvas, particleCtx, trailCanvas, trailCtx, editorCanvas, editorCtx;
+        let gameLoop, renderLoop;
 
         // ==================== INITIALIZATION ====================
         function init() {
@@ -917,15 +1136,17 @@
             ctx = canvas.getContext('2d');
             particleCanvas = document.getElementById('particleCanvas');
             particleCtx = particleCanvas.getContext('2d');
+            trailCanvas = document.getElementById('trailCanvas');
+            trailCtx = trailCanvas.getContext('2d');
             editorCanvas = document.getElementById('editorCanvas');
             editorCtx = editorCanvas.getContext('2d');
 
             loadProgress();
             updateMenuDisplay();
+            updateSkinPreview();
             setupControls();
             setupEditorControls();
 
-            // Show welcome tutorial on first visit
             if (!gameState.tutorialsShown.includes('welcome') && !gameState.skipTutorials) {
                 showTutorial('welcome');
             }
@@ -942,6 +1163,8 @@
                 gameState.unlockedFeatures = data.unlockedFeatures || ['basic'];
                 gameState.tutorialsShown = data.tutorialsShown || [];
                 gameState.skipTutorials = data.skipTutorials || false;
+                gameState.currentSkin = data.currentSkin || 'classic';
+                gameState.currentTheme = data.currentTheme || 'classic';
             }
         }
 
@@ -953,7 +1176,9 @@
                 highScore: gameState.highScore,
                 unlockedFeatures: gameState.unlockedFeatures,
                 tutorialsShown: gameState.tutorialsShown,
-                skipTutorials: gameState.skipTutorials
+                skipTutorials: gameState.skipTutorials,
+                currentSkin: gameState.currentSkin,
+                currentTheme: gameState.currentTheme
             };
             localStorage.setItem('snakeUltimateProgress', JSON.stringify(data));
         }
@@ -963,14 +1188,12 @@
             document.getElementById('menuHighScore').textContent = gameState.highScore;
             document.getElementById('menuCoins').textContent = gameState.coins;
 
-            // XP Bar
             const currentLevelXp = LEVEL_XP[gameState.playerLevel - 1] || 0;
             const nextLevelXp = LEVEL_XP[gameState.playerLevel] || LEVEL_XP[LEVEL_XP.length - 1];
             const xpProgress = ((gameState.xp - currentLevelXp) / (nextLevelXp - currentLevelXp)) * 100;
             document.getElementById('menuXpBar').style.width = Math.min(100, Math.max(0, xpProgress)) + '%';
             document.getElementById('menuXpText').textContent = `${gameState.xp} / ${nextLevelXp} XP to Level ${gameState.playerLevel + 1}`;
 
-            // Next unlock preview
             const nextUnlock = LEVEL_UNLOCKS[gameState.playerLevel + 1];
             if (nextUnlock) {
                 document.getElementById('nextUnlockText').textContent = `${nextUnlock.icon} ${nextUnlock.name} at Level ${gameState.playerLevel + 1}`;
@@ -978,7 +1201,6 @@
                 document.getElementById('nextUnlockText').textContent = 'All features unlocked!';
             }
 
-            // Enable/disable special modes
             document.getElementById('timeAttackBtn').disabled = gameState.playerLevel < 13;
             document.getElementById('survivalBtn').disabled = gameState.playerLevel < 17;
             if (gameState.playerLevel >= 13) {
@@ -991,12 +1213,106 @@
             }
         }
 
+        function updateSkinPreview() {
+            const skin = SNAKE_SKINS[gameState.currentSkin];
+            const preview = document.getElementById('currentSkinPreview');
+            if (skin.pattern === 'rainbow') {
+                preview.style.background = 'linear-gradient(90deg, #ff0000, #ff7700, #ffff00, #00ff00, #0000ff, #8b00ff)';
+            } else {
+                preview.style.background = `linear-gradient(90deg, ${skin.colors.join(', ')})`;
+            }
+            preview.style.boxShadow = `0 0 15px ${skin.glow}`;
+        }
+
+        // ==================== CUSTOMIZATION ====================
+        function openCustomization() {
+            renderSkinGrid();
+            renderThemeGrid();
+            document.getElementById('customizeModal').style.display = 'flex';
+        }
+
+        function closeCustomization() {
+            document.getElementById('customizeModal').style.display = 'none';
+            updateSkinPreview();
+            saveProgress();
+        }
+
+        function renderSkinGrid() {
+            const grid = document.getElementById('skinGrid');
+            grid.innerHTML = '';
+
+            Object.entries(SNAKE_SKINS).forEach(([id, skin]) => {
+                const isUnlocked = gameState.playerLevel >= skin.unlockLevel;
+                const isSelected = gameState.currentSkin === id;
+
+                const div = document.createElement('div');
+                div.className = `skin-option ${isSelected ? 'selected' : ''} ${!isUnlocked ? 'locked' : ''}`;
+
+                let bgStyle;
+                if (skin.pattern === 'rainbow') {
+                    bgStyle = 'linear-gradient(90deg, #ff0000, #ff7700, #ffff00, #00ff00, #0000ff, #8b00ff)';
+                } else {
+                    bgStyle = `linear-gradient(90deg, ${skin.colors.join(', ')})`;
+                }
+
+                div.innerHTML = `
+                    <div class="skin-preview" style="background: ${bgStyle}; box-shadow: 0 0 10px ${skin.glow};"></div>
+                    <div class="skin-name">${skin.name}</div>
+                    ${!isUnlocked ? `<div class="unlock-level">Unlocks at Lvl ${skin.unlockLevel}</div>` : ''}
+                `;
+
+                if (isUnlocked) {
+                    div.onclick = () => selectSkin(id);
+                }
+
+                grid.appendChild(div);
+            });
+        }
+
+        function renderThemeGrid() {
+            const grid = document.getElementById('themeGrid');
+            grid.innerHTML = '';
+
+            Object.entries(GAME_THEMES).forEach(([id, theme]) => {
+                const isUnlocked = gameState.playerLevel >= theme.unlockLevel;
+                const isSelected = gameState.currentTheme === id;
+
+                const div = document.createElement('div');
+                div.className = `theme-option ${isSelected ? 'selected' : ''} ${!isUnlocked ? 'locked' : ''}`;
+
+                div.innerHTML = `
+                    <div style="width: 80px; height: 50px; margin: 0 auto; background: ${theme.background}; border: 3px solid ${theme.borderColor}; border-radius: 5px;">
+                        <div style="width: 100%; height: 100%; background: repeating-linear-gradient(90deg, ${theme.gridColor} 0px, ${theme.gridColor} 1px, transparent 1px, transparent 10px);"></div>
+                    </div>
+                    <div class="skin-name">${theme.name}</div>
+                    ${!isUnlocked ? `<div class="unlock-level">Unlocks at Lvl ${theme.unlockLevel}</div>` : ''}
+                `;
+
+                if (isUnlocked) {
+                    div.onclick = () => selectTheme(id);
+                }
+
+                grid.appendChild(div);
+            });
+        }
+
+        function selectSkin(skinId) {
+            gameState.currentSkin = skinId;
+            renderSkinGrid();
+            showToast(`${SNAKE_SKINS[skinId].name} skin selected!`);
+        }
+
+        function selectTheme(themeId) {
+            gameState.currentTheme = themeId;
+            renderThemeGrid();
+            showToast(`${GAME_THEMES[themeId].name} theme selected!`);
+        }
+
         // ==================== CONTROLS ====================
         function setupControls() {
             document.addEventListener('keydown', (e) => {
                 if (!gameState.gameRunning) return;
 
-                // Player 1 controls
                 if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
                     if (gameState.direction.y !== 1) gameState.nextDirection = { x: 0, y: -1 };
                 } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
@@ -1007,7 +1323,6 @@
                     if (gameState.direction.x !== -1) gameState.nextDirection = { x: 1, y: 0 };
                 }
 
-                // Player 2 controls (Two Player Mode)
                 if (gameState.gameMode === 'twoPlayer') {
                     if (e.key === 'i' || e.key === 'I') {
                         if (gameState.direction2.y !== 1) gameState.nextDirection2 = { x: 0, y: -1 };
@@ -1020,12 +1335,10 @@
                     }
                 }
 
-                // Dash (Space)
                 if (e.key === ' ' && gameState.playerLevel >= 11 && gameState.dashReady) {
                     doDash();
                 }
 
-                // Pause
                 if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
                     togglePause();
                 }
@@ -1048,7 +1361,6 @@
             gameState.dashReady = false;
             gameState.dashCooldown = 5000;
 
-            // Move snake 3 tiles forward
             const head = gameState.snake[0];
             for (let i = 0; i < 3; i++) {
                 const newX = (head.x + gameState.direction.x * (i + 1) + GRID_SIZE) % GRID_SIZE;
@@ -1069,7 +1381,6 @@
             gameState.gameMode = mode;
             gameState.aiDifficulty = difficulty;
 
-            // Show relevant tutorial
             if (mode === 'twoPlayer' && !gameState.tutorialsShown.includes('twoPlayer') && !gameState.skipTutorials) {
                 showTutorial('twoPlayer');
             } else if (mode === 'ai' && !gameState.tutorialsShown.includes('aiMode') && !gameState.skipTutorials) {
@@ -1082,13 +1393,11 @@
             document.getElementById('gameScreen').style.display = 'block';
             document.getElementById('aiModal').style.display = 'none';
 
-            // Show dash button if unlocked
             if (gameState.playerLevel >= 11) {
                 document.getElementById('dashContainer').style.display = 'block';
                 document.getElementById('dashBtn').style.display = 'block';
             }
 
-            // Timer for time attack
             if (mode === 'timeAttack') {
                 document.getElementById('timerItem').style.display = 'block';
                 gameState.timeRemaining = 60;
@@ -1098,9 +1407,11 @@
 
             gameState.gameRunning = true;
             gameState.gamePaused = false;
+            gameState.lastUpdateTime = performance.now();
+            gameState.animationProgress = 0;
 
             gameLoop = setInterval(update, gameState.currentSpeed);
-            particleLoop = setInterval(updateParticles, 16);
+            renderLoop = requestAnimationFrame(render);
 
             if (mode === 'timeAttack') {
                 setInterval(() => {
@@ -1125,14 +1436,18 @@
         }
 
         function resetGame() {
-            // Reset snake
             gameState.snake = [
                 { x: 5, y: 15 },
                 { x: 4, y: 15 },
                 { x: 3, y: 15 }
             ];
 
-            // Player 2 snake
+            // Initialize smooth positions
+            gameState.snakePositions = gameState.snake.map(s => ({
+                x: s.x * CELL_SIZE + CELL_SIZE/2,
+                y: s.y * CELL_SIZE + CELL_SIZE/2
+            }));
+
             if (gameState.gameMode === 'twoPlayer') {
                 gameState.snake2 = [
                     { x: 25, y: 15 },
@@ -1143,7 +1458,6 @@
                 gameState.score2 = 0;
             }
 
-            // AI snake
             if (gameState.gameMode === 'ai') {
                 gameState.aiSnake = [
                     { x: 25, y: 15 },
@@ -1163,9 +1477,9 @@
             gameState.obstacles = [];
             gameState.portals = [];
             gameState.particles = [];
+            gameState.trailPoints = [];
             gameState.arenaSize = 30;
 
-            // Reset power-up states
             gameState.speedBoost = false;
             gameState.shield = false;
             gameState.scoreMultiplier = false;
@@ -1174,23 +1488,18 @@
             gameState.dashReady = true;
             gameState.dashCooldown = 0;
 
-            // Set speed
             gameState.currentSpeed = gameState.baseSpeed;
 
-            // Spawn initial food
             spawnFood();
 
-            // Spawn obstacles if unlocked
             if (gameState.playerLevel >= 5) {
                 spawnObstacles(3);
             }
 
-            // Spawn portals if unlocked
             if (gameState.playerLevel >= 10) {
                 spawnPortals();
             }
 
-            // Apply custom walls from editor
             if (gameState.customWalls.length > 0) {
                 gameState.obstacles = [...gameState.customWalls];
             }
@@ -1208,7 +1517,6 @@
                 };
             } while (isOccupied(pos.x, pos.y));
 
-            // Determine food type
             let type = 'normal';
             const rand = Math.random();
 
@@ -1222,7 +1530,8 @@
                 x: pos.x,
                 y: pos.y,
                 type: type,
-                timer: type === 'golden' ? 5000 : null
+                timer: type === 'golden' ? 5000 : null,
+                pulse: 0
             };
         }
 
@@ -1248,7 +1557,7 @@
             } while (isOccupied(pos.x, pos.y));
 
             const type = availablePowerUps[Math.floor(Math.random() * availablePowerUps.length)];
-            gameState.powerUps.push({ x: pos.x, y: pos.y, type: type });
+            gameState.powerUps.push({ x: pos.x, y: pos.y, type: type, pulse: 0 });
         }
 
         function spawnObstacles(count) {
@@ -1266,7 +1575,6 @@
         }
 
         function spawnPortals() {
-            // Spawn 2 portal pairs
             for (let i = 0; i < 2; i++) {
                 let pos1, pos2;
                 do {
@@ -1284,30 +1592,20 @@
                 } while (isOccupied(pos2.x, pos2.y) || (pos2.x === pos1.x && pos2.y === pos1.y));
 
                 gameState.portals.push(
-                    { x: pos1.x, y: pos1.y, type: 'orange', pairId: i },
-                    { x: pos2.x, y: pos2.y, type: 'blue', pairId: i }
+                    { x: pos1.x, y: pos1.y, type: 'orange', pairId: i, rotation: 0 },
+                    { x: pos2.x, y: pos2.y, type: 'blue', pairId: i, rotation: 0 }
                 );
             }
         }
 
         function isOccupied(x, y) {
-            // Check snake
             if (gameState.snake.some(s => s.x === x && s.y === y)) return true;
             if (gameState.snake2.some(s => s.x === x && s.y === y)) return true;
             if (gameState.aiSnake.some(s => s.x === x && s.y === y)) return true;
-
-            // Check food
             if (gameState.food && gameState.food.x === x && gameState.food.y === y) return true;
-
-            // Check obstacles
             if (gameState.obstacles.some(o => o.x === x && o.y === y)) return true;
-
-            // Check power-ups
             if (gameState.powerUps.some(p => p.x === x && p.y === y)) return true;
-
-            // Check portals
             if (gameState.portals.some(p => p.x === x && p.y === y)) return true;
-
             return false;
         }
 
@@ -1315,7 +1613,6 @@
         function update() {
             if (gameState.gamePaused) return;
 
-            // Apply direction changes
             if (gameState.nextDirection) {
                 gameState.direction = gameState.nextDirection;
                 gameState.nextDirection = null;
@@ -1325,32 +1622,30 @@
                 gameState.nextDirection2 = null;
             }
 
-            // Update Player 1
+            // Store previous positions for smooth interpolation
+            gameState.snakePositions = gameState.snake.map(s => ({
+                x: s.x * CELL_SIZE + CELL_SIZE/2,
+                y: s.y * CELL_SIZE + CELL_SIZE/2
+            }));
+
             updateSnake(gameState.snake, gameState.direction, 1);
 
-            // Update Player 2
             if (gameState.gameMode === 'twoPlayer') {
                 updateSnake(gameState.snake2, gameState.direction2, 2);
             }
 
-            // Update AI
             if (gameState.gameMode === 'ai') {
                 updateAI();
                 updateSnake(gameState.aiSnake, gameState.aiDirection, 3);
             }
 
-            // Update moving obstacles
             if (gameState.playerLevel >= 14) {
                 updateMovingObstacles();
             }
 
-            // Spawn power-ups
             spawnPowerUp();
-
-            // Update power-up timers
             updatePowerUpTimers();
 
-            // Update dash cooldown
             if (!gameState.dashReady) {
                 gameState.dashCooldown -= gameState.currentSpeed;
                 if (gameState.dashCooldown <= 0) {
@@ -1359,7 +1654,6 @@
                 document.getElementById('dashBar').style.width = ((5000 - gameState.dashCooldown) / 5000 * 100) + '%';
             }
 
-            // Golden apple timer
             if (gameState.food && gameState.food.type === 'golden') {
                 gameState.food.timer -= gameState.currentSpeed;
                 if (gameState.food.timer <= 0) {
@@ -1367,7 +1661,6 @@
                 }
             }
 
-            // Magnet effect
             if (gameState.magnetMode && gameState.food) {
                 const head = gameState.snake[0];
                 const dx = head.x - gameState.food.x;
@@ -1379,7 +1672,6 @@
                 }
             }
 
-            // Check win conditions for multiplayer modes
             if (gameState.gameMode === 'twoPlayer' || gameState.gameMode === 'ai') {
                 if (gameState.score >= 200) {
                     endGame('Player 1 Wins!');
@@ -1388,7 +1680,9 @@
                 }
             }
 
-            draw();
+            gameState.animationProgress = 0;
+            gameState.lastUpdateTime = performance.now();
+
             updateDisplay();
         }
 
@@ -1401,7 +1695,6 @@
                 y: head.y + direction.y
             };
 
-            // Check portal teleportation
             const portal = gameState.portals.find(p => p.x === newHead.x && p.y === newHead.y);
             if (portal) {
                 const exitPortal = gameState.portals.find(p => p.pairId === portal.pairId && p.type !== portal.type);
@@ -1411,7 +1704,6 @@
                 }
             }
 
-            // Wall collision
             const isOutOfBounds = newHead.x < 0 || newHead.x >= gameState.arenaSize ||
                                   newHead.y < 0 || newHead.y >= gameState.arenaSize;
 
@@ -1429,11 +1721,9 @@
                 }
             }
 
-            // Obstacle collision
             const hitObstacle = gameState.obstacles.some(o => o.x === newHead.x && o.y === newHead.y);
             if (hitObstacle) {
                 if (gameState.ghostMode && player === 1) {
-                    // Pass through
                 } else if (gameState.shield && player === 1) {
                     gameState.shield = false;
                     showToast('Shield used!');
@@ -1444,11 +1734,9 @@
                 }
             }
 
-            // Self collision
             const selfCollision = snake.slice(1).some(s => s.x === newHead.x && s.y === newHead.y);
             if (selfCollision) {
                 if (gameState.ghostMode && player === 1) {
-                    // Pass through
                 } else if (gameState.shield && player === 1) {
                     gameState.shield = false;
                     showToast('Shield used!');
@@ -1459,7 +1747,6 @@
                 }
             }
 
-            // Collision with other snakes
             if (gameState.gameMode === 'twoPlayer' || gameState.gameMode === 'ai') {
                 const otherSnake = player === 1 ? (gameState.gameMode === 'twoPlayer' ? gameState.snake2 : gameState.aiSnake) : gameState.snake;
                 if (otherSnake.some(s => s.x === newHead.x && s.y === newHead.y)) {
@@ -1470,7 +1757,19 @@
 
             snake.unshift(newHead);
 
-            // Check food collision
+            // Add trail point for player 1 snake
+            if (player === 1) {
+                const skin = SNAKE_SKINS[gameState.currentSkin];
+                if (skin.trail) {
+                    gameState.trailPoints.push({
+                        x: newHead.x * CELL_SIZE + CELL_SIZE/2,
+                        y: newHead.y * CELL_SIZE + CELL_SIZE/2,
+                        life: 1,
+                        color: skin.trailColor
+                    });
+                }
+            }
+
             if (gameState.food && newHead.x === gameState.food.x && newHead.y === gameState.food.y) {
                 let points = 10;
                 let grow = true;
@@ -1483,7 +1782,6 @@
                     if (snake.length > 1) snake.pop();
                 }
 
-                // Apply combo
                 if (gameState.playerLevel >= 7) {
                     if (gameState.lastFoodType === gameState.food.type) {
                         gameState.combo = Math.min(5, gameState.combo + 1);
@@ -1491,17 +1789,11 @@
                         gameState.combo = 1;
                     }
                     gameState.lastFoodType = gameState.food.type;
-
-                    if (gameState.combo >= 3) {
-                        showCombo();
-                    }
                 }
 
-                // Apply multipliers
                 points *= gameState.combo;
                 if (gameState.scoreMultiplier) points *= 2;
 
-                // Add score
                 if (player === 1) {
                     gameState.score += points;
                 } else if (player === 2) {
@@ -1510,33 +1802,33 @@
                     gameState.aiScore += points;
                 }
 
-                // Create particles
                 const color = gameState.food.type === 'golden' ? '#ffd700' : gameState.food.type === 'poison' ? '#9b59b6' : '#ff4444';
-                createParticles(gameState.food.x * CELL_SIZE + CELL_SIZE/2, gameState.food.y * CELL_SIZE + CELL_SIZE/2, color, 15);
+                createParticles(gameState.food.x * CELL_SIZE + CELL_SIZE/2, gameState.food.y * CELL_SIZE + CELL_SIZE/2, color, 20);
 
                 spawnFood();
 
-                // Don't grow for poison
                 if (!grow) return;
             } else {
                 snake.pop();
             }
 
-            // Check power-up collision
             const powerUpIndex = gameState.powerUps.findIndex(p => p.x === newHead.x && p.y === newHead.y);
             if (powerUpIndex !== -1 && player === 1) {
                 const powerUp = gameState.powerUps[powerUpIndex];
                 activatePowerUp(powerUp.type);
                 gameState.powerUps.splice(powerUpIndex, 1);
-                createParticles(newHead.x * CELL_SIZE + CELL_SIZE/2, newHead.y * CELL_SIZE + CELL_SIZE/2, '#00ccff', 15);
-
-                // Reset combo when collecting power-up
+                createParticles(newHead.x * CELL_SIZE + CELL_SIZE/2, newHead.y * CELL_SIZE + CELL_SIZE/2, '#00ccff', 20);
                 gameState.combo = 1;
             }
         }
 
         function handleDeath(player) {
             if (player === 1) {
+                // Death particles
+                gameState.snake.forEach(s => {
+                    createParticles(s.x * CELL_SIZE + CELL_SIZE/2, s.y * CELL_SIZE + CELL_SIZE/2, '#ff4444', 5);
+                });
+
                 if (gameState.gameMode === 'twoPlayer' || gameState.gameMode === 'ai') {
                     gameState.snake = [];
                     endGame(gameState.gameMode === 'twoPlayer' ? 'Player 2 Wins!' : 'AI Wins!');
@@ -1558,7 +1850,6 @@
             const head = gameState.aiSnake[0];
             const target = gameState.food;
 
-            // Simple pathfinding with difficulty adjustment
             let directions = [
                 { x: 0, y: -1 },
                 { x: 0, y: 1 },
@@ -1566,40 +1857,32 @@
                 { x: 1, y: 0 }
             ];
 
-            // Filter out reverse direction
             directions = directions.filter(d => !(d.x === -gameState.aiDirection.x && d.y === -gameState.aiDirection.y));
 
-            // Score each direction
             directions.forEach(d => {
                 const newPos = { x: head.x + d.x, y: head.y + d.y };
                 d.score = 0;
 
-                // Prefer direction toward food
                 const distToFood = Math.abs(newPos.x - target.x) + Math.abs(newPos.y - target.y);
                 d.score -= distToFood;
 
-                // Avoid walls
                 if (newPos.x < 0 || newPos.x >= GRID_SIZE || newPos.y < 0 || newPos.y >= GRID_SIZE) {
                     d.score -= 1000;
                 }
 
-                // Avoid self
                 if (gameState.aiSnake.some(s => s.x === newPos.x && s.y === newPos.y)) {
                     d.score -= 1000;
                 }
 
-                // Avoid player
                 if (gameState.snake.some(s => s.x === newPos.x && s.y === newPos.y)) {
                     d.score -= 1000;
                 }
 
-                // Avoid obstacles
                 if (gameState.obstacles.some(o => o.x === newPos.x && o.y === newPos.y)) {
                     d.score -= 1000;
                 }
             });
 
-            // Add randomness based on difficulty
             const randomFactor = gameState.aiDifficulty === 'easy' ? 0.3 : gameState.aiDifficulty === 'medium' ? 0.1 : 0.02;
             if (Math.random() < randomFactor) {
                 const validDirs = directions.filter(d => d.score > -500);
@@ -1609,7 +1892,6 @@
                 }
             }
 
-            // Choose best direction
             directions.sort((a, b) => b.score - a.score);
             if (directions[0].score > -500) {
                 gameState.aiDirection = { x: directions[0].x, y: directions[0].y };
@@ -1670,12 +1952,6 @@
         }
 
         function activatePowerUp(type) {
-            // Show tutorial on first use
-            const tutorialKey = type === 'speed' ? 'speedBoost' : type === 'multiplier' ? 'multiplier' : type + 'Mode';
-            if (!gameState.tutorialsShown.includes(tutorialKey) && !gameState.skipTutorials && TUTORIALS[tutorialKey]) {
-                // Skip showing tutorial mid-game for now
-            }
-
             switch(type) {
                 case 'speed':
                     gameState.speedBoost = true;
@@ -1707,13 +1983,30 @@
             }
         }
 
-        // ==================== DRAWING ====================
+        // ==================== RENDERING ====================
+        function render() {
+            if (!gameState.gameRunning) return;
+
+            const now = performance.now();
+            const elapsed = now - gameState.lastUpdateTime;
+            gameState.animationProgress = Math.min(1, elapsed / gameState.currentSpeed);
+            gameState.pulsePhase += 0.1;
+
+            draw();
+            updateParticlesAndTrails();
+
+            renderLoop = requestAnimationFrame(render);
+        }
+
         function draw() {
-            ctx.fillStyle = '#000';
+            const theme = GAME_THEMES[gameState.currentTheme];
+
+            // Clear and draw background
+            ctx.fillStyle = theme.background;
             ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
             // Draw grid lines
-            ctx.strokeStyle = '#111';
+            ctx.strokeStyle = theme.gridColor;
             ctx.lineWidth = 1;
             for (let i = 0; i <= GRID_SIZE; i++) {
                 ctx.beginPath();
@@ -1725,6 +2018,9 @@
                 ctx.lineTo(CANVAS_SIZE, i * CELL_SIZE);
                 ctx.stroke();
             }
+
+            // Update canvas border
+            canvas.style.borderColor = theme.borderColor;
 
             // Draw arena boundary for survival mode
             if (gameState.gameMode === 'survival' && gameState.arenaSize < 30) {
@@ -1742,61 +2038,94 @@
                 ctx.fillRect(obs.x * CELL_SIZE + 2, obs.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
             });
 
-            // Draw portals
+            // Draw portals with rotation
             gameState.portals.forEach(portal => {
-                const gradient = ctx.createRadialGradient(
-                    portal.x * CELL_SIZE + CELL_SIZE/2, portal.y * CELL_SIZE + CELL_SIZE/2, 2,
-                    portal.x * CELL_SIZE + CELL_SIZE/2, portal.y * CELL_SIZE + CELL_SIZE/2, CELL_SIZE/2
-                );
+                portal.rotation += 0.05;
+                const cx = portal.x * CELL_SIZE + CELL_SIZE/2;
+                const cy = portal.y * CELL_SIZE + CELL_SIZE/2;
+
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(portal.rotation);
+
+                const gradient = ctx.createRadialGradient(0, 0, 2, 0, 0, CELL_SIZE/2);
                 if (portal.type === 'orange') {
-                    gradient.addColorStop(0, '#ff8800');
+                    gradient.addColorStop(0, '#ffffff');
+                    gradient.addColorStop(0.3, '#ff8800');
                     gradient.addColorStop(1, '#cc5500');
                 } else {
-                    gradient.addColorStop(0, '#00ccff');
+                    gradient.addColorStop(0, '#ffffff');
+                    gradient.addColorStop(0.3, '#00ccff');
                     gradient.addColorStop(1, '#0066aa');
                 }
+
                 ctx.fillStyle = gradient;
                 ctx.beginPath();
-                ctx.arc(portal.x * CELL_SIZE + CELL_SIZE/2, portal.y * CELL_SIZE + CELL_SIZE/2, CELL_SIZE/2 - 2, 0, Math.PI * 2);
+                ctx.arc(0, 0, CELL_SIZE/2 - 2, 0, Math.PI * 2);
                 ctx.fill();
+
+                // Swirl effect
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0, 0, CELL_SIZE/3, 0, Math.PI);
+                ctx.stroke();
+
+                ctx.restore();
             });
 
-            // Draw food
+            // Draw food with pulse
             if (gameState.food) {
+                gameState.food.pulse += 0.1;
+                const pulseScale = 1 + Math.sin(gameState.food.pulse) * 0.15;
+
                 let foodColor = '#ff4444';
+                let glowColor = 'rgba(255, 68, 68, 0.5)';
                 if (gameState.food.type === 'golden') {
                     foodColor = '#ffd700';
+                    glowColor = 'rgba(255, 215, 0, 0.5)';
                 } else if (gameState.food.type === 'poison') {
                     foodColor = '#9b59b6';
+                    glowColor = 'rgba(155, 89, 182, 0.5)';
                 }
+
+                const fx = gameState.food.x * CELL_SIZE + CELL_SIZE/2;
+                const fy = gameState.food.y * CELL_SIZE + CELL_SIZE/2;
+
+                // Glow
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = glowColor;
 
                 ctx.fillStyle = foodColor;
                 ctx.beginPath();
-                ctx.arc(
-                    gameState.food.x * CELL_SIZE + CELL_SIZE/2,
-                    gameState.food.y * CELL_SIZE + CELL_SIZE/2,
-                    CELL_SIZE/2 - 2,
-                    0, Math.PI * 2
-                );
+                ctx.arc(fx, fy, (CELL_SIZE/2 - 2) * pulseScale, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Sparkle effect for golden
+                ctx.shadowBlur = 0;
+
+                // Sparkle for golden
                 if (gameState.food.type === 'golden') {
                     ctx.strokeStyle = '#fff';
                     ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.arc(
-                        gameState.food.x * CELL_SIZE + CELL_SIZE/2,
-                        gameState.food.y * CELL_SIZE + CELL_SIZE/2,
-                        CELL_SIZE/2 + 2,
-                        0, Math.PI * 2
-                    );
-                    ctx.stroke();
+                    for (let i = 0; i < 4; i++) {
+                        const angle = gameState.food.pulse + (i * Math.PI / 2);
+                        const sx = fx + Math.cos(angle) * CELL_SIZE * 0.4;
+                        const sy = fy + Math.sin(angle) * CELL_SIZE * 0.4;
+                        ctx.beginPath();
+                        ctx.moveTo(sx - 3, sy);
+                        ctx.lineTo(sx + 3, sy);
+                        ctx.moveTo(sx, sy - 3);
+                        ctx.lineTo(sx, sy + 3);
+                        ctx.stroke();
+                    }
                 }
             }
 
-            // Draw power-ups
+            // Draw power-ups with pulse
             gameState.powerUps.forEach(pu => {
+                pu.pulse += 0.1;
+                const pulseScale = 1 + Math.sin(pu.pulse) * 0.1;
+
                 let color, icon;
                 switch(pu.type) {
                     case 'speed': color = '#ffff00'; icon = '⚡'; break;
@@ -1806,97 +2135,213 @@
                     case 'magnet': color = '#ff6b6b'; icon = '🧲'; break;
                 }
 
+                const px = pu.x * CELL_SIZE + CELL_SIZE/2;
+                const py = pu.y * CELL_SIZE + CELL_SIZE/2;
+
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = color;
+
                 ctx.fillStyle = color;
-                ctx.fillRect(pu.x * CELL_SIZE + 2, pu.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+                const size = (CELL_SIZE - 4) * pulseScale;
+                ctx.fillRect(px - size/2, py - size/2, size, size);
+
+                ctx.shadowBlur = 0;
+
                 ctx.fillStyle = '#000';
                 ctx.font = '12px Arial';
                 ctx.textAlign = 'center';
-                ctx.fillText(icon, pu.x * CELL_SIZE + CELL_SIZE/2, pu.y * CELL_SIZE + CELL_SIZE/2 + 4);
+                ctx.textBaseline = 'middle';
+                ctx.fillText(icon, px, py);
             });
 
-            // Draw Player 1 snake
-            drawSnake(gameState.snake, '#00ff88', gameState.ghostMode);
+            // Draw snakes
+            drawSnakeSmooth(gameState.snake, gameState.currentSkin, gameState.ghostMode, true);
 
-            // Draw Player 2 snake
             if (gameState.gameMode === 'twoPlayer') {
-                drawSnake(gameState.snake2, '#ff00ff', false);
+                drawSnakeSmooth(gameState.snake2, 'classic', false, false, '#ff00ff');
             }
 
-            // Draw AI snake
             if (gameState.gameMode === 'ai') {
-                drawSnake(gameState.aiSnake, '#ff6b6b', false);
+                drawSnakeSmooth(gameState.aiSnake, 'classic', false, false, '#ff6b6b');
             }
         }
 
-        function drawSnake(snake, color, transparent) {
-            snake.forEach((segment, index) => {
-                const alpha = transparent ? 0.5 : 1 - (index / snake.length * 0.3);
-                ctx.fillStyle = color;
-                ctx.globalAlpha = alpha;
+        function drawSnakeSmooth(snake, skinId, transparent, isPlayer1, overrideColor = null) {
+            if (snake.length === 0) return;
 
-                if (index === 0) {
-                    // Head - slightly larger and rounded
-                    ctx.beginPath();
-                    ctx.arc(
-                        segment.x * CELL_SIZE + CELL_SIZE/2,
-                        segment.y * CELL_SIZE + CELL_SIZE/2,
-                        CELL_SIZE/2 - 1,
-                        0, Math.PI * 2
-                    );
-                    ctx.fill();
+            const skin = SNAKE_SKINS[skinId] || SNAKE_SKINS.classic;
+            const baseAlpha = transparent ? 0.5 : 1;
 
-                    // Shield glow
-                    if (gameState.shield && color === '#00ff88') {
-                        ctx.strokeStyle = '#00ccff';
-                        ctx.lineWidth = 3;
-                        ctx.beginPath();
-                        ctx.arc(
-                            segment.x * CELL_SIZE + CELL_SIZE/2,
-                            segment.y * CELL_SIZE + CELL_SIZE/2,
-                            CELL_SIZE/2 + 2,
-                            0, Math.PI * 2
-                        );
-                        ctx.stroke();
-                    }
-                } else {
-                    ctx.fillRect(
-                        segment.x * CELL_SIZE + 1,
-                        segment.y * CELL_SIZE + 1,
-                        CELL_SIZE - 2,
-                        CELL_SIZE - 2
-                    );
+            // Calculate smooth positions
+            const smoothSnake = snake.map((segment, index) => {
+                const targetX = segment.x * CELL_SIZE + CELL_SIZE/2;
+                const targetY = segment.y * CELL_SIZE + CELL_SIZE/2;
+
+                if (isPlayer1 && gameState.snakePositions[index]) {
+                    const prevX = gameState.snakePositions[index].x;
+                    const prevY = gameState.snakePositions[index].y;
+                    return {
+                        x: prevX + (targetX - prevX) * gameState.animationProgress,
+                        y: prevY + (targetY - prevY) * gameState.animationProgress
+                    };
                 }
+                return { x: targetX, y: targetY };
             });
+
+            // Draw smooth curved body
+            if (smoothSnake.length > 1) {
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                // Draw body segments with gradient
+                for (let i = smoothSnake.length - 1; i >= 1; i--) {
+                    const progress = i / smoothSnake.length;
+                    const alpha = baseAlpha * (1 - progress * 0.4);
+
+                    let segmentColor;
+                    if (overrideColor) {
+                        segmentColor = overrideColor;
+                    } else if (skin.pattern === 'rainbow') {
+                        const colorIndex = (i + Math.floor(gameState.pulsePhase)) % skin.colors.length;
+                        segmentColor = skin.colors[colorIndex];
+                    } else {
+                        const colorIndex = Math.floor(progress * (skin.colors.length - 1));
+                        segmentColor = skin.colors[Math.min(colorIndex, skin.colors.length - 1)];
+                    }
+
+                    ctx.globalAlpha = alpha;
+
+                    // Draw segment
+                    const curr = smoothSnake[i];
+                    const prev = smoothSnake[i - 1];
+
+                    // Draw connection line
+                    ctx.strokeStyle = segmentColor;
+                    ctx.lineWidth = CELL_SIZE - 4;
+                    ctx.beginPath();
+                    ctx.moveTo(prev.x, prev.y);
+                    ctx.lineTo(curr.x, curr.y);
+                    ctx.stroke();
+
+                    // Draw segment circle
+                    ctx.fillStyle = segmentColor;
+                    ctx.beginPath();
+                    ctx.arc(curr.x, curr.y, (CELL_SIZE - 4) / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.globalAlpha = baseAlpha;
+            }
+
+            // Draw head
+            const head = smoothSnake[0];
+            let headColor = overrideColor || skin.colors[0];
+
+            // Pulse effect for certain skins
+            if (skin.pattern === 'pulse' && !overrideColor) {
+                const pulse = Math.sin(gameState.pulsePhase * 2) * 0.3 + 0.7;
+                ctx.globalAlpha = baseAlpha * pulse;
+            }
+
+            // Glow effect
+            if (!overrideColor) {
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = skin.glow;
+            }
+
+            ctx.fillStyle = headColor;
+            ctx.beginPath();
+            ctx.arc(head.x, head.y, CELL_SIZE/2 - 1, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.shadowBlur = 0;
+
+            // Draw eyes
+            ctx.fillStyle = '#000';
+            const eyeOffset = 4;
+            const eyeSize = 3;
+            const direction = gameState.direction;
+
+            let eye1X = head.x - eyeOffset;
+            let eye2X = head.x + eyeOffset;
+            let eye1Y = head.y - eyeOffset;
+            let eye2Y = head.y - eyeOffset;
+
+            if (direction.x === 1) { eye1X = eye2X = head.x + 3; eye1Y = head.y - 4; eye2Y = head.y + 4; }
+            else if (direction.x === -1) { eye1X = eye2X = head.x - 3; eye1Y = head.y - 4; eye2Y = head.y + 4; }
+            else if (direction.y === 1) { eye1Y = eye2Y = head.y + 3; eye1X = head.x - 4; eye2X = head.x + 4; }
+            else if (direction.y === -1) { eye1Y = eye2Y = head.y - 3; eye1X = head.x - 4; eye2X = head.x + 4; }
+
+            ctx.beginPath();
+            ctx.arc(eye1X, eye1Y, eyeSize, 0, Math.PI * 2);
+            ctx.arc(eye2X, eye2Y, eyeSize, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Shield glow for player 1
+            if (gameState.shield && isPlayer1) {
+                ctx.strokeStyle = '#00ccff';
+                ctx.lineWidth = 3;
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#00ccff';
+                ctx.beginPath();
+                ctx.arc(head.x, head.y, CELL_SIZE/2 + 4 + Math.sin(gameState.pulsePhase) * 2, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+
             ctx.globalAlpha = 1;
         }
 
-        // ==================== PARTICLES ====================
+        // ==================== PARTICLES & TRAILS ====================
         function createParticles(x, y, color, count) {
             for (let i = 0; i < count; i++) {
                 gameState.particles.push({
                     x: x,
                     y: y,
-                    vx: (Math.random() - 0.5) * 8,
-                    vy: (Math.random() - 0.5) * 8 - 2,
+                    vx: (Math.random() - 0.5) * 10,
+                    vy: (Math.random() - 0.5) * 10 - 3,
                     color: color,
                     life: 1,
-                    size: Math.random() * 4 + 2
+                    size: Math.random() * 5 + 3
                 });
             }
         }
 
-        function updateParticles() {
+        function updateParticlesAndTrails() {
+            // Clear trail canvas with fade
+            trailCtx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            trailCtx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+            // Draw and update trails
+            gameState.trailPoints = gameState.trailPoints.filter(t => {
+                t.life -= 0.02;
+                if (t.life > 0) {
+                    trailCtx.globalAlpha = t.life * 0.5;
+                    trailCtx.fillStyle = t.color;
+                    trailCtx.beginPath();
+                    trailCtx.arc(t.x, t.y, 8 * t.life, 0, Math.PI * 2);
+                    trailCtx.fill();
+                    return true;
+                }
+                return false;
+            });
+            trailCtx.globalAlpha = 1;
+
+            // Clear particle canvas
             particleCtx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
+            // Draw and update particles
             gameState.particles = gameState.particles.filter(p => {
                 p.x += p.vx;
                 p.y += p.vy;
-                p.vy += 0.2; // Gravity
-                p.life -= 0.02;
+                p.vy += 0.3;
+                p.life -= 0.025;
 
                 if (p.life > 0) {
                     particleCtx.globalAlpha = p.life;
                     particleCtx.fillStyle = p.color;
+                    particleCtx.shadowBlur = 10;
+                    particleCtx.shadowColor = p.color;
                     particleCtx.beginPath();
                     particleCtx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
                     particleCtx.fill();
@@ -1904,10 +2349,11 @@
                 }
                 return false;
             });
+            particleCtx.shadowBlur = 0;
             particleCtx.globalAlpha = 1;
         }
 
-        // ==================== UI UPDATES ====================
+        // ==================== UI ====================
         function updateDisplay() {
             document.getElementById('scoreDisplay').textContent = gameState.score;
             document.getElementById('highScoreDisplay').textContent = Math.max(gameState.highScore, gameState.score);
@@ -1942,10 +2388,6 @@
             }
         }
 
-        function showCombo() {
-            // Already showing combo in display
-        }
-
         function showToast(message) {
             const toast = document.createElement('div');
             toast.className = 'toast';
@@ -1958,20 +2400,17 @@
         function endGame(message) {
             gameState.gameRunning = false;
             clearInterval(gameLoop);
-            clearInterval(particleLoop);
+            cancelAnimationFrame(renderLoop);
 
-            // Calculate rewards
             const xpEarned = Math.floor(gameState.score / 5);
             const coinsEarned = Math.floor(gameState.score / 10);
 
-            // Update progress
             gameState.xp += xpEarned;
             gameState.coins += coinsEarned;
             if (gameState.score > gameState.highScore) {
                 gameState.highScore = gameState.score;
             }
 
-            // Check for level up
             let leveledUp = false;
             while (gameState.playerLevel < 20 && gameState.xp >= LEVEL_XP[gameState.playerLevel]) {
                 gameState.playerLevel++;
@@ -1980,7 +2419,6 @@
 
             saveProgress();
 
-            // Show game over screen
             document.getElementById('gameOverTitle').textContent = message;
             document.getElementById('finalScore').textContent = gameState.score;
             document.getElementById('finalLength').textContent = gameState.snake.length || 0;
@@ -1988,7 +2426,6 @@
             document.getElementById('coinsEarned').textContent = '+' + coinsEarned;
             document.getElementById('gameOverModal').style.display = 'flex';
 
-            // Show level up if applicable
             if (leveledUp) {
                 setTimeout(() => {
                     document.getElementById('gameOverModal').style.display = 'none';
@@ -2018,7 +2455,6 @@
             quitGame();
         }
 
-        // ==================== PAUSE / QUIT ====================
         function togglePause() {
             if (!gameState.gameRunning) return;
             gameState.gamePaused = !gameState.gamePaused;
@@ -2028,10 +2464,11 @@
         function quitGame() {
             gameState.gameRunning = false;
             clearInterval(gameLoop);
-            clearInterval(particleLoop);
+            cancelAnimationFrame(renderLoop);
             document.getElementById('gameScreen').style.display = 'none';
             document.getElementById('mainMenu').style.display = 'block';
             updateMenuDisplay();
+            updateSkinPreview();
         }
 
         // ==================== TUTORIALS ====================
@@ -2057,7 +2494,7 @@
             saveProgress();
         }
 
-        // ==================== AI SELECTION ====================
+        // ==================== AI/EDITOR ====================
         function showAISelection() {
             document.getElementById('aiModal').style.display = 'flex';
         }
@@ -2066,23 +2503,23 @@
             document.getElementById('aiModal').style.display = 'none';
         }
 
-        // ==================== LEVEL EDITOR ====================
         function setupEditorControls() {
-            editorCanvas.addEventListener('mousedown', startDrawing);
-            editorCanvas.addEventListener('mousemove', draw_editor);
-            editorCanvas.addEventListener('mouseup', stopDrawing);
-            editorCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
-
             let isDrawing = false;
 
-            function startDrawing(e) {
+            editorCanvas.addEventListener('mousedown', (e) => {
                 isDrawing = true;
-                draw_editor(e);
-            }
+                handleEditorDraw(e);
+            });
 
-            function draw_editor(e) {
-                if (!isDrawing) return;
+            editorCanvas.addEventListener('mousemove', (e) => {
+                if (isDrawing) handleEditorDraw(e);
+            });
 
+            editorCanvas.addEventListener('mouseup', () => isDrawing = false);
+            editorCanvas.addEventListener('mouseleave', () => isDrawing = false);
+            editorCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+            function handleEditorDraw(e) {
                 const rect = editorCanvas.getBoundingClientRect();
                 const x = Math.floor((e.clientX - rect.left) / CELL_SIZE);
                 const y = Math.floor((e.clientY - rect.top) / CELL_SIZE);
@@ -2090,20 +2527,14 @@
                 if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) return;
 
                 if (e.buttons === 1 && gameState.editorTool === 'wall') {
-                    // Left click - add wall
                     if (!gameState.editorWalls.some(w => w.x === x && w.y === y)) {
                         gameState.editorWalls.push({ x, y });
                     }
-                } else if (e.buttons === 2 || gameState.editorTool === 'erase') {
-                    // Right click - remove wall
+                } else if (e.buttons === 2 || (e.buttons === 1 && gameState.editorTool === 'erase')) {
                     gameState.editorWalls = gameState.editorWalls.filter(w => !(w.x === x && w.y === y));
                 }
 
                 renderEditor();
-            }
-
-            function stopDrawing() {
-                isDrawing = false;
             }
         }
 
@@ -2114,11 +2545,12 @@
         }
 
         function renderEditor() {
-            editorCtx.fillStyle = '#000';
+            const theme = GAME_THEMES[gameState.currentTheme];
+
+            editorCtx.fillStyle = theme.background;
             editorCtx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-            // Grid
-            editorCtx.strokeStyle = '#111';
+            editorCtx.strokeStyle = theme.gridColor;
             for (let i = 0; i <= GRID_SIZE; i++) {
                 editorCtx.beginPath();
                 editorCtx.moveTo(i * CELL_SIZE, 0);
@@ -2130,7 +2562,6 @@
                 editorCtx.stroke();
             }
 
-            // Walls
             editorCtx.fillStyle = '#8b4513';
             gameState.editorWalls.forEach(w => {
                 editorCtx.fillRect(w.x * CELL_SIZE + 2, w.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
@@ -2138,7 +2569,6 @@
         }
 
         function openEditor() {
-            // Show tutorial
             if (!gameState.tutorialsShown.includes('editor') && !gameState.skipTutorials) {
                 showTutorial('editor');
             }
@@ -2188,7 +2618,7 @@
             }
         }
 
-        // Initialize on load
+        // Initialize
         window.onload = init;
     </script>
 </body>
