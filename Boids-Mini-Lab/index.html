@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boids Interactive Mini-Lab</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a0a0f;
+            color: #e0e0e0;
+            overflow: hidden;
+            display: flex;
+        }
+
+        #canvas-container {
+            flex: 1;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+            background: #0d0d14;
+        }
+
+        #metrics {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            border: 1px solid #333;
+        }
+
+        #metrics .label {
+            color: #888;
+        }
+
+        #metrics .value {
+            color: #4fc3f7;
+            font-weight: bold;
+        }
+
+        #metrics .fps-good { color: #4caf50; }
+        #metrics .fps-warn { color: #ff9800; }
+        #metrics .fps-bad { color: #f44336; }
+
+        #controls {
+            width: 320px;
+            background: #12121a;
+            padding: 15px;
+            overflow-y: auto;
+            height: 100vh;
+            border-left: 1px solid #2a2a3a;
+        }
+
+        .control-section {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #2a2a3a;
+        }
+
+        .control-section h3 {
+            color: #4fc3f7;
+            font-size: 14px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+        }
+
+        .control-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .control-label span {
+            font-size: 12px;
+        }
+
+        .control-label .value {
+            color: #4fc3f7;
+            font-family: 'Consolas', monospace;
+        }
+
+        .tooltip {
+            font-size: 10px;
+            color: #666;
+            margin-bottom: 4px;
+            font-style: italic;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            -webkit-appearance: none;
+            background: #2a2a3a;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #4fc3f7;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: #81d4fa;
+        }
+
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .btn-preset {
+            background: #2a2a3a;
+            color: #e0e0e0;
+            flex: 1;
+            min-width: 90px;
+        }
+
+        .btn-preset:hover {
+            background: #3a3a4a;
+        }
+
+        .btn-preset.active {
+            background: #4fc3f7;
+            color: #000;
+        }
+
+        .btn-control {
+            background: #4fc3f7;
+            color: #000;
+            font-weight: bold;
+        }
+
+        .btn-control:hover {
+            background: #81d4fa;
+        }
+
+        .btn-control.pause {
+            background: #ff9800;
+        }
+
+        .btn-control.pause:hover {
+            background: #ffc107;
+        }
+
+        .toggle-group {
+            display: flex;
+            gap: 4px;
+        }
+
+        .toggle-btn {
+            flex: 1;
+            padding: 6px 10px;
+            background: #2a2a3a;
+            color: #888;
+            font-size: 11px;
+        }
+
+        .toggle-btn.active {
+            background: #4fc3f7;
+            color: #000;
+        }
+
+        select {
+            width: 100%;
+            padding: 8px;
+            background: #2a2a3a;
+            color: #e0e0e0;
+            border: 1px solid #3a3a4a;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #4fc3f7;
+        }
+
+        #interaction-indicator {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            display: none;
+        }
+
+        #interaction-indicator.attract { border: 2px solid #4caf50; color: #4caf50; }
+        #interaction-indicator.repel { border: 2px solid #f44336; color: #f44336; }
+        #interaction-indicator.spawn { border: 2px solid #2196f3; color: #2196f3; }
+    </style>
+</head>
+<body>
+    <div id="canvas-container">
+        <canvas id="canvas"></canvas>
+        <div id="metrics">
+            <div><span class="label">FPS: </span><span id="fps" class="value fps-good">60</span></div>
+            <div><span class="label">Boids: </span><span id="boid-count" class="value">300</span></div>
+            <div><span class="label">Avg Speed: </span><span id="avg-speed" class="value">0.00</span></div>
+            <div><span class="label">Avg Neighbors: </span><span id="avg-neighbors" class="value">0.0</span></div>
+            <div><span class="label">Compactness: </span><span id="compactness" class="value">0.0</span></div>
+        </div>
+        <div id="interaction-indicator">Click + Drag</div>
+    </div>
+
+    <div id="controls">
+        <div class="control-section">
+            <h3>Simulation</h3>
+            <div class="btn-group">
+                <button id="btn-pause" class="btn-control">Pause</button>
+                <button id="btn-reset" class="btn-control">Reset</button>
+            </div>
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Boid Count</span>
+                    <span class="value" id="val-count">300</span>
+                </div>
+                <div class="tooltip">Number of boids in the simulation</div>
+                <input type="range" id="slider-count" min="50" max="1500" value="300" step="10">
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h3>Presets</h3>
+            <div class="btn-group">
+                <button class="btn-preset" data-preset="schooling">Schooling</button>
+                <button class="btn-preset" data-preset="chaotic">Chaotic Swarm</button>
+                <button class="btn-preset" data-preset="tight">Tight Cluster</button>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h3>Flocking Rules</h3>
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Separation</span>
+                    <span class="value" id="val-separation">1.5</span>
+                </div>
+                <div class="tooltip">How strongly boids avoid crowding neighbors</div>
+                <input type="range" id="slider-separation" min="0" max="5" value="1.5" step="0.1">
+            </div>
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Alignment</span>
+                    <span class="value" id="val-alignment">1.0</span>
+                </div>
+                <div class="tooltip">How much boids match the direction of neighbors</div>
+                <input type="range" id="slider-alignment" min="0" max="5" value="1.0" step="0.1">
+            </div>
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Cohesion</span>
+                    <span class="value" id="val-cohesion">1.0</span>
+                </div>
+                <div class="tooltip">How strongly boids move toward the center of neighbors</div>
+                <input type="range" id="slider-cohesion" min="0" max="5" value="1.0" step="0.1">
+            </div>
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Neighbor Radius</span>
+                    <span class="value" id="val-radius">50</span>
+                </div>
+                <div class="tooltip">How far each boid can see other boids</div>
+                <input type="range" id="slider-radius" min="20" max="150" value="50" step="5">
+            </div>
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Max Speed</span>
+                    <span class="value" id="val-speed">4</span>
+                </div>
+                <div class="tooltip">Maximum velocity a boid can reach</div>
+                <input type="range" id="slider-speed" min="1" max="10" value="4" step="0.5">
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h3>Environment</h3>
+            <div class="control-group">
+                <div class="control-label"><span>Boundary Mode</span></div>
+                <div class="tooltip">How boids behave at edges</div>
+                <div class="toggle-group">
+                    <button class="toggle-btn active" data-boundary="wrap">Wrap</button>
+                    <button class="toggle-btn" data-boundary="bounce">Bounce</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h3>Visualization</h3>
+            <div class="control-group">
+                <div class="control-label"><span>Color Mode</span></div>
+                <div class="tooltip">How boid colors are determined</div>
+                <select id="color-mode">
+                    <option value="direction">Direction-Based (velocity angle)</option>
+                    <option value="speed">Speed-Based (velocity magnitude)</option>
+                    <option value="density">Density-Based (neighbor count)</option>
+                    <option value="group">Group Emergence (local alignment)</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <div class="control-label"><span>Design Mode</span></div>
+                <div class="tooltip">Initial pattern that influences emergent behavior</div>
+                <select id="design-mode">
+                    <option value="random">Random</option>
+                    <option value="rings">Rings / Mills</option>
+                    <option value="braids">Braids</option>
+                    <option value="waves">Waves</option>
+                    <option value="vortices">Vortices</option>
+                    <option value="fracture">Fracture / Fusion</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Trail Length</span>
+                    <span class="value" id="val-trail">0</span>
+                </div>
+                <div class="tooltip">Length of motion trails (0 = off)</div>
+                <input type="range" id="slider-trail" min="0" max="50" value="0" step="1">
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h3>Perception (Advanced)</h3>
+            <div class="control-group">
+                <div class="control-label"><span>Sensing Mode</span></div>
+                <div class="tooltip">Omnidirectional sees all around; cone sees only forward</div>
+                <div class="toggle-group">
+                    <button class="toggle-btn active" data-perception="omni">Omni</button>
+                    <button class="toggle-btn" data-perception="cone">Cone</button>
+                </div>
+            </div>
+            <div class="control-group" id="fov-group" style="display:none;">
+                <div class="control-label">
+                    <span>Field of View</span>
+                    <span class="value" id="val-fov">270</span>°
+                </div>
+                <div class="tooltip">Angle of forward vision cone</div>
+                <input type="range" id="slider-fov" min="30" max="360" value="270" step="10">
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h3>Interaction Tools</h3>
+            <div class="control-group">
+                <div class="control-label"><span>Mouse Tool</span></div>
+                <div class="tooltip">Click and drag to interact with boids</div>
+                <div class="toggle-group">
+                    <button class="toggle-btn active" data-tool="none">None</button>
+                    <button class="toggle-btn" data-tool="attract">Attract</button>
+                    <button class="toggle-btn" data-tool="repel">Repel</button>
+                    <button class="toggle-btn" data-tool="spawn">Spawn</button>
+                </div>
+            </div>
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Interaction Radius</span>
+                    <span class="value" id="val-interact">100</span>
+                </div>
+                <input type="range" id="slider-interact" min="30" max="200" value="100" step="10">
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h3>Performance</h3>
+            <div class="control-group">
+                <div class="control-label"><span>Spatial Optimization</span></div>
+                <div class="tooltip">Grid-based lookup improves performance at high boid counts</div>
+                <div class="toggle-group">
+                    <button class="toggle-btn" data-spatial="naive">Naive O(n²)</button>
+                    <button class="toggle-btn active" data-spatial="grid">Grid O(n)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== CONFIGURATION ====================
+        const config = {
+            separation: 1.5,
+            alignment: 1.0,
+            cohesion: 1.0,
+            neighborRadius: 50,
+            maxSpeed: 4,
+            maxForce: 0.1,
+            boidCount: 300,
+            boundaryMode: 'wrap',
+            colorMode: 'direction',
+            designMode: 'random',
+            perceptionMode: 'omni',
+            fov: 270,
+            interactionTool: 'none',
+            interactionRadius: 100,
+            useSpatialGrid: true,
+            trailLength: 0
+        };
+
+        const presets = {
+            schooling: { separation: 1.5, alignment: 1.2, cohesion: 1.0, neighborRadius: 60, maxSpeed: 4 },
+            chaotic: { separation: 2.5, alignment: 0.3, cohesion: 0.5, neighborRadius: 30, maxSpeed: 6 },
+            tight: { separation: 0.8, alignment: 1.5, cohesion: 2.0, neighborRadius: 80, maxSpeed: 3 }
+        };
+
+        // ==================== CANVAS SETUP ====================
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let dpr = window.devicePixelRatio || 1;
+
+        function resizeCanvas() {
+            const container = document.getElementById('canvas-container');
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            canvas.style.width = width + 'px';
+            canvas.style.height = height + 'px';
+            ctx.scale(dpr, dpr);
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // ==================== BOID CLASS ====================
+        class Boid {
+            constructor(x, y, vx, vy) {
+                this.x = x;
+                this.y = y;
+                this.vx = vx;
+                this.vy = vy;
+                this.ax = 0;
+                this.ay = 0;
+                this.neighborCount = 0;
+                this.localAlignment = 0;
+                this.trail = [];
+            }
+
+            applyForce(fx, fy) {
+                this.ax += fx;
+                this.ay += fy;
+            }
+
+            update() {
+                // Store trail point
+                if (config.trailLength > 0) {
+                    this.trail.push({ x: this.x, y: this.y });
+                    if (this.trail.length > config.trailLength) {
+                        this.trail.shift();
+                    }
+                } else {
+                    this.trail.length = 0;
+                }
+
+                this.vx += this.ax;
+                this.vy += this.ay;
+
+                // Clamp speed
+                const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                if (speed > config.maxSpeed) {
+                    this.vx = (this.vx / speed) * config.maxSpeed;
+                    this.vy = (this.vy / speed) * config.maxSpeed;
+                }
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Reset acceleration
+                this.ax = 0;
+                this.ay = 0;
+
+                // Boundary handling
+                if (config.boundaryMode === 'wrap') {
+                    if (this.x < 0) this.x += width;
+                    if (this.x > width) this.x -= width;
+                    if (this.y < 0) this.y += height;
+                    if (this.y > height) this.y -= height;
+                } else {
+                    const margin = 20;
+                    const turnForce = 0.5;
+                    if (this.x < margin) this.vx += turnForce;
+                    if (this.x > width - margin) this.vx -= turnForce;
+                    if (this.y < margin) this.vy += turnForce;
+                    if (this.y > height - margin) this.vy -= turnForce;
+                }
+            }
+        }
+
+        // ==================== SPATIAL GRID ====================
+        class SpatialGrid {
+            constructor(cellSize) {
+                this.cellSize = cellSize;
+                this.grid = new Map();
+            }
+
+            clear() {
+                this.grid.clear();
+            }
+
+            getKey(x, y) {
+                const cx = Math.floor(x / this.cellSize);
+                const cy = Math.floor(y / this.cellSize);
+                return `${cx},${cy}`;
+            }
+
+            insert(boid) {
+                const key = this.getKey(boid.x, boid.y);
+                if (!this.grid.has(key)) {
+                    this.grid.set(key, []);
+                }
+                this.grid.get(key).push(boid);
+            }
+
+            getNearby(x, y, radius) {
+                const nearby = [];
+                const cellRadius = Math.ceil(radius / this.cellSize);
+                const cx = Math.floor(x / this.cellSize);
+                const cy = Math.floor(y / this.cellSize);
+
+                for (let dx = -cellRadius; dx <= cellRadius; dx++) {
+                    for (let dy = -cellRadius; dy <= cellRadius; dy++) {
+                        const key = `${cx + dx},${cy + dy}`;
+                        const cell = this.grid.get(key);
+                        if (cell) {
+                            for (let i = 0; i < cell.length; i++) {
+                                nearby.push(cell[i]);
+                            }
+                        }
+                    }
+                }
+                return nearby;
+            }
+        }
+
+        // ==================== SIMULATION STATE ====================
+        let boids = [];
+        let spatialGrid = new SpatialGrid(config.neighborRadius);
+        let isPaused = false;
+        let mouse = { x: 0, y: 0, down: false };
+
+        // ==================== INITIALIZATION ====================
+        function initBoids() {
+            boids = [];
+            const count = config.boidCount;
+            const mode = config.designMode;
+
+            for (let i = 0; i < count; i++) {
+                let x, y, vx, vy;
+
+                switch (mode) {
+                    case 'rings':
+                        const angle = (i / count) * Math.PI * 2;
+                        const radius = 100 + Math.random() * 150;
+                        x = width / 2 + Math.cos(angle) * radius;
+                        y = height / 2 + Math.sin(angle) * radius;
+                        vx = Math.cos(angle + Math.PI / 2) * 2;
+                        vy = Math.sin(angle + Math.PI / 2) * 2;
+                        break;
+
+                    case 'braids':
+                        const stream = i % 3;
+                        x = Math.random() * width;
+                        y = height / 4 + (stream * height / 4) + (Math.random() - 0.5) * 50;
+                        vx = (stream === 1 ? -1 : 1) * (2 + Math.random());
+                        vy = (Math.random() - 0.5) * 0.5;
+                        break;
+
+                    case 'waves':
+                        x = Math.random() * width;
+                        y = Math.random() * height;
+                        const wavePhase = (x / width) * Math.PI * 4;
+                        vx = 2;
+                        vy = Math.sin(wavePhase) * 2;
+                        break;
+
+                    case 'vortices':
+                        const vortex = i % 4;
+                        const vx0 = (vortex % 2) * width / 2 + width / 4;
+                        const vy0 = Math.floor(vortex / 2) * height / 2 + height / 4;
+                        const vAngle = Math.random() * Math.PI * 2;
+                        const vRadius = 50 + Math.random() * 100;
+                        x = vx0 + Math.cos(vAngle) * vRadius;
+                        y = vy0 + Math.sin(vAngle) * vRadius;
+                        const rotDir = vortex % 2 === 0 ? 1 : -1;
+                        vx = Math.cos(vAngle + Math.PI / 2 * rotDir) * 3;
+                        vy = Math.sin(vAngle + Math.PI / 2 * rotDir) * 3;
+                        break;
+
+                    case 'fracture':
+                        const group = i % 5;
+                        const gx = (group % 3) * width / 3 + width / 6;
+                        const gy = Math.floor(group / 3) * height / 2 + height / 4;
+                        x = gx + (Math.random() - 0.5) * 100;
+                        y = gy + (Math.random() - 0.5) * 100;
+                        const fAngle = Math.random() * Math.PI * 2;
+                        vx = Math.cos(fAngle) * 2;
+                        vy = Math.sin(fAngle) * 2;
+                        break;
+
+                    default: // random
+                        x = Math.random() * width;
+                        y = Math.random() * height;
+                        const rAngle = Math.random() * Math.PI * 2;
+                        vx = Math.cos(rAngle) * 2;
+                        vy = Math.sin(rAngle) * 2;
+                }
+
+                boids.push(new Boid(x, y, vx, vy));
+            }
+        }
+
+        // ==================== FLOCKING BEHAVIORS ====================
+        function inFieldOfView(boid, other) {
+            if (config.perceptionMode === 'omni') return true;
+
+            const dx = other.x - boid.x;
+            const dy = other.y - boid.y;
+            const angleToOther = Math.atan2(dy, dx);
+            const heading = Math.atan2(boid.vy, boid.vx);
+            let diff = angleToOther - heading;
+
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+
+            return Math.abs(diff) < (config.fov * Math.PI / 360);
+        }
+
+        function computeFlocking(boid, neighbors) {
+            let sepX = 0, sepY = 0, sepCount = 0;
+            let alignX = 0, alignY = 0, alignCount = 0;
+            let cohX = 0, cohY = 0, cohCount = 0;
+            let totalAlignment = 0;
+
+            const radiusSq = config.neighborRadius * config.neighborRadius;
+            const separationDist = config.neighborRadius * 0.5;
+
+            for (let i = 0; i < neighbors.length; i++) {
+                const other = neighbors[i];
+                if (other === boid) continue;
+
+                const dx = other.x - boid.x;
+                const dy = other.y - boid.y;
+                const distSq = dx * dx + dy * dy;
+
+                if (distSq > radiusSq || distSq < 0.001) continue;
+                if (!inFieldOfView(boid, other)) continue;
+
+                const dist = Math.sqrt(distSq);
+
+                // Separation
+                if (dist < separationDist) {
+                    sepX -= dx / dist;
+                    sepY -= dy / dist;
+                    sepCount++;
+                }
+
+                // Alignment
+                alignX += other.vx;
+                alignY += other.vy;
+                alignCount++;
+
+                // Cohesion
+                cohX += other.x;
+                cohY += other.y;
+                cohCount++;
+
+                // Track alignment for group coloring
+                const dotProduct = (boid.vx * other.vx + boid.vy * other.vy);
+                const boidSpeed = Math.sqrt(boid.vx * boid.vx + boid.vy * boid.vy);
+                const otherSpeed = Math.sqrt(other.vx * other.vx + other.vy * other.vy);
+                if (boidSpeed > 0.1 && otherSpeed > 0.1) {
+                    totalAlignment += dotProduct / (boidSpeed * otherSpeed);
+                }
+            }
+
+            boid.neighborCount = alignCount;
+            boid.localAlignment = alignCount > 0 ? totalAlignment / alignCount : 0;
+
+            // Apply separation
+            if (sepCount > 0) {
+                const mag = Math.sqrt(sepX * sepX + sepY * sepY);
+                if (mag > 0) {
+                    sepX = (sepX / mag) * config.maxSpeed - boid.vx;
+                    sepY = (sepY / mag) * config.maxSpeed - boid.vy;
+                    const fMag = Math.sqrt(sepX * sepX + sepY * sepY);
+                    if (fMag > config.maxForce) {
+                        sepX = (sepX / fMag) * config.maxForce;
+                        sepY = (sepY / fMag) * config.maxForce;
+                    }
+                    boid.applyForce(sepX * config.separation, sepY * config.separation);
+                }
+            }
+
+            // Apply alignment
+            if (alignCount > 0) {
+                alignX /= alignCount;
+                alignY /= alignCount;
+                const mag = Math.sqrt(alignX * alignX + alignY * alignY);
+                if (mag > 0) {
+                    alignX = (alignX / mag) * config.maxSpeed - boid.vx;
+                    alignY = (alignY / mag) * config.maxSpeed - boid.vy;
+                    const fMag = Math.sqrt(alignX * alignX + alignY * alignY);
+                    if (fMag > config.maxForce) {
+                        alignX = (alignX / fMag) * config.maxForce;
+                        alignY = (alignY / fMag) * config.maxForce;
+                    }
+                    boid.applyForce(alignX * config.alignment, alignY * config.alignment);
+                }
+            }
+
+            // Apply cohesion
+            if (cohCount > 0) {
+                cohX = cohX / cohCount - boid.x;
+                cohY = cohY / cohCount - boid.y;
+                const mag = Math.sqrt(cohX * cohX + cohY * cohY);
+                if (mag > 0) {
+                    cohX = (cohX / mag) * config.maxSpeed - boid.vx;
+                    cohY = (cohY / mag) * config.maxSpeed - boid.vy;
+                    const fMag = Math.sqrt(cohX * cohX + cohY * cohY);
+                    if (fMag > config.maxForce) {
+                        cohX = (cohX / fMag) * config.maxForce;
+                        cohY = (cohY / fMag) * config.maxForce;
+                    }
+                    boid.applyForce(cohX * config.cohesion, cohY * config.cohesion);
+                }
+            }
+        }
+
+        function applyMouseInteraction(boid) {
+            if (!mouse.down || config.interactionTool === 'none') return;
+
+            const dx = mouse.x - boid.x;
+            const dy = mouse.y - boid.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist < config.interactionRadius && dist > 0.1) {
+                const strength = (1 - dist / config.interactionRadius) * 0.3;
+
+                if (config.interactionTool === 'attract') {
+                    boid.applyForce(dx / dist * strength, dy / dist * strength);
+                } else if (config.interactionTool === 'repel') {
+                    boid.applyForce(-dx / dist * strength * 2, -dy / dist * strength * 2);
+                }
+            }
+        }
+
+        // ==================== RENDERING ====================
+        function getColor(boid) {
+            const speed = Math.sqrt(boid.vx * boid.vx + boid.vy * boid.vy);
+
+            switch (config.colorMode) {
+                case 'direction':
+                    const angle = Math.atan2(boid.vy, boid.vx);
+                    const hue = ((angle + Math.PI) / (Math.PI * 2)) * 360;
+                    return `hsl(${hue}, 80%, 60%)`;
+
+                case 'speed':
+                    const speedRatio = Math.min(speed / config.maxSpeed, 1);
+                    const lightness = 30 + speedRatio * 40;
+                    return `hsl(200, 80%, ${lightness}%)`;
+
+                case 'density':
+                    const densityRatio = Math.min(boid.neighborCount / 15, 1);
+                    const dHue = 200 - densityRatio * 150;
+                    return `hsl(${dHue}, 80%, ${50 + densityRatio * 20}%)`;
+
+                case 'group':
+                    const alignRatio = (boid.localAlignment + 1) / 2;
+                    const gHue = alignRatio * 120;
+                    return `hsl(${gHue}, 70%, 55%)`;
+
+                default:
+                    return '#4fc3f7';
+            }
+        }
+
+        function drawBoid(boid) {
+            const speed = Math.sqrt(boid.vx * boid.vx + boid.vy * boid.vy);
+            const angle = Math.atan2(boid.vy, boid.vx);
+            const size = 6 + (speed / config.maxSpeed) * 3;
+
+            ctx.save();
+            ctx.translate(boid.x, boid.y);
+            ctx.rotate(angle);
+
+            // Draw trail
+            if (boid.trail.length > 1) {
+                ctx.beginPath();
+                const color = getColor(boid);
+                for (let i = 0; i < boid.trail.length; i++) {
+                    const t = boid.trail[i];
+                    const alpha = i / boid.trail.length * 0.3;
+                    ctx.strokeStyle = color.replace(')', `, ${alpha})`).replace('hsl', 'hsla');
+                    if (i === 0) {
+                        ctx.moveTo(t.x - boid.x, t.y - boid.y);
+                    } else {
+                        ctx.lineTo(t.x - boid.x, t.y - boid.y);
+                    }
+                }
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+
+            // Draw boid triangle
+            ctx.fillStyle = getColor(boid);
+            ctx.beginPath();
+            ctx.moveTo(size, 0);
+            ctx.lineTo(-size * 0.6, size * 0.5);
+            ctx.lineTo(-size * 0.6, -size * 0.5);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawInteractionField() {
+            if (config.interactionTool === 'none' || !mouse.down) return;
+
+            ctx.beginPath();
+            ctx.arc(mouse.x, mouse.y, config.interactionRadius, 0, Math.PI * 2);
+
+            if (config.interactionTool === 'attract') {
+                ctx.strokeStyle = 'rgba(76, 175, 80, 0.5)';
+                ctx.fillStyle = 'rgba(76, 175, 80, 0.1)';
+            } else if (config.interactionTool === 'repel') {
+                ctx.strokeStyle = 'rgba(244, 67, 54, 0.5)';
+                ctx.fillStyle = 'rgba(244, 67, 54, 0.1)';
+            } else if (config.interactionTool === 'spawn') {
+                ctx.strokeStyle = 'rgba(33, 150, 243, 0.5)';
+                ctx.fillStyle = 'rgba(33, 150, 243, 0.1)';
+            }
+
+            ctx.lineWidth = 2;
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        function drawBoundary() {
+            if (config.boundaryMode === 'bounce') {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(20, 20, width - 40, height - 40);
+            }
+        }
+
+        // ==================== METRICS ====================
+        let fps = 60;
+        let frameCount = 0;
+        let lastFpsTime = performance.now();
+
+        function updateMetrics() {
+            frameCount++;
+            const now = performance.now();
+
+            if (now - lastFpsTime >= 1000) {
+                fps = frameCount;
+                frameCount = 0;
+                lastFpsTime = now;
+
+                const fpsEl = document.getElementById('fps');
+                fpsEl.textContent = fps;
+                fpsEl.className = 'value ' + (fps >= 55 ? 'fps-good' : fps >= 40 ? 'fps-warn' : 'fps-bad');
+            }
+
+            // Calculate metrics
+            let totalSpeed = 0;
+            let totalNeighbors = 0;
+            let sampleCount = Math.min(boids.length, 100);
+
+            for (let i = 0; i < sampleCount; i++) {
+                const boid = boids[i];
+                totalSpeed += Math.sqrt(boid.vx * boid.vx + boid.vy * boid.vy);
+                totalNeighbors += boid.neighborCount;
+            }
+
+            document.getElementById('boid-count').textContent = boids.length;
+            document.getElementById('avg-speed').textContent = (totalSpeed / sampleCount).toFixed(2);
+            document.getElementById('avg-neighbors').textContent = (totalNeighbors / sampleCount).toFixed(1);
+
+            // Compactness (sampled)
+            let totalDist = 0;
+            let pairs = 0;
+            for (let i = 0; i < Math.min(50, boids.length); i++) {
+                for (let j = i + 1; j < Math.min(50, boids.length); j++) {
+                    const dx = boids[i].x - boids[j].x;
+                    const dy = boids[i].y - boids[j].y;
+                    totalDist += Math.sqrt(dx * dx + dy * dy);
+                    pairs++;
+                }
+            }
+            const compactness = pairs > 0 ? totalDist / pairs : 0;
+            document.getElementById('compactness').textContent = compactness.toFixed(0);
+        }
+
+        // ==================== MAIN LOOP ====================
+        function update() {
+            if (isPaused) return;
+
+            // Update spatial grid
+            if (config.useSpatialGrid) {
+                spatialGrid.cellSize = config.neighborRadius;
+                spatialGrid.clear();
+                for (let i = 0; i < boids.length; i++) {
+                    spatialGrid.insert(boids[i]);
+                }
+            }
+
+            // Apply flocking
+            for (let i = 0; i < boids.length; i++) {
+                const boid = boids[i];
+                const neighbors = config.useSpatialGrid
+                    ? spatialGrid.getNearby(boid.x, boid.y, config.neighborRadius)
+                    : boids;
+
+                computeFlocking(boid, neighbors);
+                applyMouseInteraction(boid);
+            }
+
+            // Update positions
+            for (let i = 0; i < boids.length; i++) {
+                boids[i].update();
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+
+            drawBoundary();
+            drawInteractionField();
+
+            for (let i = 0; i < boids.length; i++) {
+                drawBoid(boids[i]);
+            }
+        }
+
+        function loop() {
+            update();
+            draw();
+            updateMetrics();
+            requestAnimationFrame(loop);
+        }
+
+        // ==================== UI CONTROLS ====================
+        function setupControls() {
+            // Sliders
+            const sliders = {
+                'slider-separation': { key: 'separation', el: 'val-separation' },
+                'slider-alignment': { key: 'alignment', el: 'val-alignment' },
+                'slider-cohesion': { key: 'cohesion', el: 'val-cohesion' },
+                'slider-radius': { key: 'neighborRadius', el: 'val-radius' },
+                'slider-speed': { key: 'maxSpeed', el: 'val-speed' },
+                'slider-fov': { key: 'fov', el: 'val-fov' },
+                'slider-interact': { key: 'interactionRadius', el: 'val-interact' },
+                'slider-trail': { key: 'trailLength', el: 'val-trail' }
+            };
+
+            for (const [id, opts] of Object.entries(sliders)) {
+                const slider = document.getElementById(id);
+                const valEl = document.getElementById(opts.el);
+                slider.addEventListener('input', () => {
+                    config[opts.key] = parseFloat(slider.value);
+                    valEl.textContent = slider.value;
+                });
+            }
+
+            // Boid count slider
+            const countSlider = document.getElementById('slider-count');
+            countSlider.addEventListener('input', () => {
+                document.getElementById('val-count').textContent = countSlider.value;
+            });
+            countSlider.addEventListener('change', () => {
+                config.boidCount = parseInt(countSlider.value);
+                initBoids();
+            });
+
+            // Presets
+            document.querySelectorAll('.btn-preset').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const preset = presets[btn.dataset.preset];
+                    if (!preset) return;
+
+                    document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+
+                    for (const [key, value] of Object.entries(preset)) {
+                        config[key] = value;
+                    }
+
+                    // Update sliders
+                    document.getElementById('slider-separation').value = preset.separation;
+                    document.getElementById('val-separation').textContent = preset.separation;
+                    document.getElementById('slider-alignment').value = preset.alignment;
+                    document.getElementById('val-alignment').textContent = preset.alignment;
+                    document.getElementById('slider-cohesion').value = preset.cohesion;
+                    document.getElementById('val-cohesion').textContent = preset.cohesion;
+                    document.getElementById('slider-radius').value = preset.neighborRadius;
+                    document.getElementById('val-radius').textContent = preset.neighborRadius;
+                    document.getElementById('slider-speed').value = preset.maxSpeed;
+                    document.getElementById('val-speed').textContent = preset.maxSpeed;
+                });
+            });
+
+            // Pause/Resume
+            document.getElementById('btn-pause').addEventListener('click', function() {
+                isPaused = !isPaused;
+                this.textContent = isPaused ? 'Resume' : 'Pause';
+                this.classList.toggle('pause', isPaused);
+            });
+
+            // Reset
+            document.getElementById('btn-reset').addEventListener('click', () => {
+                initBoids();
+            });
+
+            // Boundary toggle
+            document.querySelectorAll('[data-boundary]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('[data-boundary]').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    config.boundaryMode = btn.dataset.boundary;
+                });
+            });
+
+            // Perception toggle
+            document.querySelectorAll('[data-perception]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('[data-perception]').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    config.perceptionMode = btn.dataset.perception;
+                    document.getElementById('fov-group').style.display =
+                        btn.dataset.perception === 'cone' ? 'block' : 'none';
+                });
+            });
+
+            // Interaction tool toggle
+            document.querySelectorAll('[data-tool]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('[data-tool]').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    config.interactionTool = btn.dataset.tool;
+
+                    const indicator = document.getElementById('interaction-indicator');
+                    if (btn.dataset.tool !== 'none') {
+                        indicator.className = btn.dataset.tool;
+                        indicator.textContent = btn.dataset.tool.charAt(0).toUpperCase() + btn.dataset.tool.slice(1) + ' Mode';
+                    }
+                });
+            });
+
+            // Spatial grid toggle
+            document.querySelectorAll('[data-spatial]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('[data-spatial]').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    config.useSpatialGrid = btn.dataset.spatial === 'grid';
+                });
+            });
+
+            // Color mode
+            document.getElementById('color-mode').addEventListener('change', function() {
+                config.colorMode = this.value;
+            });
+
+            // Design mode
+            document.getElementById('design-mode').addEventListener('change', function() {
+                config.designMode = this.value;
+                initBoids();
+            });
+        }
+
+        // ==================== MOUSE HANDLERS ====================
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            mouse.down = true;
+            const indicator = document.getElementById('interaction-indicator');
+            if (config.interactionTool !== 'none') {
+                indicator.style.display = 'block';
+            }
+
+            // Spawn boids on click
+            if (config.interactionTool === 'spawn') {
+                for (let i = 0; i < 5; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 1 + Math.random() * 2;
+                    boids.push(new Boid(
+                        mouse.x + (Math.random() - 0.5) * 20,
+                        mouse.y + (Math.random() - 0.5) * 20,
+                        Math.cos(angle) * speed,
+                        Math.sin(angle) * speed
+                    ));
+                }
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            mouse.down = false;
+            document.getElementById('interaction-indicator').style.display = 'none';
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            mouse.down = false;
+            document.getElementById('interaction-indicator').style.display = 'none';
+        });
+
+        // ==================== INITIALIZE ====================
+        setupControls();
+        initBoids();
+        loop();
+    </script>
+</body>
+</html>
