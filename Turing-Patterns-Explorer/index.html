@@ -1,0 +1,2045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Turing Patterns Explorer</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;
+  --text:#e6edf3;--text2:#8b949e;--accent:#58a6ff;--accent2:#3fb950;
+  --danger:#f85149;--warn:#d29922;--glow:rgba(88,166,255,0.15);
+  --radius:8px;--sidebar-w:300px;--topbar-h:48px;
+}
+html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);font-size:13px;line-height:1.4}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;font-size:inherit}
+input[type=range]{-webkit-appearance:none;background:transparent;width:100%}
+input[type=range]::-webkit-slider-track{height:4px;background:var(--surface2);border-radius:2px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);margin-top:-5px;cursor:pointer}
+input[type=range]::-moz-range-track{height:4px;background:var(--surface2);border-radius:2px;border:none}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--accent);border:none;cursor:pointer}
+select{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:4px 8px;font-size:12px}
+
+/* LAYOUT */
+#app{display:flex;flex-direction:column;height:100vh;width:100vw}
+#topbar{height:var(--topbar-h);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 12px;gap:10px;z-index:100;flex-shrink:0}
+#topbar .logo{font-weight:700;font-size:15px;color:var(--accent);white-space:nowrap}
+#topbar .logo span{color:var(--text2);font-weight:400;font-size:12px;margin-left:6px}
+.tb-sep{width:1px;height:24px;background:var(--border)}
+.tb-group{display:flex;align-items:center;gap:4px}
+.tb-btn{padding:4px 10px;border-radius:var(--radius);font-size:12px;transition:background .15s}
+.tb-btn:hover{background:var(--surface2)}
+.tb-btn.active{background:var(--accent);color:#000}
+.tb-btn svg{width:16px;height:16px;vertical-align:middle}
+.tb-select{margin:0 4px}
+#main-area{display:flex;flex:1;overflow:hidden;position:relative}
+
+/* SIDEBAR */
+#sidebar{width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;overflow-x:hidden;flex-shrink:0;transition:margin-left .3s;z-index:50}
+#sidebar.collapsed{margin-left:calc(var(--sidebar-w) * -1)}
+#sidebar::-webkit-scrollbar{width:6px}
+#sidebar::-webkit-scrollbar-track{background:transparent}
+#sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.sb-section{padding:10px 14px;border-bottom:1px solid var(--border)}
+.sb-section h3{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.sb-section h3::after{content:'';display:inline-block;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--text2);transition:transform .2s}
+.sb-section.collapsed-section h3::after{transform:rotate(-90deg)}
+.sb-section.collapsed-section .sb-content{display:none}
+.sb-content{display:flex;flex-direction:column;gap:8px}
+
+/* Slider control */
+.slider-row{display:flex;flex-direction:column;gap:2px}
+.slider-label{display:flex;justify-content:space-between;font-size:11px}
+.slider-label .name{color:var(--text2)}
+.slider-label .val{color:var(--accent);font-family:'SF Mono',Consolas,monospace;font-size:11px}
+.slider-row input[type=range]{margin-top:2px}
+
+/* Preset grid */
+.preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.preset-btn{padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);text-align:center;font-size:11px;transition:all .15s;position:relative;overflow:hidden}
+.preset-btn:hover{border-color:var(--accent);background:var(--glow)}
+.preset-btn.active{border-color:var(--accent);box-shadow:0 0 8px var(--glow)}
+.preset-btn .preset-name{font-weight:600;margin-bottom:2px}
+.preset-btn .preset-desc{color:var(--text2);font-size:10px}
+
+/* Brush */
+.brush-grid{display:flex;gap:4px;flex-wrap:wrap}
+.brush-btn{flex:1;min-width:70px;padding:6px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);font-size:11px;text-align:center;transition:all .15s}
+.brush-btn:hover{border-color:var(--accent)}
+.brush-btn.active{border-color:var(--accent);background:var(--glow)}
+
+/* Color scheme */
+.color-row{display:flex;gap:4px;flex-wrap:wrap}
+.color-btn{flex:1;min-width:55px;padding:5px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);font-size:10px;text-align:center;transition:all .15s}
+.color-btn:hover{border-color:var(--accent)}
+.color-btn.active{border-color:var(--accent);background:var(--glow)}
+.color-swatch{height:10px;border-radius:3px;margin-bottom:3px}
+
+/* CANVAS AREA */
+#canvas-wrap{flex:1;position:relative;overflow:hidden;background:#000}
+#simCanvas{display:block;width:100%;height:100%;cursor:crosshair}
+#fps-counter{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);color:var(--text2);padding:2px 8px;border-radius:4px;font-size:11px;font-family:monospace;pointer-events:none}
+#brush-cursor{position:absolute;border:2px solid rgba(255,255,255,.5);border-radius:50%;pointer-events:none;display:none;transform:translate(-50%,-50%)}
+#canvas-hint{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.7);color:var(--text2);padding:6px 16px;border-radius:20px;font-size:12px;pointer-events:none;transition:opacity .5s;white-space:nowrap}
+
+/* RIGHT PANEL */
+#right-panel{width:280px;background:var(--surface);border-left:1px solid var(--border);overflow-y:auto;flex-shrink:0;transition:margin-right .3s;z-index:50}
+#right-panel.collapsed{margin-right:-280px}
+#right-panel::-webkit-scrollbar{width:6px}
+#right-panel::-webkit-scrollbar-track{background:transparent}
+#right-panel::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.rp-section{padding:10px 14px;border-bottom:1px solid var(--border)}
+.rp-section h3{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);margin-bottom:8px}
+
+/* F-k Diagram */
+#fk-canvas{width:100%;aspect-ratio:1;border-radius:var(--radius);cursor:crosshair;border:1px solid var(--border)}
+
+/* Journey */
+.journey-presets{display:flex;flex-direction:column;gap:4px}
+.journey-btn{padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);font-size:11px;text-align:left;transition:all .15s}
+.journey-btn:hover{border-color:var(--accent)}
+.journey-btn.active{border-color:var(--accent2);background:rgba(63,185,80,.1)}
+.journey-btn .jname{font-weight:600}
+.journey-btn .jdesc{color:var(--text2);font-size:10px}
+#journey-progress{width:100%;height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;margin-top:8px;display:none}
+#journey-progress .bar{height:100%;background:var(--accent2);transition:width .1s linear}
+
+/* Info panel */
+#info-content{font-size:12px;line-height:1.6;color:var(--text)}
+#info-content h4{color:var(--accent);margin:8px 0 4px;font-size:13px}
+#info-content p{margin-bottom:6px;color:var(--text2)}
+#info-content .highlight{color:var(--accent);font-weight:600}
+#info-content ul{padding-left:16px;margin-bottom:6px}
+#info-content li{color:var(--text2);margin-bottom:2px}
+#info-content kbd{background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:11px;border:1px solid var(--border);font-family:monospace}
+
+/* WELCOME MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .4s;pointer-events:none}
+.modal-overlay.visible{opacity:1;pointer-events:all}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;max-width:640px;width:90%;max-height:85vh;overflow-y:auto;padding:0;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.modal::-webkit-scrollbar{width:6px}
+.modal::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.modal-header{padding:30px 36px 0;text-align:center}
+.modal-header h1{font-size:26px;margin-bottom:4px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.modal-header .subtitle{color:var(--text2);font-size:14px}
+.modal-body{padding:24px 36px}
+.modal-body h2{font-size:16px;color:var(--accent);margin:16px 0 8px}
+.modal-body p{color:var(--text2);margin-bottom:10px;font-size:13px;line-height:1.7}
+.modal-body .nature-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}
+.nature-card{background:var(--surface2);border-radius:var(--radius);padding:12px;text-align:center;border:1px solid var(--border)}
+.nature-card .emoji{font-size:28px;margin-bottom:4px}
+.nature-card .label{font-size:11px;color:var(--text2)}
+.modal-body .how-it-works{background:var(--bg);border-radius:var(--radius);padding:16px;margin:12px 0}
+.modal-body .how-it-works .step{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
+.modal-body .how-it-works .step:last-child{margin-bottom:0}
+.modal-body .how-it-works .step-num{width:24px;height:24px;background:var(--accent);color:#000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
+.modal-body .how-it-works .step-text{font-size:12px;color:var(--text2);padding-top:2px}
+.modal-body .how-it-works .step-text strong{color:var(--text)}
+.modal-footer{padding:0 36px 30px;display:flex;gap:10px;justify-content:center}
+.btn-primary{padding:10px 28px;background:var(--accent);color:#000;font-weight:700;border-radius:var(--radius);font-size:14px;transition:transform .1s,box-shadow .2s}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(88,166,255,.3)}
+.btn-secondary{padding:10px 28px;background:var(--surface2);color:var(--text);font-weight:600;border-radius:var(--radius);font-size:14px;border:1px solid var(--border);transition:background .15s}
+.btn-secondary:hover{background:var(--border)}
+
+/* GUIDED TOUR */
+#tour-overlay{position:fixed;inset:0;z-index:900;pointer-events:none;transition:opacity .3s}
+#tour-overlay.active{pointer-events:all}
+#tour-highlight{position:fixed;z-index:901;border:2px solid var(--accent);border-radius:var(--radius);box-shadow:0 0 0 9999px rgba(0,0,0,.7),0 0 20px var(--accent);transition:all .4s ease;pointer-events:none}
+#tour-tooltip{position:fixed;z-index:902;background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:16px 20px;max-width:320px;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+#tour-tooltip h4{color:var(--accent);margin-bottom:6px;font-size:14px}
+#tour-tooltip p{color:var(--text2);font-size:12px;line-height:1.6;margin-bottom:12px}
+#tour-tooltip .tour-nav{display:flex;justify-content:space-between;align-items:center}
+#tour-tooltip .tour-dots{display:flex;gap:4px}
+#tour-tooltip .tour-dot{width:6px;height:6px;border-radius:50%;background:var(--border)}
+#tour-tooltip .tour-dot.active{background:var(--accent)}
+#tour-tooltip .tour-btns{display:flex;gap:6px}
+.tour-btn{padding:5px 14px;border-radius:6px;font-size:12px;font-weight:600}
+.tour-btn.skip{color:var(--text2)}
+.tour-btn.skip:hover{color:var(--text)}
+.tour-btn.next{background:var(--accent);color:#000}
+.tour-btn.next:hover{box-shadow:0 2px 8px rgba(88,166,255,.3)}
+
+/* EXPORT MODAL */
+#export-modal .modal{max-width:400px}
+.export-options{display:flex;flex-direction:column;gap:8px;margin:12px 0}
+.export-opt{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg);border-radius:var(--radius);border:1px solid var(--border)}
+.export-opt label{font-size:12px;color:var(--text2)}
+
+/* KEYBOARD SHORTCUTS MODAL */
+#shortcuts-modal .modal{max-width:400px}
+.shortcut-list{display:flex;flex-direction:column;gap:6px}
+.shortcut-item{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)}
+.shortcut-item:last-child{border:none}
+.shortcut-item .action{color:var(--text2);font-size:12px}
+.shortcut-item kbd{background:var(--surface2);padding:2px 8px;border-radius:4px;font-size:11px;border:1px solid var(--border);font-family:monospace;min-width:24px;text-align:center}
+
+/* SIDE-BY-SIDE MODE */
+#canvas-wrap.split{display:flex}
+#canvas-wrap.split #simCanvas{width:50%}
+#canvas-wrap.split #simCanvas2{display:block;width:50%;height:100%;cursor:crosshair;border-left:2px solid var(--accent)}
+#simCanvas2{display:none}
+.split-label{position:absolute;top:8px;padding:3px 10px;background:rgba(0,0,0,.6);color:var(--text2);font-size:11px;border-radius:4px;pointer-events:none;z-index:10}
+.split-label.left{left:8px}
+.split-label.right{right:8px}
+
+/* Responsive */
+@media(max-width:900px){
+  :root{--sidebar-w:260px}
+  #right-panel{display:none}
+}
+@media(max-width:700px){
+  :root{--sidebar-w:100vw}
+  #sidebar{position:fixed;left:0;top:var(--topbar-h);bottom:0;z-index:200}
+  #sidebar.collapsed{margin-left:-100vw}
+}
+
+/* Tooltip */
+[data-tip]{position:relative}
+[data-tip]:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#000;color:var(--text);padding:4px 10px;border-radius:6px;font-size:11px;white-space:nowrap;z-index:500;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+</style>
+</head>
+<body>
+
+<!-- ===================== WELCOME MODAL ===================== -->
+<div class="modal-overlay visible" id="welcome-modal">
+<div class="modal">
+  <div class="modal-header">
+    <h1>Turing Patterns Explorer</h1>
+    <div class="subtitle">Watch nature's hidden algorithms come alive</div>
+  </div>
+  <div class="modal-body">
+    <h2>What Are Turing Patterns?</h2>
+    <p>In 1952, mathematician <strong style="color:var(--text)">Alan Turing</strong> (the same genius who cracked the Enigma code) made an astonishing prediction: simple chemical reactions could spontaneously create the complex patterns we see everywhere in nature.</p>
+
+    <div class="nature-grid">
+      <div class="nature-card"><div class="emoji">&#x1F406;</div><div class="label">Leopard Spots</div></div>
+      <div class="nature-card"><div class="emoji">&#x1F993;</div><div class="label">Zebra Stripes</div></div>
+      <div class="nature-card"><div class="emoji">&#x1F41A;</div><div class="label">Shell Patterns</div></div>
+      <div class="nature-card"><div class="emoji">&#x1F9CA;</div><div class="label">Coral Growth</div></div>
+      <div class="nature-card"><div class="emoji">&#x1F43F;&#xFE0F;</div><div class="label">Animal Markings</div></div>
+      <div class="nature-card"><div class="emoji">&#x1F9EC;</div><div class="label">Fingerprints</div></div>
+    </div>
+
+    <h2>How Does It Work?</h2>
+    <p>Imagine two invisible chemicals spreading across a surface:</p>
+    <div class="how-it-works">
+      <div class="step"><div class="step-num">1</div><div class="step-text"><strong>Two chemicals react</strong> &mdash; one "activator" that promotes growth, and one "inhibitor" that suppresses it</div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-text"><strong>They spread at different speeds</strong> &mdash; the inhibitor diffuses faster, creating local peaks and valleys of concentration</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-text"><strong>Patterns emerge spontaneously</strong> &mdash; spots, stripes, mazes, and spirals form all by themselves from a random starting point</div></div>
+    </div>
+
+    <h2>What Can You Do Here?</h2>
+    <p>This explorer lets you <strong style="color:var(--text)">watch these patterns form in real time</strong>, tweak the chemistry to create different patterns, paint directly on the simulation, and even take a guided journey through the entire landscape of possible patterns.</p>
+    <p style="color:var(--text);font-style:italic;text-align:center;margin-top:8px">No science background needed &mdash; just click and explore!</p>
+  </div>
+  <div class="modal-footer">
+    <button class="btn-secondary" onclick="closeWelcome()">Skip Tour &amp; Explore</button>
+    <button class="btn-primary" onclick="closeWelcome();startTour()">Take the Guided Tour</button>
+  </div>
+</div>
+</div>
+
+<!-- ===================== TOUR OVERLAY ===================== -->
+<div id="tour-overlay">
+<div id="tour-highlight"></div>
+<div id="tour-tooltip" style="display:none">
+  <h4 id="tour-title"></h4>
+  <p id="tour-text"></p>
+  <div class="tour-nav">
+    <div class="tour-dots" id="tour-dots"></div>
+    <div class="tour-btns">
+      <button class="tour-btn skip" onclick="endTour()">Skip</button>
+      <button class="tour-btn next" id="tour-next-btn" onclick="nextTourStep()">Next</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ===================== EXPORT MODAL ===================== -->
+<div class="modal-overlay" id="export-modal">
+<div class="modal">
+  <div class="modal-header"><h1 style="font-size:20px">Export Image</h1></div>
+  <div class="modal-body">
+    <div class="export-options">
+      <div class="export-opt">
+        <label>Resolution</label>
+        <select id="export-res"><option value="1">1x (Canvas size)</option><option value="2" selected>2x (High quality)</option><option value="4">4x (Ultra)</option></select>
+      </div>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn-secondary" onclick="closeExportModal()">Cancel</button>
+    <button class="btn-primary" onclick="doExport()">Download PNG</button>
+  </div>
+</div>
+</div>
+
+<!-- ===================== SHORTCUTS MODAL ===================== -->
+<div class="modal-overlay" id="shortcuts-modal">
+<div class="modal">
+  <div class="modal-header"><h1 style="font-size:20px">Keyboard Shortcuts</h1></div>
+  <div class="modal-body">
+    <div class="shortcut-list">
+      <div class="shortcut-item"><span class="action">Play / Pause</span><kbd>Space</kbd></div>
+      <div class="shortcut-item"><span class="action">Single Step</span><kbd>.</kbd></div>
+      <div class="shortcut-item"><span class="action">Reset Simulation</span><kbd>R</kbd></div>
+      <div class="shortcut-item"><span class="action">Clear Canvas</span><kbd>C</kbd></div>
+      <div class="shortcut-item"><span class="action">Toggle Sidebar</span><kbd>S</kbd></div>
+      <div class="shortcut-item"><span class="action">Toggle Info Panel</span><kbd>I</kbd></div>
+      <div class="shortcut-item"><span class="action">Fullscreen</span><kbd>F</kbd></div>
+      <div class="shortcut-item"><span class="action">Export Image</span><kbd>E</kbd></div>
+      <div class="shortcut-item"><span class="action">Show Help</span><kbd>?</kbd></div>
+      <div class="shortcut-item"><span class="action">Brush: Add Chemical A</span><kbd>1</kbd></div>
+      <div class="shortcut-item"><span class="action">Brush: Add Chemical B</span><kbd>2</kbd></div>
+      <div class="shortcut-item"><span class="action">Brush: Erase</span><kbd>3</kbd></div>
+      <div class="shortcut-item"><span class="action">No Brush (Navigate)</span><kbd>0</kbd></div>
+    </div>
+  </div>
+  <div class="modal-footer"><button class="btn-primary" onclick="closeShortcutsModal()">Got it</button></div>
+</div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app">
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <button class="tb-btn" id="sidebar-toggle" onclick="toggleSidebar()" data-tip="Toggle sidebar (S)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+  </button>
+  <div class="logo">Turing Patterns <span>Explorer</span></div>
+  <div class="tb-sep"></div>
+
+  <div class="tb-group" id="tour-model">
+    <select id="model-select" class="tb-select" onchange="changeModel(this.value)" data-tip="Reaction-diffusion model">
+      <option value="gray-scott">Gray-Scott</option>
+      <option value="schnakenberg">Schnakenberg</option>
+      <option value="brusselator">Brusselator</option>
+    </select>
+  </div>
+  <div class="tb-sep"></div>
+
+  <div class="tb-group" id="tour-simcontrols">
+    <button class="tb-btn" id="btn-play" onclick="togglePlay()" data-tip="Play/Pause (Space)">
+      <svg id="icon-play" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+      <svg id="icon-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="4" y="3" width="6" height="18"/><rect x="14" y="3" width="6" height="18"/></svg>
+    </button>
+    <button class="tb-btn" onclick="singleStep()" data-tip="Single step (.)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="5,4 15,12 5,20"/><line x1="19" y1="4" x2="19" y2="20"/></svg>
+    </button>
+    <button class="tb-btn" onclick="resetSim()" data-tip="Reset (R)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+    </button>
+    <select id="speed-select" class="tb-select" onchange="setSpeed(this.value)" data-tip="Simulation speed">
+      <option value="0.25">0.25x</option>
+      <option value="0.5">0.5x</option>
+      <option value="1" selected>1x</option>
+      <option value="2">2x</option>
+      <option value="4">4x</option>
+    </select>
+  </div>
+  <div class="tb-sep"></div>
+
+  <div class="tb-group">
+    <button class="tb-btn" onclick="toggleSplit()" data-tip="Side-by-side comparison">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+    </button>
+    <button class="tb-btn" onclick="openExportModal()" data-tip="Export image (E)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    </button>
+  </div>
+
+  <div style="flex:1"></div>
+
+  <div class="tb-group">
+    <button class="tb-btn" onclick="toggleRightPanel()" data-tip="Toggle info panel (I)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </button>
+    <button class="tb-btn" onclick="openShortcutsModal()" data-tip="Keyboard shortcuts (?)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </button>
+    <button class="tb-btn" onclick="reopenWelcome()" data-tip="Welcome & tutorial">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- MAIN AREA -->
+<div id="main-area">
+
+<!-- SIDEBAR -->
+<div id="sidebar" data-tour="sidebar">
+
+  <!-- PRESETS -->
+  <div class="sb-section" id="tour-presets">
+    <h3 onclick="toggleSection(this)">Pattern Presets <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--accent)">&mdash; Start Here!</span></h3>
+    <div class="sb-content">
+      <div class="preset-grid" id="preset-grid"></div>
+    </div>
+  </div>
+
+  <!-- REACTION PARAMS -->
+  <div class="sb-section" id="tour-params">
+    <h3 onclick="toggleSection(this)">Reaction Parameters</h3>
+    <div class="sb-content" id="reaction-params"></div>
+  </div>
+
+  <!-- DIFFUSION PARAMS -->
+  <div class="sb-section">
+    <h3 onclick="toggleSection(this)">Diffusion Parameters</h3>
+    <div class="sb-content" id="diffusion-params"></div>
+  </div>
+
+  <!-- BRUSH TOOLS -->
+  <div class="sb-section" id="tour-brush">
+    <h3 onclick="toggleSection(this)">Brush Tools <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text2)">Paint on the canvas</span></h3>
+    <div class="sb-content">
+      <div class="brush-grid">
+        <button class="brush-btn active" onclick="setBrush(0)" data-tip="Pan & zoom mode">Navigate</button>
+        <button class="brush-btn" onclick="setBrush(1)" data-tip="Add activator chemical (1)">+ Chem A</button>
+        <button class="brush-btn" onclick="setBrush(2)" data-tip="Add inhibitor chemical (2)">+ Chem B</button>
+        <button class="brush-btn" onclick="setBrush(3)" data-tip="Reset region to initial state (3)">Erase</button>
+      </div>
+      <div class="slider-row" style="margin-top:6px">
+        <div class="slider-label"><span class="name">Brush Size</span><span class="val" id="brush-size-val">20</span></div>
+        <input type="range" min="5" max="80" value="20" id="brush-size" oninput="brushSize=+this.value;document.getElementById('brush-size-val').textContent=this.value">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label"><span class="name">Brush Intensity</span><span class="val" id="brush-int-val">0.8</span></div>
+        <input type="range" min="0.1" max="1" step="0.05" value="0.8" id="brush-intensity" oninput="brushIntensity=+this.value;document.getElementById('brush-int-val').textContent=(+this.value).toFixed(2)">
+      </div>
+    </div>
+  </div>
+
+  <!-- COLOR SCHEME -->
+  <div class="sb-section" id="tour-colors">
+    <h3 onclick="toggleSection(this)">Color &amp; Visualization</h3>
+    <div class="sb-content">
+      <div class="slider-label" style="margin-bottom:4px"><span class="name">Color Scheme</span></div>
+      <div class="color-row" id="color-row"></div>
+      <div class="slider-label" style="margin-top:8px;margin-bottom:4px"><span class="name">Display</span></div>
+      <div class="color-row">
+        <button class="color-btn active" onclick="setVizMode(0,this)">Chemical A</button>
+        <button class="color-btn" onclick="setVizMode(1,this)">Chemical B</button>
+        <button class="color-btn" onclick="setVizMode(2,this)">Difference</button>
+      </div>
+      <div class="slider-row" style="margin-top:6px">
+        <div class="slider-label"><span class="name">Contrast</span><span class="val" id="contrast-val">1.0</span></div>
+        <input type="range" min="0.5" max="3" step="0.1" value="1" id="contrast-slider" oninput="contrast=+this.value;document.getElementById('contrast-val').textContent=(+this.value).toFixed(1)">
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);margin-top:4px;cursor:pointer">
+        <input type="checkbox" id="invert-check" onchange="invertColors=this.checked"> Invert colors
+      </label>
+    </div>
+  </div>
+
+  <!-- SIMULATION SETTINGS -->
+  <div class="sb-section collapsed-section">
+    <h3 onclick="toggleSection(this)">Simulation Settings</h3>
+    <div class="sb-content">
+      <div class="slider-row">
+        <div class="slider-label"><span class="name">Grid Resolution</span><span class="val" id="grid-val">512</span></div>
+        <select id="grid-res" onchange="changeResolution(+this.value)" style="width:100%">
+          <option value="256">256x256 (Fast)</option>
+          <option value="512" selected>512x512 (Balanced)</option>
+          <option value="768">768x768 (Detailed)</option>
+          <option value="1024">1024x1024 (High Quality)</option>
+        </select>
+      </div>
+      <div class="slider-row" style="margin-top:4px">
+        <div class="slider-label"><span class="name">Timestep (dt)</span><span class="val" id="dt-val">1.0</span></div>
+        <input type="range" min="0.1" max="2" step="0.1" value="1" id="dt-slider" oninput="dt=+this.value;document.getElementById('dt-val').textContent=(+this.value).toFixed(1)">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label"><span class="name">Seed</span><span class="val" id="seed-val">42</span></div>
+        <input type="range" min="1" max="999" step="1" value="42" id="seed-slider" oninput="seed=+this.value;document.getElementById('seed-val').textContent=this.value">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CANVAS -->
+<div id="canvas-wrap">
+  <canvas id="simCanvas"></canvas>
+  <canvas id="simCanvas2"></canvas>
+  <div id="fps-counter">-- FPS</div>
+  <div id="brush-cursor"></div>
+  <div id="canvas-hint">Click a preset to begin, or just hit Play!</div>
+  <div class="split-label left" id="split-label-1" style="display:none">Simulation A</div>
+  <div class="split-label right" id="split-label-2" style="display:none">Simulation B</div>
+</div>
+
+<!-- RIGHT PANEL -->
+<div id="right-panel" class="collapsed">
+
+  <!-- F-k DIAGRAM -->
+  <div class="rp-section" id="tour-fk">
+    <h3>Parameter Space (F-k Diagram)</h3>
+    <p style="color:var(--text2);font-size:11px;margin-bottom:8px">Click anywhere to set Feed (F) and Kill (k) rates. Different regions create different patterns.</p>
+    <canvas id="fk-canvas" width="252" height="252"></canvas>
+  </div>
+
+  <!-- JOURNEY -->
+  <div class="rp-section" id="tour-journey">
+    <h3>Parameter Journeys</h3>
+    <p style="color:var(--text2);font-size:11px;margin-bottom:8px">Watch the simulation morph between different patterns automatically.</p>
+    <div class="journey-presets" id="journey-list"></div>
+    <div id="journey-progress"><div class="bar" id="journey-bar"></div></div>
+    <button class="tb-btn" id="journey-stop-btn" onclick="stopJourney()" style="display:none;margin-top:6px;width:100%;text-align:center;background:var(--surface2);border-radius:var(--radius);padding:6px">Stop Journey</button>
+  </div>
+
+  <!-- INFO PANEL -->
+  <div class="rp-section" id="tour-info">
+    <h3>How It Works</h3>
+    <div id="info-content"></div>
+  </div>
+</div>
+
+</div><!-- main-area -->
+</div><!-- app -->
+
+<!-- ===================== SHADERS ===================== -->
+
+<!-- Vertex Shader (shared) -->
+<script id="vs" type="x-shader/x-vertex">
+attribute vec2 a_position;
+void main() {
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}
+</script>
+
+<!-- Simulation Fragment Shader -->
+<script id="sim-fs" type="x-shader/x-fragment">
+precision highp float;
+uniform sampler2D u_state;
+uniform vec2 u_resolution;
+uniform float u_feed;
+uniform float u_kill;
+uniform float u_Da;
+uniform float u_Db;
+uniform float u_dt;
+uniform int u_model; // 0=GrayScott, 1=Schnakenberg, 2=Brusselator
+uniform float u_paramA; // extra param for Schnakenberg/Brusselator
+uniform float u_paramB;
+
+// Brush
+uniform vec2 u_brushPos;
+uniform float u_brushSize;
+uniform float u_brushIntensity;
+uniform int u_brushType; // 0=none, 1=addA, 2=addB, 3=erase
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_resolution;
+  vec2 texel = 1.0 / u_resolution;
+
+  vec4 C = texture2D(u_state, uv);
+  float A = C.r;
+  float B = C.g;
+
+  // Laplacian (9-point stencil)
+  float lapA = -A;
+  float lapB = -B;
+
+  // Cardinal neighbors (weight 0.2 each)
+  vec4 n;
+  n = texture2D(u_state, uv + vec2(texel.x, 0.0));  lapA += n.r * 0.2;  lapB += n.g * 0.2;
+  n = texture2D(u_state, uv + vec2(-texel.x, 0.0)); lapA += n.r * 0.2;  lapB += n.g * 0.2;
+  n = texture2D(u_state, uv + vec2(0.0, texel.y));  lapA += n.r * 0.2;  lapB += n.g * 0.2;
+  n = texture2D(u_state, uv + vec2(0.0, -texel.y)); lapA += n.r * 0.2;  lapB += n.g * 0.2;
+  // Diagonal neighbors (weight 0.05 each)
+  n = texture2D(u_state, uv + vec2(texel.x, texel.y));   lapA += n.r * 0.05; lapB += n.g * 0.05;
+  n = texture2D(u_state, uv + vec2(-texel.x, texel.y));  lapA += n.r * 0.05; lapB += n.g * 0.05;
+  n = texture2D(u_state, uv + vec2(texel.x, -texel.y));  lapA += n.r * 0.05; lapB += n.g * 0.05;
+  n = texture2D(u_state, uv + vec2(-texel.x, -texel.y)); lapA += n.r * 0.05; lapB += n.g * 0.05;
+
+  float newA, newB;
+
+  if (u_model == 0) {
+    // Gray-Scott
+    float AB2 = A * B * B;
+    newA = A + (u_Da * lapA - AB2 + u_feed * (1.0 - A)) * u_dt;
+    newB = B + (u_Db * lapB + AB2 - (u_feed + u_kill) * B) * u_dt;
+  } else if (u_model == 1) {
+    // Schnakenberg
+    float gamma = 100.0;
+    newA = A + (u_Da * lapA + gamma * (u_paramA - A + A * A * B)) * u_dt;
+    newB = B + (u_Db * lapB + gamma * (u_paramB - A * A * B)) * u_dt;
+  } else {
+    // Brusselator
+    float a = u_paramA;
+    float b = u_paramB;
+    newA = A + (u_Da * lapA + a - (b + 1.0) * A + A * A * B) * u_dt;
+    newB = B + (u_Db * lapB + b * A - A * A * B) * u_dt;
+  }
+
+  // Brush interaction
+  if (u_brushType > 0) {
+    float dist = distance(gl_FragCoord.xy, u_brushPos);
+    if (dist < u_brushSize) {
+      float strength = u_brushIntensity * smoothstep(u_brushSize, 0.0, dist);
+      if (u_brushType == 1) {
+        newA = min(1.0, newA + strength);
+      } else if (u_brushType == 2) {
+        newB = min(1.0, newB + strength);
+      } else {
+        newA = 1.0;
+        newB = 0.0;
+      }
+    }
+  }
+
+  gl_FragColor = vec4(clamp(newA, 0.0, 1.0), clamp(newB, 0.0, 1.0), 0.0, 1.0);
+}
+</script>
+
+<!-- Init Fragment Shader -->
+<script id="init-fs" type="x-shader/x-fragment">
+precision highp float;
+uniform vec2 u_resolution;
+uniform float u_seed;
+uniform int u_initMode; // 0=center, 1=random seeds, 2=noise
+
+float hash(vec2 p) {
+  return fract(sin(dot(p + u_seed, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+float hash2(vec2 p) {
+  return fract(sin(dot(p + u_seed * 1.7, vec2(45.164, 93.721))) * 27643.8319);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_resolution;
+  vec2 center = vec2(0.5);
+  float A = 1.0;
+  float B = 0.0;
+
+  if (u_initMode == 0) {
+    // Center seed with some noise
+    float d = distance(uv, center);
+    if (d < 0.08) {
+      B = 1.0;
+      A = 0.5;
+    }
+    // Add small random perturbations
+    float noise = hash(gl_FragCoord.xy) * 0.05;
+    A += noise - 0.025;
+    B += noise - 0.025;
+    // Extra seeds
+    for (float i = 0.0; i < 5.0; i++) {
+      vec2 p = vec2(hash(vec2(i * 73.1, u_seed)), hash(vec2(u_seed, i * 37.9)));
+      float d2 = distance(uv, p);
+      if (d2 < 0.03) {
+        B = 1.0;
+        A = 0.5;
+      }
+    }
+  } else if (u_initMode == 1) {
+    // Many random seeds
+    for (float i = 0.0; i < 20.0; i++) {
+      vec2 p = vec2(hash(vec2(i * 73.1, u_seed)), hash(vec2(u_seed, i * 37.9)));
+      float d = distance(uv, p);
+      float r = 0.01 + hash(vec2(i, i)) * 0.03;
+      if (d < r) {
+        B = 1.0;
+        A = 0.5;
+      }
+    }
+    float noise = hash(gl_FragCoord.xy) * 0.05;
+    A += noise - 0.025;
+    B += noise - 0.025;
+  } else {
+    // Noise field
+    float noise = hash(gl_FragCoord.xy);
+    A = 1.0 - noise * 0.1;
+    B = noise * 0.25;
+  }
+
+  gl_FragColor = vec4(clamp(A, 0.0, 1.0), clamp(B, 0.0, 1.0), 0.0, 1.0);
+}
+</script>
+
+<!-- Render Fragment Shader -->
+<script id="render-fs" type="x-shader/x-fragment">
+precision highp float;
+uniform sampler2D u_state;
+uniform vec2 u_resolution;
+uniform vec2 u_canvasSize;
+uniform int u_colorScheme; // 0-4
+uniform int u_vizMode;     // 0=A, 1=B, 2=diff
+uniform float u_contrast;
+uniform bool u_invert;
+uniform vec2 u_pan;
+uniform float u_zoom;
+
+vec3 grayscale(float t) {
+  return vec3(t);
+}
+
+vec3 heatmap(float t) {
+  // Blue -> Cyan -> Green -> Yellow -> Red
+  vec3 c;
+  if (t < 0.25) { c = mix(vec3(0.0,0.0,0.5), vec3(0.0,0.5,1.0), t*4.0); }
+  else if (t < 0.5) { c = mix(vec3(0.0,0.5,1.0), vec3(0.0,1.0,0.0), (t-0.25)*4.0); }
+  else if (t < 0.75) { c = mix(vec3(0.0,1.0,0.0), vec3(1.0,1.0,0.0), (t-0.5)*4.0); }
+  else { c = mix(vec3(1.0,1.0,0.0), vec3(1.0,0.0,0.0), (t-0.75)*4.0); }
+  return c;
+}
+
+vec3 blueYellow(float t) {
+  vec3 blue = vec3(0.05, 0.1, 0.4);
+  vec3 white = vec3(0.95, 0.95, 0.95);
+  vec3 yellow = vec3(1.0, 0.85, 0.15);
+  if (t < 0.5) return mix(blue, white, t * 2.0);
+  return mix(white, yellow, (t - 0.5) * 2.0);
+}
+
+vec3 neon(float t) {
+  vec3 c;
+  if (t < 0.33) { c = mix(vec3(0.02,0.0,0.1), vec3(0.6,0.0,0.8), t*3.0); }
+  else if (t < 0.66) { c = mix(vec3(0.6,0.0,0.8), vec3(1.0,0.4,0.1), (t-0.33)*3.0); }
+  else { c = mix(vec3(1.0,0.4,0.1), vec3(1.0,1.0,0.9), (t-0.66)*3.0); }
+  return c;
+}
+
+vec3 viridis(float t) {
+  // Approximate viridis colormap
+  vec3 c0 = vec3(0.267,0.004,0.329);
+  vec3 c1 = vec3(0.282,0.141,0.457);
+  vec3 c2 = vec3(0.127,0.566,0.551);
+  vec3 c3 = vec3(0.544,0.774,0.247);
+  vec3 c4 = vec3(0.993,0.906,0.144);
+  if (t < 0.25) return mix(c0, c1, t * 4.0);
+  if (t < 0.5) return mix(c1, c2, (t - 0.25) * 4.0);
+  if (t < 0.75) return mix(c2, c3, (t - 0.5) * 4.0);
+  return mix(c3, c4, (t - 0.75) * 4.0);
+}
+
+void main() {
+  vec2 screenUV = gl_FragCoord.xy / u_canvasSize;
+
+  // Apply zoom and pan
+  vec2 simUV = (screenUV - 0.5) / u_zoom + 0.5 + u_pan;
+
+  // Wrap coordinates
+  simUV = fract(simUV);
+
+  vec4 state = texture2D(u_state, simUV);
+
+  float val;
+  if (u_vizMode == 0) {
+    val = 1.0 - state.r; // Invert A so patterns are bright
+  } else if (u_vizMode == 1) {
+    val = state.g;
+  } else {
+    val = state.g - state.r + 0.5;
+  }
+
+  val = clamp(val, 0.0, 1.0);
+  val = pow(val, 1.0 / u_contrast);
+  if (u_invert) val = 1.0 - val;
+
+  vec3 color;
+  if (u_colorScheme == 0) color = grayscale(val);
+  else if (u_colorScheme == 1) color = heatmap(val);
+  else if (u_colorScheme == 2) color = blueYellow(val);
+  else if (u_colorScheme == 3) color = neon(val);
+  else color = viridis(val);
+
+  gl_FragColor = vec4(color, 1.0);
+}
+</script>
+
+<!-- ===================== MAIN JAVASCRIPT ===================== -->
+<script>
+// ============================
+// GLOBALS & STATE
+// ============================
+let gl, gl2;
+let simProgram, renderProgram, initProgram;
+let simProgram2, renderProgram2, initProgram2;
+let framebuffers = [], textures = [];
+let framebuffers2 = [], textures2 = [];
+let currentFB = 0, currentFB2 = 0;
+let quadBuffer;
+let SIM_W = 512, SIM_H = 512;
+let playing = false;
+let splitMode = false;
+let speed = 1;
+let dt = 1.0;
+let seed = 42;
+let contrast = 1.0;
+let invertColors = false;
+let colorScheme = 0;
+let vizMode = 0;
+let brushMode = 0; // 0=navigate, 1=addA, 2=addB, 3=erase
+let brushSize = 20;
+let brushIntensity = 0.8;
+let brushActive = false;
+let brushX = -999, brushY = -999;
+let panX = 0, panY = 0;
+let zoom = 1.0;
+let isPanning = false;
+let lastPanX, lastPanY;
+let currentModel = 0; // 0=GrayScott, 1=Schnakenberg, 2=Brusselator
+let frameCount = 0;
+let lastFPSTime = performance.now();
+let fpsDisplay = 0;
+let journeyActive = false;
+let journeyStart = null, journeyEnd = null;
+let journeyDuration = 0, journeyElapsed = 0;
+let hintTimeout;
+let initMode = 0;
+
+// Parameters
+let params = {
+  feed: 0.037, kill: 0.06, Da: 1.0, Db: 0.5,
+  paramA: 0.1, paramB: 0.9 // for Schnakenberg/Brusselator
+};
+
+// ============================
+// PRESETS
+// ============================
+const PRESETS = [
+  { name:'Spots', desc:'Mitotic dots', model:'gray-scott', feed:0.030, kill:0.062, Da:1.0, Db:0.5, init:1 },
+  { name:'Stripes', desc:'Labyrinthine lines', model:'gray-scott', feed:0.035, kill:0.060, Da:1.0, Db:0.5, init:0 },
+  { name:'Maze', desc:'Winding corridors', model:'gray-scott', feed:0.029, kill:0.057, Da:1.0, Db:0.5, init:0 },
+  { name:'Worms', desc:'U-Skate world', model:'gray-scott', feed:0.062, kill:0.061, Da:1.0, Db:0.5, init:1 },
+  { name:'Coral', desc:'Branching growth', model:'gray-scott', feed:0.055, kill:0.062, Da:1.0, Db:0.5, init:0 },
+  { name:'Fingerprint', desc:'Organic whorls', model:'gray-scott', feed:0.055, kill:0.063, Da:1.0, Db:0.5, init:2 },
+  { name:'Bubbles', desc:'Expanding holes', model:'gray-scott', feed:0.012, kill:0.050, Da:1.0, Db:0.5, init:2 },
+  { name:'Chaos', desc:'Unstable turbulence', model:'gray-scott', feed:0.026, kill:0.051, Da:1.0, Db:0.5, init:2 },
+  { name:'Pulse', desc:'Pulsing waves', model:'gray-scott', feed:0.025, kill:0.060, Da:1.0, Db:0.5, init:0 },
+  { name:'Flower', desc:'Blooming patterns', model:'gray-scott', feed:0.055, kill:0.064, Da:1.0, Db:0.5, init:0 },
+];
+
+const SCHNAKENBERG_PRESETS = [
+  { name:'Spots', desc:'Turing spots', model:'schnakenberg', paramA:0.1, paramB:0.9, Da:1.0, Db:40.0, init:2 },
+  { name:'Stripes', desc:'Striped pattern', model:'schnakenberg', paramA:0.1, paramB:0.9, Da:1.0, Db:20.0, init:2 },
+];
+
+const BRUSSELATOR_PRESETS = [
+  { name:'Spots', desc:'Activator spots', model:'brusselator', paramA:4.5, paramB:7.5, Da:1.0, Db:8.0, init:2 },
+  { name:'Stripes', desc:'Stripe formation', model:'brusselator', paramA:4.5, paramB:6.8, Da:1.0, Db:8.0, init:2 },
+];
+
+const COLOR_SCHEMES = [
+  { name:'Grayscale', colors:['#000','#555','#aaa','#fff'] },
+  { name:'Heatmap', colors:['#000080','#00bfff','#00ff00','#ff0'] },
+  { name:'Blue-Gold', colors:['#0d1a40','#eee','#f0d800','#fff'] },
+  { name:'Neon', colors:['#05001a','#9900cc','#ff6600','#fff'] },
+  { name:'Viridis', colors:['#440154','#21918c','#8bd346','#fde725'] },
+];
+
+const JOURNEYS = [
+  { name:'Spots to Stripes', desc:'Watch dots connect into lines', f1:0.030, k1:0.062, f2:0.040, k2:0.060, dur:15000 },
+  { name:'Into Chaos', desc:'Order dissolves into turbulence', f1:0.035, k1:0.060, f2:0.026, k2:0.051, dur:20000 },
+  { name:'Coral Growth', desc:'Branches emerge and spread', f1:0.055, k1:0.064, f2:0.055, k2:0.061, dur:15000 },
+  { name:'The Grand Tour', desc:'A journey through many patterns', f1:0.020, k1:0.055, f2:0.060, k2:0.064, dur:30000 },
+];
+
+// ============================
+// TOUR STEPS
+// ============================
+const TOUR_STEPS = [
+  { el:'#simCanvas', title:'The Simulation Canvas', text:'This is where the magic happens! Two invisible chemicals react and spread across this surface, spontaneously forming patterns. You can zoom with scroll wheel and pan by dragging.' },
+  { el:'#tour-presets', title:'Pattern Presets', text:'Start here! Each preset configures the simulation to produce a different type of pattern. Click "Spots" or "Stripes" and watch the patterns emerge over the next few seconds.' },
+  { el:'#tour-simcontrols', title:'Simulation Controls', text:'Play/pause the simulation, advance one step at a time, reset to start over, or change the speed. The simulation starts paused so you can set up first.' },
+  { el:'#tour-params', title:'Reaction Parameters', text:'These sliders control the chemistry. "Feed Rate" controls how fast new activator is added. "Kill Rate" controls how fast the inhibitor decays. Small changes create dramatically different patterns!' },
+  { el:'#tour-brush', title:'Brush Tools', text:'Paint directly on the simulation! Add Chemical A (activator) or Chemical B (inhibitor) to disturb the pattern and watch how the system responds. Great for creating custom shapes.' },
+  { el:'#tour-colors', title:'Colors & Visualization', text:'Change how the chemicals are displayed. Try different color schemes for artistic effects, or switch between viewing Chemical A, B, or their difference.' },
+  { el:'#tour-model', title:'Reaction Models', text:'Gray-Scott is the default model, but you can also try Schnakenberg or Brusselator — different mathematical equations that produce their own unique families of patterns.' },
+];
+
+const TOUR_STEPS_RIGHT = [
+  { el:'#tour-fk', title:'Parameter Space Diagram', text:'This is a map of all possible patterns! The X-axis is Feed rate, Y-axis is Kill rate. Click anywhere on this diagram to instantly jump to those parameters. Colored regions show where different pattern types live.' },
+  { el:'#tour-journey', title:'Parameter Journeys', text:'These are guided animations that smoothly morph the simulation between different parameter regions. Click one to watch the patterns transform in real time — no interaction needed!' },
+  { el:'#tour-info', title:'Info Panel', text:'This panel explains what\'s happening in real time. It updates based on the current model and parameters, giving you context about the patterns forming on screen.' },
+];
+
+// ============================
+// WEBGL UTILITIES
+// ============================
+function createShader(context, type, source) {
+  const s = context.createShader(type);
+  context.shaderSource(s, source);
+  context.compileShader(s);
+  if (!context.getShaderParameter(s, context.COMPILE_STATUS)) {
+    console.error('Shader error:', context.getShaderInfoLog(s));
+    context.deleteShader(s);
+    return null;
+  }
+  return s;
+}
+
+function createProgram(context, vsSource, fsSource) {
+  const vs = createShader(context, context.VERTEX_SHADER, vsSource);
+  const fs = createShader(context, context.FRAGMENT_SHADER, fsSource);
+  const p = context.createProgram();
+  context.attachShader(p, vs);
+  context.attachShader(p, fs);
+  context.linkProgram(p);
+  if (!context.getProgramParameter(p, context.LINK_STATUS)) {
+    console.error('Program error:', context.getProgramInfoLog(p));
+    return null;
+  }
+  return p;
+}
+
+function createFBPair(context, w, h, ext, isHalf) {
+  const fbs = [], txs = [];
+  for (let i = 0; i < 2; i++) {
+    const tex = context.createTexture();
+    context.bindTexture(context.TEXTURE_2D, tex);
+    if (isHalf) {
+      context.texImage2D(context.TEXTURE_2D, 0, context.RGBA, w, h, 0, context.RGBA, ext.HALF_FLOAT_OES, null);
+    } else {
+      context.texImage2D(context.TEXTURE_2D, 0, context.RGBA, w, h, 0, context.RGBA, context.FLOAT, null);
+    }
+    context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MIN_FILTER, context.NEAREST);
+    context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MAG_FILTER, context.NEAREST);
+    context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_S, context.REPEAT);
+    context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_T, context.REPEAT);
+    txs.push(tex);
+
+    const fb = context.createFramebuffer();
+    context.bindFramebuffer(context.FRAMEBUFFER, fb);
+    context.framebufferTexture2D(context.FRAMEBUFFER, context.COLOR_ATTACHMENT0, context.TEXTURE_2D, tex, 0);
+    fbs.push(fb);
+  }
+  context.bindFramebuffer(context.FRAMEBUFFER, null);
+  return { framebuffers: fbs, textures: txs };
+}
+
+// ============================
+// INITIALIZATION
+// ============================
+function initWebGL(canvas) {
+  const context = canvas.getContext('webgl', { preserveDrawingBuffer: true, antialias: false });
+  if (!context) { alert('WebGL not supported'); return null; }
+
+  // Enable float textures
+  let floatExt = context.getExtension('OES_texture_float');
+  let halfFloatExt = context.getExtension('OES_texture_half_float');
+  let isHalf = false;
+  if (!floatExt) {
+    if (halfFloatExt) {
+      isHalf = true;
+    } else {
+      alert('Float textures not supported');
+      return null;
+    }
+  }
+
+  // Also try to enable linear filtering for float (optional)
+  context.getExtension('OES_texture_float_linear');
+  context.getExtension('OES_texture_half_float_linear');
+
+  return { context, isHalf, halfFloatExt };
+}
+
+function setupSimulation(context, fbArray, txArray, isHalf, halfFloatExt) {
+  const vsSource = document.getElementById('vs').textContent;
+  const simFsSource = document.getElementById('sim-fs').textContent;
+  const initFsSource = document.getElementById('init-fs').textContent;
+  const renderFsSource = document.getElementById('render-fs').textContent;
+
+  const sp = createProgram(context, vsSource, simFsSource);
+  const ip = createProgram(context, vsSource, initFsSource);
+  const rp = createProgram(context, vsSource, renderFsSource);
+
+  // Quad
+  const buf = context.createBuffer();
+  context.bindBuffer(context.ARRAY_BUFFER, buf);
+  context.bufferData(context.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), context.STATIC_DRAW);
+
+  // Framebuffers
+  const pair = createFBPair(context, SIM_W, SIM_H, halfFloatExt, isHalf);
+  fbArray.length = 0;
+  txArray.length = 0;
+  fbArray.push(...pair.framebuffers);
+  txArray.push(...pair.textures);
+
+  return { simProg: sp, initProg: ip, renderProg: rp, quadBuf: buf };
+}
+
+function drawQuad(context, program, buf) {
+  const loc = context.getAttribLocation(program, 'a_position');
+  context.bindBuffer(context.ARRAY_BUFFER, buf);
+  context.enableVertexAttribArray(loc);
+  context.vertexAttribPointer(loc, 2, context.FLOAT, false, 0, 0);
+  context.drawArrays(context.TRIANGLE_STRIP, 0, 4);
+}
+
+function setUniform(context, program, name, type, ...vals) {
+  const loc = context.getUniformLocation(program, name);
+  if (loc === null) return;
+  if (type === '1i') context.uniform1i(loc, vals[0]);
+  else if (type === '1f') context.uniform1f(loc, vals[0]);
+  else if (type === '2f') context.uniform2f(loc, vals[0], vals[1]);
+}
+
+// ============================
+// INIT STATE
+// ============================
+function initState(context, program, buf, fbs, mode) {
+  context.useProgram(program);
+  context.viewport(0, 0, SIM_W, SIM_H);
+  setUniform(context, program, 'u_resolution', '2f', SIM_W, SIM_H);
+  setUniform(context, program, 'u_seed', '1f', seed);
+  setUniform(context, program, 'u_initMode', '1i', mode);
+  context.bindFramebuffer(context.FRAMEBUFFER, fbs[0]);
+  drawQuad(context, program, buf);
+  context.bindFramebuffer(context.FRAMEBUFFER, fbs[1]);
+  drawQuad(context, program, buf);
+  context.bindFramebuffer(context.FRAMEBUFFER, null);
+}
+
+// ============================
+// SIMULATION STEP
+// ============================
+function simStep(context, program, buf, fbs, txs, fbIndex) {
+  context.useProgram(program);
+  context.viewport(0, 0, SIM_W, SIM_H);
+
+  setUniform(context, program, 'u_resolution', '2f', SIM_W, SIM_H);
+  setUniform(context, program, 'u_feed', '1f', params.feed);
+  setUniform(context, program, 'u_kill', '1f', params.kill);
+  setUniform(context, program, 'u_Da', '1f', params.Da);
+  setUniform(context, program, 'u_Db', '1f', params.Db);
+  setUniform(context, program, 'u_dt', '1f', dt);
+  setUniform(context, program, 'u_model', '1i', currentModel);
+  setUniform(context, program, 'u_paramA', '1f', params.paramA);
+  setUniform(context, program, 'u_paramB', '1f', params.paramB);
+
+  // Brush
+  setUniform(context, program, 'u_brushPos', '2f', brushX, brushY);
+  setUniform(context, program, 'u_brushSize', '1f', brushActive ? brushSize : 0);
+  setUniform(context, program, 'u_brushIntensity', '1f', brushIntensity);
+  setUniform(context, program, 'u_brushType', '1i', brushActive ? brushMode : 0);
+
+  const src = fbIndex;
+  const dst = 1 - fbIndex;
+
+  context.activeTexture(context.TEXTURE0);
+  context.bindTexture(context.TEXTURE_2D, txs[src]);
+  setUniform(context, program, 'u_state', '1i', 0);
+
+  context.bindFramebuffer(context.FRAMEBUFFER, fbs[dst]);
+  drawQuad(context, program, buf);
+  context.bindFramebuffer(context.FRAMEBUFFER, null);
+
+  return dst;
+}
+
+// ============================
+// RENDER
+// ============================
+function render(context, program, buf, txs, fbIndex, canvas) {
+  context.useProgram(program);
+  context.viewport(0, 0, canvas.width, canvas.height);
+
+  context.activeTexture(context.TEXTURE0);
+  context.bindTexture(context.TEXTURE_2D, txs[fbIndex]);
+  setUniform(context, program, 'u_state', '1i', 0);
+  setUniform(context, program, 'u_resolution', '2f', SIM_W, SIM_H);
+  setUniform(context, program, 'u_canvasSize', '2f', canvas.width, canvas.height);
+  setUniform(context, program, 'u_colorScheme', '1i', colorScheme);
+  setUniform(context, program, 'u_vizMode', '1i', vizMode);
+  setUniform(context, program, 'u_contrast', '1f', contrast);
+  setUniform(context, program, 'u_invert', '1i', invertColors ? 1 : 0);
+  setUniform(context, program, 'u_pan', '2f', panX, panY);
+  setUniform(context, program, 'u_zoom', '1f', zoom);
+
+  context.bindFramebuffer(context.FRAMEBUFFER, null);
+  drawQuad(context, program, buf);
+}
+
+// ============================
+// MAIN LOOP
+// ============================
+function mainLoop(timestamp) {
+  requestAnimationFrame(mainLoop);
+
+  // FPS counter
+  frameCount++;
+  if (timestamp - lastFPSTime >= 500) {
+    fpsDisplay = Math.round(frameCount / ((timestamp - lastFPSTime) / 1000));
+    document.getElementById('fps-counter').textContent = fpsDisplay + ' FPS';
+    frameCount = 0;
+    lastFPSTime = timestamp;
+  }
+
+  // Journey update
+  if (journeyActive) {
+    journeyElapsed += 16.67;
+    let t = Math.min(journeyElapsed / journeyDuration, 1);
+    params.feed = journeyStart.f + (journeyEnd.f - journeyStart.f) * t;
+    params.kill = journeyStart.k + (journeyEnd.k - journeyStart.k) * t;
+    updateSliders();
+    drawFKDiagram();
+    document.getElementById('journey-bar').style.width = (t * 100) + '%';
+    if (t >= 1) stopJourney();
+  }
+
+  // Simulation steps
+  if (playing) {
+    const stepsPerFrame = Math.round(8 * speed);
+    for (let i = 0; i < stepsPerFrame; i++) {
+      currentFB = simStep(gl, simProgram, quadBuffer, framebuffers, textures, currentFB);
+      if (i === 0) {
+        // Only apply brush on first step
+        brushActive = false;
+      }
+    }
+    if (splitMode && gl2) {
+      for (let i = 0; i < stepsPerFrame; i++) {
+        currentFB2 = simStep(gl2, simProgram2, quadBuffer2, framebuffers2, textures2, currentFB2);
+      }
+    }
+  }
+
+  // Render
+  const canvas = document.getElementById('simCanvas');
+  render(gl, renderProgram, quadBuffer, textures, currentFB, canvas);
+
+  if (splitMode && gl2) {
+    const canvas2 = document.getElementById('simCanvas2');
+    render(gl2, renderProgram2, quadBuffer2, textures2, currentFB2, canvas2);
+  }
+}
+
+// ============================
+// UI SETUP
+// ============================
+function buildPresets() {
+  const grid = document.getElementById('preset-grid');
+  grid.innerHTML = '';
+  let presets;
+  if (currentModel === 0) presets = PRESETS;
+  else if (currentModel === 1) presets = SCHNAKENBERG_PRESETS;
+  else presets = BRUSSELATOR_PRESETS;
+
+  presets.forEach((p, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn';
+    btn.innerHTML = `<div class="preset-name">${p.name}</div><div class="preset-desc">${p.desc}</div>`;
+    btn.onclick = () => applyPreset(p, btn);
+    grid.appendChild(btn);
+  });
+}
+
+function applyPreset(p, btn) {
+  // Highlight
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  if (p.feed !== undefined) params.feed = p.feed;
+  if (p.kill !== undefined) params.kill = p.kill;
+  if (p.Da !== undefined) params.Da = p.Da;
+  if (p.Db !== undefined) params.Db = p.Db;
+  if (p.paramA !== undefined) params.paramA = p.paramA;
+  if (p.paramB !== undefined) params.paramB = p.paramB;
+
+  initMode = p.init || 0;
+  seed = Math.floor(Math.random() * 999) + 1;
+  document.getElementById('seed-slider').value = seed;
+  document.getElementById('seed-val').textContent = seed;
+
+  initState(gl, initProgram, quadBuffer, framebuffers, initMode);
+  currentFB = 0;
+
+  if (splitMode && gl2) {
+    initState(gl2, initProgram2, quadBuffer2, framebuffers2, initMode);
+    currentFB2 = 0;
+  }
+
+  updateSliders();
+  drawFKDiagram();
+  updateInfoPanel();
+
+  if (!playing) {
+    playing = true;
+    updatePlayBtn();
+  }
+
+  // Hide hint
+  const hint = document.getElementById('canvas-hint');
+  hint.style.opacity = '0';
+  clearTimeout(hintTimeout);
+}
+
+function buildParamSliders() {
+  const reactionDiv = document.getElementById('reaction-params');
+  const diffusionDiv = document.getElementById('diffusion-params');
+  reactionDiv.innerHTML = '';
+  diffusionDiv.innerHTML = '';
+
+  if (currentModel === 0) {
+    // Gray-Scott
+    reactionDiv.innerHTML = `
+      <div class="slider-row">
+        <div class="slider-label"><span class="name">Feed Rate (F)</span><span class="val" id="feed-val">${params.feed.toFixed(4)}</span></div>
+        <input type="range" min="0.001" max="0.08" step="0.001" value="${params.feed}" id="feed-slider" oninput="params.feed=+this.value;document.getElementById('feed-val').textContent=(+this.value).toFixed(4);drawFKDiagram();updateInfoPanel()">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label"><span class="name">Kill Rate (k)</span><span class="val" id="kill-val">${params.kill.toFixed(4)}</span></div>
+        <input type="range" min="0.03" max="0.07" step="0.001" value="${params.kill}" id="kill-slider" oninput="params.kill=+this.value;document.getElementById('kill-val').textContent=(+this.value).toFixed(4);drawFKDiagram();updateInfoPanel()">
+      </div>
+    `;
+  } else if (currentModel === 1) {
+    // Schnakenberg
+    reactionDiv.innerHTML = `
+      <div class="slider-row">
+        <div class="slider-label"><span class="name">Parameter a</span><span class="val" id="paramA-val">${params.paramA.toFixed(3)}</span></div>
+        <input type="range" min="0.01" max="0.5" step="0.005" value="${params.paramA}" id="paramA-slider" oninput="params.paramA=+this.value;document.getElementById('paramA-val').textContent=(+this.value).toFixed(3);updateInfoPanel()">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label"><span class="name">Parameter b</span><span class="val" id="paramB-val">${params.paramB.toFixed(3)}</span></div>
+        <input type="range" min="0.5" max="2.0" step="0.01" value="${params.paramB}" id="paramB-slider" oninput="params.paramB=+this.value;document.getElementById('paramB-val').textContent=(+this.value).toFixed(3);updateInfoPanel()">
+      </div>
+    `;
+  } else {
+    // Brusselator
+    reactionDiv.innerHTML = `
+      <div class="slider-row">
+        <div class="slider-label"><span class="name">Parameter A</span><span class="val" id="paramA-val">${params.paramA.toFixed(2)}</span></div>
+        <input type="range" min="1" max="10" step="0.1" value="${params.paramA}" id="paramA-slider" oninput="params.paramA=+this.value;document.getElementById('paramA-val').textContent=(+this.value).toFixed(2);updateInfoPanel()">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label"><span class="name">Parameter B</span><span class="val" id="paramB-val">${params.paramB.toFixed(2)}</span></div>
+        <input type="range" min="1" max="15" step="0.1" value="${params.paramB}" id="paramB-slider" oninput="params.paramB=+this.value;document.getElementById('paramB-val').textContent=(+this.value).toFixed(2);updateInfoPanel()">
+      </div>
+    `;
+  }
+
+  diffusionDiv.innerHTML = `
+    <div class="slider-row">
+      <div class="slider-label"><span class="name">Diffusion A (D<sub>a</sub>)</span><span class="val" id="Da-val">${params.Da.toFixed(2)}</span></div>
+      <input type="range" min="0.1" max="2.0" step="0.05" value="${params.Da}" id="Da-slider" oninput="params.Da=+this.value;document.getElementById('Da-val').textContent=(+this.value).toFixed(2)">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span class="name">Diffusion B (D<sub>b</sub>)</span><span class="val" id="Db-val">${params.Db.toFixed(2)}</span></div>
+      <input type="range" min="0.1" max="${currentModel === 0 ? '1.0' : '50.0'}" step="${currentModel === 0 ? '0.05' : '0.5'}" value="${params.Db}" id="Db-slider" oninput="params.Db=+this.value;document.getElementById('Db-val').textContent=(+this.value).toFixed(2)">
+    </div>
+  `;
+}
+
+function updateSliders() {
+  if (currentModel === 0) {
+    const fs = document.getElementById('feed-slider');
+    const ks = document.getElementById('kill-slider');
+    if (fs) { fs.value = params.feed; document.getElementById('feed-val').textContent = params.feed.toFixed(4); }
+    if (ks) { ks.value = params.kill; document.getElementById('kill-val').textContent = params.kill.toFixed(4); }
+  } else {
+    const pa = document.getElementById('paramA-slider');
+    const pb = document.getElementById('paramB-slider');
+    if (pa) { pa.value = params.paramA; document.getElementById('paramA-val').textContent = currentModel === 1 ? params.paramA.toFixed(3) : params.paramA.toFixed(2); }
+    if (pb) { pb.value = params.paramB; document.getElementById('paramB-val').textContent = currentModel === 1 ? params.paramB.toFixed(3) : params.paramB.toFixed(2); }
+  }
+  const da = document.getElementById('Da-slider');
+  const db = document.getElementById('Db-slider');
+  if (da) { da.value = params.Da; document.getElementById('Da-val').textContent = params.Da.toFixed(2); }
+  if (db) { db.value = params.Db; document.getElementById('Db-val').textContent = params.Db.toFixed(2); }
+}
+
+function buildColorButtons() {
+  const row = document.getElementById('color-row');
+  row.innerHTML = '';
+  COLOR_SCHEMES.forEach((cs, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'color-btn' + (i === 0 ? ' active' : '');
+    const grad = `linear-gradient(90deg, ${cs.colors.join(',')})`;
+    btn.innerHTML = `<div class="color-swatch" style="background:${grad}"></div>${cs.name}`;
+    btn.onclick = () => {
+      document.querySelectorAll('#color-row .color-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      colorScheme = i;
+    };
+    row.appendChild(btn);
+  });
+}
+
+function buildJourneys() {
+  const list = document.getElementById('journey-list');
+  list.innerHTML = '';
+  JOURNEYS.forEach((j, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'journey-btn';
+    btn.innerHTML = `<div class="jname">${j.name}</div><div class="jdesc">${j.desc}</div>`;
+    btn.onclick = () => startJourney(j, btn);
+    list.appendChild(btn);
+  });
+}
+
+// ============================
+// ACTIONS
+// ============================
+function togglePlay() {
+  playing = !playing;
+  updatePlayBtn();
+  if (playing) {
+    document.getElementById('canvas-hint').style.opacity = '0';
+  }
+}
+
+function updatePlayBtn() {
+  document.getElementById('icon-play').style.display = playing ? 'none' : '';
+  document.getElementById('icon-pause').style.display = playing ? '' : 'none';
+}
+
+function singleStep() {
+  currentFB = simStep(gl, simProgram, quadBuffer, framebuffers, textures, currentFB);
+  if (splitMode && gl2) {
+    currentFB2 = simStep(gl2, simProgram2, quadBuffer2, framebuffers2, textures2, currentFB2);
+  }
+}
+
+function resetSim() {
+  initState(gl, initProgram, quadBuffer, framebuffers, initMode);
+  currentFB = 0;
+  if (splitMode && gl2) {
+    initState(gl2, initProgram2, quadBuffer2, framebuffers2, initMode);
+    currentFB2 = 0;
+  }
+}
+
+function setSpeed(v) { speed = parseFloat(v); }
+
+function changeModel(val) {
+  if (val === 'gray-scott') currentModel = 0;
+  else if (val === 'schnakenberg') currentModel = 1;
+  else currentModel = 2;
+
+  // Reset to default params
+  if (currentModel === 0) {
+    params = { feed: 0.037, kill: 0.06, Da: 1.0, Db: 0.5, paramA: 0.1, paramB: 0.9 };
+  } else if (currentModel === 1) {
+    params = { feed: 0.037, kill: 0.06, Da: 1.0, Db: 40.0, paramA: 0.1, paramB: 0.9 };
+  } else {
+    params = { feed: 0.037, kill: 0.06, Da: 1.0, Db: 8.0, paramA: 4.5, paramB: 7.5 };
+  }
+
+  buildPresets();
+  buildParamSliders();
+  initMode = 2;
+  initState(gl, initProgram, quadBuffer, framebuffers, initMode);
+  currentFB = 0;
+  if (splitMode && gl2) {
+    initState(gl2, initProgram2, quadBuffer2, framebuffers2, initMode);
+    currentFB2 = 0;
+  }
+  drawFKDiagram();
+  updateInfoPanel();
+}
+
+function changeResolution(val) {
+  SIM_W = val;
+  SIM_H = val;
+  document.getElementById('grid-val').textContent = val;
+  // Reinitialize framebuffers
+  const { context, isHalf, halfFloatExt } = glInfo;
+  const pair = createFBPair(context, SIM_W, SIM_H, halfFloatExt, isHalf);
+  framebuffers.length = 0;
+  textures.length = 0;
+  framebuffers.push(...pair.framebuffers);
+  textures.push(...pair.textures);
+  initState(gl, initProgram, quadBuffer, framebuffers, initMode);
+  currentFB = 0;
+}
+
+function setBrush(mode) {
+  brushMode = mode;
+  document.querySelectorAll('.brush-btn').forEach((b, i) => b.classList.toggle('active', i === mode));
+  const canvas = document.getElementById('simCanvas');
+  canvas.style.cursor = mode === 0 ? 'grab' : 'crosshair';
+}
+
+function setVizMode(mode, btn) {
+  vizMode = mode;
+  btn.parentElement.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+  setTimeout(resizeCanvases, 310);
+}
+
+function toggleRightPanel() {
+  document.getElementById('right-panel').classList.toggle('collapsed');
+  setTimeout(() => { resizeCanvases(); drawFKDiagram(); }, 310);
+}
+
+// ============================
+// SIDE-BY-SIDE
+// ============================
+let quadBuffer2;
+let glInfo, glInfo2;
+
+function toggleSplit() {
+  splitMode = !splitMode;
+  const wrap = document.getElementById('canvas-wrap');
+  const c2 = document.getElementById('simCanvas2');
+  const l1 = document.getElementById('split-label-1');
+  const l2 = document.getElementById('split-label-2');
+
+  if (splitMode) {
+    wrap.classList.add('split');
+    c2.style.display = 'block';
+    l1.style.display = '';
+    l2.style.display = '';
+    // Init second canvas
+    if (!gl2) {
+      const info2 = initWebGL(c2);
+      if (info2) {
+        glInfo2 = info2;
+        gl2 = info2.context;
+        const setup2 = setupSimulation(gl2, framebuffers2, textures2, info2.isHalf, info2.halfFloatExt);
+        simProgram2 = setup2.simProg;
+        initProgram2 = setup2.initProg;
+        renderProgram2 = setup2.renderProg;
+        quadBuffer2 = setup2.quadBuf;
+      }
+    }
+    initState(gl2, initProgram2, quadBuffer2, framebuffers2, initMode);
+    currentFB2 = 0;
+  } else {
+    wrap.classList.remove('split');
+    c2.style.display = 'none';
+    l1.style.display = 'none';
+    l2.style.display = 'none';
+  }
+  setTimeout(resizeCanvases, 50);
+}
+
+// ============================
+// CANVAS INTERACTION
+// ============================
+function setupCanvasEvents() {
+  const canvas = document.getElementById('simCanvas');
+
+  canvas.addEventListener('mousedown', (e) => {
+    if (brushMode === 0) {
+      isPanning = true;
+      lastPanX = e.clientX;
+      lastPanY = e.clientY;
+      canvas.style.cursor = 'grabbing';
+    } else {
+      brushActive = true;
+      updateBrushPos(e);
+    }
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (isPanning) {
+      const dx = (e.clientX - lastPanX) / canvas.clientWidth / zoom;
+      const dy = (e.clientY - lastPanY) / canvas.clientHeight / zoom;
+      panX -= dx;
+      panY += dy;
+      lastPanX = e.clientX;
+      lastPanY = e.clientY;
+    } else if (brushActive) {
+      updateBrushPos(e);
+    }
+    // Update brush cursor
+    if (brushMode > 0) {
+      const cursor = document.getElementById('brush-cursor');
+      cursor.style.display = 'block';
+      cursor.style.left = e.clientX + 'px';
+      cursor.style.top = e.clientY + 'px';
+      const visualSize = brushSize * (canvas.clientWidth / SIM_W) * zoom;
+      cursor.style.width = visualSize + 'px';
+      cursor.style.height = visualSize + 'px';
+    } else {
+      document.getElementById('brush-cursor').style.display = 'none';
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    isPanning = false;
+    brushActive = false;
+    if (brushMode === 0) canvas.style.cursor = 'grab';
+  });
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    zoom = Math.max(0.5, Math.min(10, zoom * factor));
+  }, { passive: false });
+
+  canvas.addEventListener('dblclick', () => {
+    panX = 0; panY = 0; zoom = 1;
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    document.getElementById('brush-cursor').style.display = 'none';
+  });
+
+  // Touch events
+  let touchId = null;
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    touchId = t.identifier;
+    if (brushMode > 0) {
+      brushActive = true;
+      updateBrushPos(t);
+    } else {
+      isPanning = true;
+      lastPanX = t.clientX;
+      lastPanY = t.clientY;
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const t = Array.from(e.touches).find(tt => tt.identifier === touchId);
+    if (!t) return;
+    if (isPanning) {
+      const dx = (t.clientX - lastPanX) / canvas.clientWidth / zoom;
+      const dy = (t.clientY - lastPanY) / canvas.clientHeight / zoom;
+      panX -= dx;
+      panY += dy;
+      lastPanX = t.clientX;
+      lastPanY = t.clientY;
+    } else if (brushActive) {
+      updateBrushPos(t);
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', () => {
+    isPanning = false;
+    brushActive = false;
+    touchId = null;
+  });
+}
+
+function updateBrushPos(e) {
+  const canvas = document.getElementById('simCanvas');
+  const rect = canvas.getBoundingClientRect();
+  // Screen UV
+  const sx = (e.clientX - rect.left) / rect.width;
+  const sy = 1 - (e.clientY - rect.top) / rect.height;
+  // Sim UV (accounting for zoom/pan)
+  const simU = (sx - 0.5) / zoom + 0.5 + panX;
+  const simV = (sy - 0.5) / zoom + 0.5 + panY;
+  brushX = simU * SIM_W;
+  brushY = simV * SIM_H;
+  brushActive = true;
+}
+
+// ============================
+// F-K DIAGRAM
+// ============================
+const FK_F_MIN = 0.0, FK_F_MAX = 0.08;
+const FK_K_MIN = 0.03, FK_K_MAX = 0.07;
+
+function drawFKDiagram() {
+  const canvas = document.getElementById('fk-canvas');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+
+  // Background gradient showing approximate regions
+  const imgData = ctx.createImageData(w, h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const f = FK_F_MIN + (x / w) * (FK_F_MAX - FK_F_MIN);
+      const k = FK_K_MAX - (y / h) * (FK_K_MAX - FK_K_MIN);
+      let r = 20, g = 24, b = 33;
+
+      // Approximate pattern regions for Gray-Scott
+      if (currentModel === 0) {
+        const fk = f + k;
+        // Spots region
+        if (f > 0.02 && f < 0.045 && k > 0.057 && k < 0.067) {
+          r = 30; g = 60; b = 120;
+        }
+        // Stripes region
+        if (f > 0.025 && f < 0.05 && k > 0.055 && k < 0.063) {
+          r = 30; g = 90; b = 80;
+        }
+        // Worms region
+        if (f > 0.05 && f < 0.075 && k > 0.058 && k < 0.066) {
+          r = 80; g = 60; b = 30;
+        }
+        // Chaos region
+        if (f > 0.015 && f < 0.035 && k > 0.045 && k < 0.056) {
+          r = 90; g = 30; b = 30;
+        }
+        // Coral region
+        if (f > 0.04 && f < 0.065 && k > 0.06 && k < 0.067) {
+          r = 60; g = 80; b = 50;
+        }
+        // General interesting region
+        if (f > 0.01 && f < 0.07 && k > 0.04 && k < 0.068 && r === 20) {
+          r = 25; g = 30; b = 40;
+        }
+      }
+
+      const idx = (y * w + x) * 4;
+      imgData.data[idx] = r;
+      imgData.data[idx + 1] = g;
+      imgData.data[idx + 2] = b;
+      imgData.data[idx + 3] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 8; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * w / 8, 0);
+    ctx.lineTo(i * w / 8, h);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, i * h / 8);
+    ctx.lineTo(w, i * h / 8);
+    ctx.stroke();
+  }
+
+  // Preset markers
+  if (currentModel === 0) {
+    ctx.font = '9px sans-serif';
+    PRESETS.forEach(p => {
+      const px = ((p.feed - FK_F_MIN) / (FK_F_MAX - FK_F_MIN)) * w;
+      const py = ((FK_K_MAX - p.kill) / (FK_K_MAX - FK_K_MIN)) * h;
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.beginPath();
+      ctx.arc(px, py, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillText(p.name, px + 5, py + 3);
+    });
+  }
+
+  // Current position marker
+  if (currentModel === 0) {
+    const cx = ((params.feed - FK_F_MIN) / (FK_F_MAX - FK_F_MIN)) * w;
+    const cy = ((FK_K_MAX - params.kill) / (FK_K_MAX - FK_K_MIN)) * h;
+    // Crosshair
+    ctx.strokeStyle = '#58a6ff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy);
+    ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8);
+    ctx.stroke();
+    ctx.fillStyle = '#58a6ff';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Axis labels
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.font = '10px sans-serif';
+  ctx.fillText('Feed (F) \u2192', w / 2 - 25, h - 4);
+  ctx.save();
+  ctx.translate(10, h / 2 + 20);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('Kill (k) \u2192', 0, 0);
+  ctx.restore();
+}
+
+function setupFKEvents() {
+  const canvas = document.getElementById('fk-canvas');
+  let dragging = false;
+
+  function setFromMouse(e) {
+    if (currentModel !== 0) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    params.feed = Math.max(FK_F_MIN, Math.min(FK_F_MAX, FK_F_MIN + x * (FK_F_MAX - FK_F_MIN)));
+    params.kill = Math.max(FK_K_MIN, Math.min(FK_K_MAX, FK_K_MAX - y * (FK_K_MAX - FK_K_MIN)));
+    updateSliders();
+    drawFKDiagram();
+    updateInfoPanel();
+  }
+
+  canvas.addEventListener('mousedown', (e) => { dragging = true; setFromMouse(e); });
+  canvas.addEventListener('mousemove', (e) => { if (dragging) setFromMouse(e); });
+  window.addEventListener('mouseup', () => { dragging = false; });
+}
+
+// ============================
+// PARAMETER JOURNEY
+// ============================
+function startJourney(j, btn) {
+  if (journeyActive) stopJourney();
+  journeyActive = true;
+  journeyStart = { f: j.f1, k: j.k1 };
+  journeyEnd = { f: j.f2, k: j.k2 };
+  journeyDuration = j.dur;
+  journeyElapsed = 0;
+
+  // Reset to start params
+  params.feed = j.f1;
+  params.kill = j.k1;
+  initMode = 2;
+  initState(gl, initProgram, quadBuffer, framebuffers, initMode);
+  currentFB = 0;
+
+  if (!playing) { playing = true; updatePlayBtn(); }
+
+  document.querySelectorAll('.journey-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  document.getElementById('journey-progress').style.display = 'block';
+  document.getElementById('journey-stop-btn').style.display = 'block';
+  document.getElementById('journey-bar').style.width = '0%';
+
+  updateSliders();
+  drawFKDiagram();
+}
+
+function stopJourney() {
+  journeyActive = false;
+  document.querySelectorAll('.journey-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('journey-progress').style.display = 'none';
+  document.getElementById('journey-stop-btn').style.display = 'none';
+}
+
+// ============================
+// EXPORT
+// ============================
+function openExportModal() { document.getElementById('export-modal').classList.add('visible'); }
+function closeExportModal() { document.getElementById('export-modal').classList.remove('visible'); }
+
+function doExport() {
+  const scale = parseInt(document.getElementById('export-res').value);
+  const canvas = document.getElementById('simCanvas');
+  const exportCanvas = document.createElement('canvas');
+  exportCanvas.width = canvas.width * scale;
+  exportCanvas.height = canvas.height * scale;
+
+  // Re-render at higher resolution
+  const expCtx = exportCanvas.getContext('2d');
+  // We'll read from the WebGL canvas directly at current resolution and scale up
+  expCtx.imageSmoothingEnabled = false;
+  expCtx.drawImage(canvas, 0, 0, exportCanvas.width, exportCanvas.height);
+
+  const link = document.createElement('a');
+  link.download = `turing-pattern-${Date.now()}.png`;
+  link.href = exportCanvas.toDataURL('image/png');
+  link.click();
+  closeExportModal();
+}
+
+// ============================
+// INFO PANEL
+// ============================
+function updateInfoPanel() {
+  const el = document.getElementById('info-content');
+  let html = '';
+
+  if (currentModel === 0) {
+    html += `<h4>Gray-Scott Model</h4>`;
+    html += `<p>The Gray-Scott model simulates two chemicals (A and B) that react and diffuse across a surface.</p>`;
+    html += `<p><span class="highlight">Chemical A</span> (the activator) is continuously fed into the system. <span class="highlight">Chemical B</span> (the inhibitor) is produced when A and B react, and it naturally decays.</p>`;
+    html += `<h4>Current Parameters</h4>`;
+    html += `<p><span class="highlight">Feed Rate (F = ${params.feed.toFixed(4)})</span> &mdash; How fast Chemical A is replenished. Higher values push the system toward uniformity.</p>`;
+    html += `<p><span class="highlight">Kill Rate (k = ${params.kill.toFixed(4)})</span> &mdash; How fast Chemical B decays. This controls whether patterns grow, shrink, or remain stable.</p>`;
+
+    // Describe the regime
+    const f = params.feed, k = params.kill;
+    html += `<h4>What to Expect</h4>`;
+    if (f > 0.025 && f < 0.04 && k > 0.058 && k < 0.065) {
+      html += `<p>You're in the <span class="highlight">spots/stripes</span> region. Expect to see distinct circular dots or labyrinthine stripe patterns emerging from the initial seeds.</p>`;
+    } else if (f > 0.05 && f < 0.07 && k > 0.058 && k < 0.066) {
+      html += `<p>You're in the <span class="highlight">worms/coral</span> region. Expect branching, worm-like structures that grow and fill the space.</p>`;
+    } else if (f > 0.015 && f < 0.03 && k > 0.045 && k < 0.056) {
+      html += `<p>You're in the <span class="highlight">chaotic</span> region. Patterns form but are unstable, creating turbulent, ever-changing dynamics.</p>`;
+    } else {
+      html += `<p>Explore different parameter combinations to find interesting patterns! Try the presets on the left, or click on the F-k diagram above to jump around.</p>`;
+    }
+  } else if (currentModel === 1) {
+    html += `<h4>Schnakenberg Model</h4>`;
+    html += `<p>The Schnakenberg model is another reaction-diffusion system known for producing clean Turing patterns. It's simpler than Gray-Scott and produces well-defined spots and stripes.</p>`;
+    html += `<p><span class="highlight">Parameters a and b</span> control the reaction kinetics. The ratio of diffusion rates determines whether you get spots or stripes.</p>`;
+  } else {
+    html += `<h4>Brusselator Model</h4>`;
+    html += `<p>The Brusselator is a theoretical model from the Brussels school of thermodynamics. It's famous for demonstrating how chemical oscillations and spatial patterns can arise from simple reactions.</p>`;
+    html += `<p><span class="highlight">Parameters A and B</span> control the concentrations of input chemicals. When B exceeds a critical threshold (B > 1 + A&sup2;), the uniform state becomes unstable and patterns form.</p>`;
+  }
+
+  html += `<h4>Keyboard Shortcuts</h4>`;
+  html += `<ul>`;
+  html += `<li><kbd>Space</kbd> Play/Pause</li>`;
+  html += `<li><kbd>R</kbd> Reset</li>`;
+  html += `<li><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Brush modes</li>`;
+  html += `<li><kbd>?</kbd> All shortcuts</li>`;
+  html += `</ul>`;
+
+  html += `<h4>The Equations</h4>`;
+  if (currentModel === 0) {
+    html += `<p style="font-family:monospace;font-size:11px;background:var(--bg);padding:8px;border-radius:6px;line-height:1.8">`;
+    html += `dA/dt = D<sub>a</sub>&nabla;&sup2;A - AB&sup2; + F(1-A)<br>`;
+    html += `dB/dt = D<sub>b</sub>&nabla;&sup2;B + AB&sup2; - (F+k)B`;
+    html += `</p>`;
+  } else if (currentModel === 1) {
+    html += `<p style="font-family:monospace;font-size:11px;background:var(--bg);padding:8px;border-radius:6px;line-height:1.8">`;
+    html += `du/dt = D<sub>u</sub>&nabla;&sup2;u + &gamma;(a - u + u&sup2;v)<br>`;
+    html += `dv/dt = D<sub>v</sub>&nabla;&sup2;v + &gamma;(b - u&sup2;v)`;
+    html += `</p>`;
+  } else {
+    html += `<p style="font-family:monospace;font-size:11px;background:var(--bg);padding:8px;border-radius:6px;line-height:1.8">`;
+    html += `du/dt = D<sub>u</sub>&nabla;&sup2;u + a - (b+1)u + u&sup2;v<br>`;
+    html += `dv/dt = D<sub>v</sub>&nabla;&sup2;v + bu - u&sup2;v`;
+    html += `</p>`;
+  }
+
+  el.innerHTML = html;
+}
+
+// ============================
+// MODALS & TOUR
+// ============================
+function closeWelcome() {
+  document.getElementById('welcome-modal').classList.remove('visible');
+}
+
+function reopenWelcome() {
+  document.getElementById('welcome-modal').classList.add('visible');
+}
+
+function openShortcutsModal() { document.getElementById('shortcuts-modal').classList.add('visible'); }
+function closeShortcutsModal() { document.getElementById('shortcuts-modal').classList.remove('visible'); }
+
+let tourStep = 0;
+let tourSteps = [];
+
+function startTour() {
+  // Make sure sidebar and right panel are open
+  document.getElementById('sidebar').classList.remove('collapsed');
+  document.getElementById('right-panel').classList.remove('collapsed');
+  setTimeout(() => {
+    resizeCanvases();
+    drawFKDiagram();
+    tourSteps = [...TOUR_STEPS, ...TOUR_STEPS_RIGHT];
+    tourStep = 0;
+    showTourStep();
+  }, 400);
+}
+
+function showTourStep() {
+  const overlay = document.getElementById('tour-overlay');
+  const highlight = document.getElementById('tour-highlight');
+  const tooltip = document.getElementById('tour-tooltip');
+
+  if (tourStep >= tourSteps.length) {
+    endTour();
+    return;
+  }
+
+  overlay.classList.add('active');
+  tooltip.style.display = 'block';
+
+  const step = tourSteps[tourStep];
+  const el = document.querySelector(step.el);
+  if (!el) { tourStep++; showTourStep(); return; }
+
+  const rect = el.getBoundingClientRect();
+
+  // Highlight
+  highlight.style.left = (rect.left - 4) + 'px';
+  highlight.style.top = (rect.top - 4) + 'px';
+  highlight.style.width = (rect.width + 8) + 'px';
+  highlight.style.height = (rect.height + 8) + 'px';
+
+  // Tooltip position
+  document.getElementById('tour-title').textContent = step.title;
+  document.getElementById('tour-text').textContent = step.text;
+
+  // Position tooltip
+  const ttW = 320;
+  let ttLeft = rect.right + 16;
+  let ttTop = rect.top;
+  if (ttLeft + ttW > window.innerWidth) {
+    ttLeft = rect.left - ttW - 16;
+  }
+  if (ttLeft < 10) {
+    ttLeft = rect.left;
+    ttTop = rect.bottom + 16;
+  }
+  if (ttTop + 200 > window.innerHeight) {
+    ttTop = window.innerHeight - 220;
+  }
+  if (ttTop < 10) ttTop = 10;
+
+  tooltip.style.left = ttLeft + 'px';
+  tooltip.style.top = ttTop + 'px';
+
+  // Dots
+  const dots = document.getElementById('tour-dots');
+  dots.innerHTML = tourSteps.map((_, i) => `<div class="tour-dot${i === tourStep ? ' active' : ''}"></div>`).join('');
+
+  // Button text
+  document.getElementById('tour-next-btn').textContent = tourStep === tourSteps.length - 1 ? 'Finish' : 'Next';
+}
+
+function nextTourStep() {
+  tourStep++;
+  if (tourStep >= tourSteps.length) {
+    endTour();
+  } else {
+    showTourStep();
+  }
+}
+
+function endTour() {
+  document.getElementById('tour-overlay').classList.remove('active');
+  document.getElementById('tour-tooltip').style.display = 'none';
+}
+
+// ============================
+// SECTION TOGGLE
+// ============================
+function toggleSection(h3) {
+  h3.parentElement.classList.toggle('collapsed-section');
+}
+
+// ============================
+// KEYBOARD SHORTCUTS
+// ============================
+document.addEventListener('keydown', (e) => {
+  // Skip if typing in input
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+
+  switch (e.key) {
+    case ' ':
+      e.preventDefault();
+      togglePlay();
+      break;
+    case '.':
+      singleStep();
+      break;
+    case 'r':
+    case 'R':
+      resetSim();
+      break;
+    case 'c':
+    case 'C':
+      // Clear
+      initMode = 0;
+      initState(gl, initProgram, quadBuffer, framebuffers, initMode);
+      currentFB = 0;
+      break;
+    case 's':
+    case 'S':
+      toggleSidebar();
+      break;
+    case 'i':
+    case 'I':
+      toggleRightPanel();
+      break;
+    case 'f':
+    case 'F':
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        document.getElementById('canvas-wrap').requestFullscreen();
+      }
+      break;
+    case 'e':
+    case 'E':
+      openExportModal();
+      break;
+    case '?':
+      openShortcutsModal();
+      break;
+    case '0':
+      setBrush(0);
+      break;
+    case '1':
+      setBrush(1);
+      break;
+    case '2':
+      setBrush(2);
+      break;
+    case '3':
+      setBrush(3);
+      break;
+    case 'Escape':
+      closeWelcome();
+      closeExportModal();
+      closeShortcutsModal();
+      endTour();
+      break;
+  }
+});
+
+// ============================
+// RESIZE
+// ============================
+function resizeCanvases() {
+  const wrap = document.getElementById('canvas-wrap');
+  const canvas = document.getElementById('simCanvas');
+  const dpr = window.devicePixelRatio || 1;
+
+  if (splitMode) {
+    const halfW = Math.floor(wrap.clientWidth / 2);
+    canvas.width = halfW * dpr;
+    canvas.height = wrap.clientHeight * dpr;
+    const c2 = document.getElementById('simCanvas2');
+    c2.width = halfW * dpr;
+    c2.height = wrap.clientHeight * dpr;
+  } else {
+    canvas.width = wrap.clientWidth * dpr;
+    canvas.height = wrap.clientHeight * dpr;
+  }
+}
+
+window.addEventListener('resize', () => {
+  resizeCanvases();
+  drawFKDiagram();
+});
+
+// ============================
+// INIT
+// ============================
+function init() {
+  const canvas = document.getElementById('simCanvas');
+  const info = initWebGL(canvas);
+  if (!info) return;
+  glInfo = info;
+  gl = info.context;
+
+  const setup = setupSimulation(gl, framebuffers, textures, info.isHalf, info.halfFloatExt);
+  simProgram = setup.simProg;
+  initProgram = setup.initProg;
+  renderProgram = setup.renderProg;
+  quadBuffer = setup.quadBuf;
+
+  // Resize canvas
+  resizeCanvases();
+
+  // Initialize state
+  initState(gl, initProgram, quadBuffer, framebuffers, initMode);
+
+  // Build UI
+  buildPresets();
+  buildParamSliders();
+  buildColorButtons();
+  buildJourneys();
+  drawFKDiagram();
+  setupFKEvents();
+  updateInfoPanel();
+
+  // Canvas events
+  setupCanvasEvents();
+
+  // Show hint
+  hintTimeout = setTimeout(() => {
+    document.getElementById('canvas-hint').style.opacity = '0';
+  }, 8000);
+
+  // Start loop
+  requestAnimationFrame(mainLoop);
+}
+
+init();
+</script>
+</body>
+</html>
