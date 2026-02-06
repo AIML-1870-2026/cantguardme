@@ -143,9 +143,10 @@ select{background:var(--surface2);color:var(--text);border:1px solid var(--borde
 .btn-secondary:hover{background:var(--border)}
 
 /* GUIDED TOUR */
-#tour-overlay{position:fixed;inset:0;z-index:900;pointer-events:none;transition:opacity .3s}
-#tour-overlay.active{pointer-events:all}
-#tour-highlight{position:fixed;z-index:901;border:2px solid var(--accent);border-radius:var(--radius);box-shadow:0 0 0 9999px rgba(0,0,0,.7),0 0 20px var(--accent);transition:all .4s ease;pointer-events:none}
+#tour-overlay{position:fixed;inset:0;z-index:900;pointer-events:none;transition:opacity .3s;display:none}
+#tour-overlay.active{pointer-events:all;display:block}
+#tour-highlight{position:fixed;z-index:901;border:2px solid var(--accent);border-radius:var(--radius);box-shadow:0 0 0 9999px rgba(0,0,0,.7),0 0 20px var(--accent);transition:all .4s ease;pointer-events:none;display:none}
+#tour-overlay.active #tour-highlight{display:block}
 #tour-tooltip{position:fixed;z-index:902;background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:16px 20px;max-width:320px;box-shadow:0 8px 30px rgba(0,0,0,.4)}
 #tour-tooltip h4{color:var(--accent);margin-bottom:6px;font-size:14px}
 #tour-tooltip p{color:var(--text2);font-size:12px;line-height:1.6;margin-bottom:12px}
