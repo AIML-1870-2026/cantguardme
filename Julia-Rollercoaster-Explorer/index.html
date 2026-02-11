@@ -900,16 +900,16 @@ class TrackBuilder {
 
     // Ground
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(200, 200),
+      new THREE.PlaneGeometry(400, 400),
       new THREE.MeshLambertMaterial({ color: 0x111128 })
     );
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -5;
+    ground.position.y = 0;
     this.previewScene.add(ground);
 
     // Grid
-    const grid = new THREE.GridHelper(100, 20, 0x2a2a4a, 0x1a1a3a);
-    grid.position.y = -4.9;
+    const grid = new THREE.GridHelper(300, 30, 0x2a2a4a, 0x1a1a3a);
+    grid.position.y = 0.1;
     this.previewScene.add(grid);
 
     this.animatePreview();
@@ -918,10 +918,11 @@ class TrackBuilder {
   animatePreview() {
     const animate = () => {
       this.previewAnimId = requestAnimationFrame(animate);
-      const time = Date.now() * 0.0005;
-      this.previewCamera.position.x = Math.cos(time) * 50;
-      this.previewCamera.position.z = Math.sin(time) * 50;
-      this.previewCamera.lookAt(0, 5, 0);
+      const time = Date.now() * 0.0003;
+      this.previewCamera.position.x = Math.cos(time) * 180;
+      this.previewCamera.position.z = Math.sin(time) * 180;
+      this.previewCamera.position.y = 80;
+      this.previewCamera.lookAt(0, 15, 0);
       this.previewRenderer.render(this.previewScene, this.previewCamera);
     };
     animate();
@@ -934,7 +935,6 @@ class TrackBuilder {
     const cI = this.renderer.cImag;
     const maxIter = Math.min(this.renderer.maxIter, 100);
 
-    // Sample Julia set on grid
     for (let gy = 0; gy < res; gy++) {
       for (let gx = 0; gx < res; gx++) {
         const x0 = (gx / res - 0.5) * 4;
@@ -952,7 +952,6 @@ class TrackBuilder {
       }
     }
 
-    // Find boundary points
     const boundaryPoints = [];
     for (let gy = 1; gy < res - 1; gy++) {
       for (let gx = 1; gx < res - 1; gx++) {
@@ -972,10 +971,9 @@ class TrackBuilder {
 
     if (boundaryPoints.length < 10) return null;
 
-    // Order points by nearest-neighbor
+    // Order by nearest-neighbor
     const ordered = [boundaryPoints.shift()];
-    const used = new Set([0]);
-    while (boundaryPoints.length > 0 && ordered.length < 600) {
+    while (boundaryPoints.length > 0 && ordered.length < 800) {
       const last = ordered[ordered.length - 1];
       let bestIdx = -1, bestDist = Infinity;
       for (let i = 0; i < boundaryPoints.length; i++) {
@@ -984,15 +982,15 @@ class TrackBuilder {
         const d = dx*dx + dy*dy;
         if (d < bestDist) { bestDist = d; bestIdx = i; }
       }
-      if (bestDist > 0.1) break; // gap too large
+      if (bestDist > 0.15) break;
       ordered.push(boundaryPoints.splice(bestIdx, 1)[0]);
     }
 
     if (ordered.length < 20) return null;
 
-    // Smooth with Chaikin's algorithm (2 passes)
+    // Heavy smoothing: 6 passes of Chaikin to kill fractal noise
     let smoothed = ordered;
-    for (let pass = 0; pass < 3; pass++) {
+    for (let pass = 0; pass < 6; pass++) {
       const next = [];
       for (let i = 0; i < smoothed.length - 1; i++) {
         const p1 = smoothed[i], p2 = smoothed[i+1];
@@ -1002,12 +1000,30 @@ class TrackBuilder {
       smoothed = next;
     }
 
-    // Subsample to ~200 points
-    const targetCount = 200;
-    const step = Math.max(1, Math.floor(smoothed.length / targetCount));
+    // Resample by arc-length to get evenly spaced points
+    // First compute cumulative arc-length
+    const arcLen = [0];
+    for (let i = 1; i < smoothed.length; i++) {
+      const dx = smoothed[i].x - smoothed[i-1].x;
+      const dy = smoothed[i].y - smoothed[i-1].y;
+      arcLen.push(arcLen[i-1] + Math.sqrt(dx*dx + dy*dy));
+    }
+    const totalLen = arcLen[arcLen.length - 1];
+    if (totalLen < 0.5) return null;
+
+    // Sample 80 evenly-spaced points along the arc
+    const numPts = 80;
     const result = [];
-    for (let i = 0; i < smoothed.length; i += step) {
-      result.push(smoothed[i]);
+    let si = 0;
+    for (let i = 0; i < numPts; i++) {
+      const targetDist = (i / numPts) * totalLen;
+      while (si < arcLen.length - 2 && arcLen[si+1] < targetDist) si++;
+      const segLen = arcLen[si+1] - arcLen[si];
+      const frac = segLen > 0 ? (targetDist - arcLen[si]) / segLen : 0;
+      result.push({
+        x: smoothed[si].x + (smoothed[si+1].x - smoothed[si].x) * frac,
+        y: smoothed[si].y + (smoothed[si+1].y - smoothed[si].y) * frac
+      });
     }
 
     return result;
@@ -1015,18 +1031,63 @@ class TrackBuilder {
 
   buildTrack() {
     const points2D = this.extractBoundary();
-    if (!points2D || points2D.length < 20) {
+    if (!points2D || points2D.length < 15) {
       alert('Could not extract a viable track from this Julia set. Try a different c parameter.');
       return false;
     }
 
     this.trackPoints2D = points2D;
 
-    // Convert to 3D with height variation
+    // Normalize 2D path to fill a large area and center it
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const p of points2D) {
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    }
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    const span = Math.max(maxX - minX, maxY - minY, 0.5);
+    const SCALE = 120; // spread the track across 240 units
+
+    // Build roller coaster height profile
+    const n = points2D.length;
     this.trackPoints3D = points2D.map((p, i) => {
-      const t = i / points2D.length;
-      const height = 5 + Math.sin(t * Math.PI * 6) * 8 + Math.sin(t * Math.PI * 14) * 3;
-      return new THREE.Vector3(p.x * 10, height, p.y * 10);
+      const t = i / n;
+      // Normalize x,z to [-SCALE, SCALE]
+      const nx = ((p.x - cx) / span) * SCALE;
+      const nz = ((p.y - cy) / span) * SCALE;
+
+      // Roller coaster height profile:
+      // 1. Big climb at start (chain lift) up to peak
+      // 2. Steep first drop
+      // 3. Series of hills that gradually get shorter
+      // 4. Banked turn section (elevated)
+      // 5. Final small hills and gentle stop
+      let height;
+      if (t < 0.08) {
+        // Chain lift: climb from 2 to 45
+        height = 2 + (t / 0.08) * 43;
+      } else if (t < 0.15) {
+        // First drop: 45 down to 3
+        const dropT = (t - 0.08) / 0.07;
+        height = 45 - dropT * dropT * 42;  // accelerating drop
+      } else if (t < 0.7) {
+        // Series of hills, each smaller than the last
+        const hillT = (t - 0.15) / 0.55;
+        const hillCount = 4;
+        const envelope = 35 * (1 - hillT * 0.7); // hills shrink
+        height = 3 + Math.abs(Math.sin(hillT * Math.PI * hillCount)) * envelope;
+      } else if (t < 0.85) {
+        // Banked elevated turn
+        const turnT = (t - 0.7) / 0.15;
+        height = 8 + Math.sin(turnT * Math.PI) * 12;
+      } else {
+        // Final descent and braking run
+        const endT = (t - 0.85) / 0.15;
+        height = 8 * (1 - endT) + 2;
+      }
+
+      return new THREE.Vector3(nx, height, nz);
     });
 
     // Create curve
@@ -1081,12 +1142,12 @@ class TrackBuilder {
     for (let i = 0; i < numSupports; i++) {
       const t = i / numSupports;
       const pt = this.curve.getPoint(t);
-      const pillarHeight = pt.y + 5;
-      if (pillarHeight > 1) {
+      const pillarHeight = pt.y;
+      if (pillarHeight > 2) {
         const pillarGeo = new THREE.CylinderGeometry(0.15, 0.2, pillarHeight, 6);
         const pillarMat = new THREE.MeshPhongMaterial({ color: 0x444466 });
         const pillar = new THREE.Mesh(pillarGeo, pillarMat);
-        pillar.position.set(pt.x, -5 + pillarHeight / 2, pt.z);
+        pillar.position.set(pt.x, pillarHeight / 2, pt.z);
         supportGroup.add(pillar);
       }
     }
@@ -1460,134 +1521,147 @@ class RideEngine {
 
     this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 5000);
 
-    // Lighting - bright enough to see everything clearly
-    this.scene.add(new THREE.AmbientLight(0x6060a0, 1.0));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    dirLight.position.set(50, 100, 50);
+    // Lighting
+    this.scene.add(new THREE.AmbientLight(0x6060a0, 1.2));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.4);
+    dirLight.position.set(100, 200, 100);
     this.scene.add(dirLight);
-    const dirLight2 = new THREE.DirectionalLight(0x8888ff, 0.5);
-    dirLight2.position.set(-50, 80, -50);
+    const dirLight2 = new THREE.DirectionalLight(0x8888ff, 0.6);
+    dirLight2.position.set(-100, 150, -100);
     this.scene.add(dirLight2);
-    const pointLight = new THREE.PointLight(0x6c5ce7, 2, 200);
-    pointLight.position.set(0, 20, 0);
+    const pointLight = new THREE.PointLight(0x6c5ce7, 3, 400);
+    pointLight.position.set(0, 60, 0);
     this.scene.add(pointLight);
     this.pointLight = pointLight;
-    // Hemisphere light for natural sky/ground fill
-    this.scene.add(new THREE.HemisphereLight(0x4444aa, 0x222244, 0.6));
+    this.scene.add(new THREE.HemisphereLight(0x5555bb, 0x222244, 0.8));
 
-    // Starfield - large, clearly visible
+    // Starfield
     const starsGeo = new THREE.BufferGeometry();
     const starVerts = [];
     const starColors = [];
-    for (let i = 0; i < 5000; i++) {
-      starVerts.push((Math.random()-0.5)*800, Math.random()*300+30, (Math.random()-0.5)*800);
-      const brightness = 0.5 + Math.random() * 0.5;
-      starColors.push(brightness, brightness, brightness * (0.8 + Math.random() * 0.2));
+    for (let i = 0; i < 6000; i++) {
+      starVerts.push((Math.random()-0.5)*2000, Math.random()*500+60, (Math.random()-0.5)*2000);
+      const b = 0.5 + Math.random() * 0.5;
+      starColors.push(b, b, b * (0.8 + Math.random() * 0.2));
     }
     starsGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVerts, 3));
     starsGeo.setAttribute('color', new THREE.Float32BufferAttribute(starColors, 3));
-    const starsMat = new THREE.PointsMaterial({ size: 1.0, transparent: true, opacity: 0.9, vertexColors: true });
-    this.scene.add(new THREE.Points(starsGeo, starsMat));
+    this.scene.add(new THREE.Points(starsGeo, new THREE.PointsMaterial({ size: 1.2, transparent: true, opacity: 0.9, vertexColors: true })));
 
-    // Ground - visible terrain
-    const groundGeo = new THREE.PlaneGeometry(800, 800, 80, 80);
-    const groundMat = new THREE.MeshLambertMaterial({ color: 0x0e0e30 });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
+    // Ground
+    const GROUND_Y = 0;
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(1500, 1500),
+      new THREE.MeshLambertMaterial({ color: 0x0a0e25 })
+    );
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -5;
+    ground.position.y = GROUND_Y;
     this.scene.add(ground);
 
-    // Grid on ground - more visible for spatial reference
-    const gridHelper = new THREE.GridHelper(800, 80, 0x2a2a6a, 0x151540);
-    gridHelper.position.y = -4.9;
+    // Ground grid
+    const gridHelper = new THREE.GridHelper(1500, 75, 0x222260, 0x111140);
+    gridHelper.position.y = GROUND_Y + 0.1;
     this.scene.add(gridHelper);
 
-    // Scattered reference pillars on the ground for depth perception
-    for (let i = 0; i < 60; i++) {
-      const rx = (Math.random() - 0.5) * 400;
-      const rz = (Math.random() - 0.5) * 400;
-      const rh = 1 + Math.random() * 4;
-      const pg = new THREE.CylinderGeometry(0.3, 0.3, rh, 5);
-      const pm = new THREE.MeshPhongMaterial({ color: 0x222255, emissive: 0x0a0a20 });
-      const p = new THREE.Mesh(pg, pm);
-      p.position.set(rx, -5 + rh/2, rz);
-      this.scene.add(p);
-    }
-
-    // Glowing orbs along the track for spatial reference
-    for (let i = 0; i < 60; i++) {
-      const lt = i / 60;
-      const lp = curve.getPoint(lt);
-      const orbGeo = new THREE.SphereGeometry(0.25, 8, 8);
-      const orbMat = new THREE.MeshBasicMaterial({ color: 0x4444ff, transparent: true, opacity: 0.6 });
-      const orb = new THREE.Mesh(orbGeo, orbMat);
-      orb.position.set(lp.x, -4.5, lp.z);
-      this.scene.add(orb);
-    }
-
-    // Track - main rail (thicker, brighter)
-    const tubeGeo = new THREE.TubeGeometry(curve, curve.points.length * 3, 1.0, 12, false);
-    const tubeMat = new THREE.MeshPhongMaterial({
-      color: 0x8877ff,
-      emissive: 0x3322aa,
-      specular: 0xffffff,
-      shininess: 120
-    });
-    this.scene.add(new THREE.Mesh(tubeGeo, tubeMat));
-
-    // Rail edge highlights - bright white rails on sides
-    const railOffsets = [-0.8, 0.8];
+    // Track - two steel rails with gap between them (like a real coaster)
+    const railSep = 1.2; // rail separation
+    const segments = curve.points.length * 4;
+    const railOffsets = [-railSep/2, railSep/2];
     railOffsets.forEach(offset => {
       const railPts = [];
-      for (let i = 0; i <= 300; i++) {
-        const rt = i / 300;
+      for (let i = 0; i <= segments; i++) {
+        const rt = i / segments;
         const rp = curve.getPoint(rt);
         const rtan = curve.getTangent(rt).normalize();
         const rright = new THREE.Vector3().crossVectors(rtan, new THREE.Vector3(0,1,0)).normalize();
         railPts.push(rp.clone().add(rright.multiplyScalar(offset)));
       }
       const railCurve = new THREE.CatmullRomCurve3(railPts, false);
-      const railGeo = new THREE.TubeGeometry(railCurve, 300, 0.12, 6, false);
-      const railMat = new THREE.MeshPhongMaterial({ color: 0xeeeeff, emissive: 0x666688 });
+      // Main rail tube
+      const railGeo = new THREE.TubeGeometry(railCurve, segments, 0.3, 8, false);
+      const railMat = new THREE.MeshPhongMaterial({ color: 0xbbbbdd, emissive: 0x444466, specular: 0xffffff, shininess: 100 });
       this.scene.add(new THREE.Mesh(railGeo, railMat));
     });
 
-    // Track ties / cross-beams for visual reference of movement
-    for (let i = 0; i < 200; i++) {
-      const tt = i / 200;
+    // Cross-ties between the two rails
+    const numTies = 300;
+    const tieMat = new THREE.MeshPhongMaterial({ color: 0x555588 });
+    for (let i = 0; i < numTies; i++) {
+      const tt = i / numTies;
       const tp = curve.getPoint(tt);
       const ttan = curve.getTangent(tt).normalize();
       const tright = new THREE.Vector3().crossVectors(ttan, new THREE.Vector3(0,1,0)).normalize();
-      const tieGeo = new THREE.BoxGeometry(2.0, 0.15, 0.15);
-      const tieMat = new THREE.MeshPhongMaterial({ color: 0x888899 });
+      const tieGeo = new THREE.BoxGeometry(railSep + 0.6, 0.12, 0.2);
       const tie = new THREE.Mesh(tieGeo, tieMat);
       tie.position.copy(tp);
       tie.lookAt(tp.clone().add(ttan));
-      // Rotate to be perpendicular to track
       tie.rotateY(Math.PI / 2);
       this.scene.add(tie);
     }
 
-    // Support pillars - thicker, more visible
-    const numSupports = 50;
+    // Support structure - vertical pillars + diagonal braces
+    const numSupports = 60;
+    const supportMat = new THREE.MeshPhongMaterial({ color: 0x5555aa, emissive: 0x111133 });
     for (let i = 0; i < numSupports; i++) {
       const st = i / numSupports;
       const pt = curve.getPoint(st);
-      const pillarH = pt.y + 5;
-      if (pillarH > 1) {
-        const pg = new THREE.CylinderGeometry(0.25, 0.35, pillarH, 6);
-        const pm = new THREE.MeshPhongMaterial({ color: 0x666688, emissive: 0x111122 });
-        const pillar = new THREE.Mesh(pg, pm);
-        pillar.position.set(pt.x, -5 + pillarH/2, pt.z);
+      const pillarH = pt.y - GROUND_Y;
+      if (pillarH > 2) {
+        // Main vertical pillar
+        const pg = new THREE.CylinderGeometry(0.4, 0.5, pillarH, 6);
+        const pillar = new THREE.Mesh(pg, supportMat);
+        pillar.position.set(pt.x, GROUND_Y + pillarH/2, pt.z);
         this.scene.add(pillar);
 
-        // Cross-brace at top
-        const braceGeo = new THREE.BoxGeometry(2.5, 0.2, 0.2);
-        const braceMat = new THREE.MeshPhongMaterial({ color: 0x555577 });
+        // Second pillar offset slightly for A-frame look
+        const ttan = curve.getTangent(st).normalize();
+        const tright = new THREE.Vector3().crossVectors(ttan, new THREE.Vector3(0,1,0)).normalize();
+        const pg2 = new THREE.CylinderGeometry(0.3, 0.45, pillarH, 6);
+        const pillar2 = new THREE.Mesh(pg2, supportMat);
+        pillar2.position.set(pt.x + tright.x * 3, GROUND_Y + pillarH/2, pt.z + tright.z * 3);
+        this.scene.add(pillar2);
+
+        // Horizontal cross-brace at top
+        const braceLen = 4;
+        const braceGeo = new THREE.BoxGeometry(braceLen, 0.25, 0.25);
+        const braceMat = new THREE.MeshPhongMaterial({ color: 0x4444aa });
         const brace = new THREE.Mesh(braceGeo, braceMat);
-        brace.position.set(pt.x, pt.y - 0.5, pt.z);
+        brace.position.set(pt.x + tright.x * 1.5, pt.y - 0.3, pt.z + tright.z * 1.5);
+        brace.lookAt(brace.position.clone().add(tright));
         this.scene.add(brace);
+
+        // Diagonal brace for tall sections
+        if (pillarH > 10) {
+          const diagGeo = new THREE.CylinderGeometry(0.12, 0.12, pillarH * 0.8, 4);
+          const diag = new THREE.Mesh(diagGeo, supportMat);
+          diag.position.set(pt.x + tright.x * 1.5, GROUND_Y + pillarH * 0.45, pt.z + tright.z * 1.5);
+          diag.rotation.z = 0.3;
+          this.scene.add(diag);
+        }
       }
+    }
+
+    // Chain-lift section highlight (first 8% of track) - add chain line
+    const chainPts = [];
+    for (let i = 0; i <= 40; i++) {
+      const ct = i / 40 * 0.08;
+      chainPts.push(curve.getPoint(ct).clone().add(new THREE.Vector3(0, -0.5, 0)));
+    }
+    const chainCurve = new THREE.CatmullRomCurve3(chainPts, false);
+    const chainGeo = new THREE.TubeGeometry(chainCurve, 40, 0.08, 4, false);
+    const chainMat = new THREE.MeshPhongMaterial({ color: 0xaaaa44, emissive: 0x444400 });
+    this.scene.add(new THREE.Mesh(chainGeo, chainMat));
+
+    // Ground-level track markers: colored lights along the base
+    for (let i = 0; i < 80; i++) {
+      const lt = i / 80;
+      const lp = curve.getPoint(lt);
+      const orb = new THREE.Mesh(
+        new THREE.SphereGeometry(0.4, 8, 8),
+        new THREE.MeshBasicMaterial({ color: i < 6 ? 0x44ff44 : (i > 74 ? 0xff4444 : 0x3333ff), transparent: true, opacity: 0.7 })
+      );
+      orb.position.set(lp.x, GROUND_Y + 0.4, lp.z);
+      this.scene.add(orb);
     }
 
     // Cart - large, detailed, clearly visible
@@ -1901,8 +1975,8 @@ class RideEngine {
       this.cartBeacon.scale.setScalar(pulse);
     }
 
-    // Point light follows cart - brighter and higher
-    this.pointLight.position.copy(newPos).add(new THREE.Vector3(0, 10, 0));
+    // Point light follows cart
+    this.pointLight.position.copy(newPos).add(new THREE.Vector3(0, 20, 0));
 
     // Audio
     this.audio.updateRideAudio(this.speed, boosting);
