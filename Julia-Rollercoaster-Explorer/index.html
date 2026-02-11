@@ -291,7 +291,7 @@ select{background:var(--panel2);color:var(--text);border:1px solid var(--border)
 <div class="hud-bar"><div class="hud-bar-fill boost-fill" id="hud-boost" style="width:100%"></div></div></div>
 </div>
 <div class="hud-top-right">
-<div id="hud-cam-mode" style="font-size:12px;color:rgba(108,92,231,0.9);margin-bottom:8px;padding:4px 10px;border:1px solid rgba(108,92,231,0.4);border-radius:4px;display:inline-block">3RD PERSON</div>
+<div id="hud-cam-mode" style="font-size:12px;color:rgba(108,92,231,0.9);margin-bottom:8px;padding:4px 10px;border:1px solid rgba(108,92,231,0.4);border-radius:4px;display:inline-block">OVERVIEW</div>
 <div class="hud-label">Time</div>
 <div class="hud-value" id="hud-time" style="font-size:24px">0:00</div>
 <div class="hud-gforce"><div class="hud-label">G-Force</div><div class="hud-value" id="hud-gforce" style="font-size:20px">1.0g</div></div>
@@ -1444,9 +1444,9 @@ class RideEngine {
     this.renderer.setClearColor(0x050515);
 
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(0x050515, 0.003);
+    // No fog - need to see the entire rollercoaster from far away
 
-    this.camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 2000);
+    this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 5000);
 
     // Lighting - bright enough to see everything clearly
     this.scene.add(new THREE.AmbientLight(0x6060a0, 1.0));
@@ -1653,19 +1653,51 @@ class RideEngine {
       cartGroup.add(tail);
     });
 
-    // Cart glow (point light on the cart itself)
-    const cartLight = new THREE.PointLight(0xe94560, 1.5, 30);
-    cartLight.position.set(0, 2, 0);
+    // Cart glow - very bright so it's visible from far overview camera
+    const cartLight = new THREE.PointLight(0xff4466, 4, 80);
+    cartLight.position.set(0, 3, 0);
     cartGroup.add(cartLight);
+
+    // Bright beacon on top so you can always spot the cart from far away
+    const beacon = new THREE.Mesh(
+      new THREE.SphereGeometry(0.6, 12, 12),
+      new THREE.MeshBasicMaterial({ color: 0xff3355 })
+    );
+    beacon.position.set(0, 2.4, 0);
+    cartGroup.add(beacon);
+    this.cartBeacon = beacon;
 
     this.cart = cartGroup;
     this.scene.add(this.cart);
 
-    // Initialize smooth camera position from starting point
+    // Compute track bounding box for the stationary overview camera
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+    let minZ = Infinity, maxZ = -Infinity;
+    for (let i = 0; i <= 200; i++) {
+      const p = curve.getPoint(i / 200);
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+      minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
+    }
+    this.trackCenter = new THREE.Vector3((minX+maxX)/2, (minY+maxY)/2, (minZ+maxZ)/2);
+    const trackSpanX = maxX - minX;
+    const trackSpanZ = maxZ - minZ;
+    const trackSpan = Math.max(trackSpanX, trackSpanZ, 40);
+    // Camera distance: far enough to fit entire track with padding
+    const fovRad = (this.camera.fov / 2) * Math.PI / 180;
+    const camDist = (trackSpan / 2) / Math.tan(fovRad) * 1.4;
+    // Position camera at an angled overhead view
+    this.overviewCamPos = new THREE.Vector3(
+      this.trackCenter.x + camDist * 0.3,
+      this.trackCenter.y + camDist * 0.85,
+      this.trackCenter.z + camDist * 0.5
+    );
+
+    // Initialize smooth camera for FPV mode
     const startPos = curve.getPoint(0);
-    const startTan = curve.getTangent(0).normalize();
-    this.smoothCamPos.copy(startPos.clone().add(startTan.clone().multiplyScalar(-18)).add(new THREE.Vector3(0, 10, 0)));
-    this.smoothCamLook.copy(startPos.clone().add(new THREE.Vector3(0, 2, 0)));
+    this.smoothCamPos.copy(this.overviewCamPos);
+    this.smoothCamLook.copy(this.trackCenter);
 
     // Draw minimap
     this.drawMinimap();
@@ -1690,10 +1722,16 @@ class RideEngine {
     this.keys[e.key.toLowerCase()] = true;
     if (e.key.toLowerCase() === 'c') {
       this.cameraMode = (this.cameraMode + 1) % 2;
-      // Third person = wider view, FPV = narrower for clarity
-      this.camera.fov = this.cameraMode === 1 ? 65 : 75;
+      this.camera.fov = this.cameraMode === 1 ? 55 : 75;
       this.camera.updateProjectionMatrix();
-      document.getElementById('hud-cam-mode').textContent = this.cameraMode === 1 ? '3RD PERSON' : '1ST PERSON';
+      document.getElementById('hud-cam-mode').textContent = this.cameraMode === 1 ? 'OVERVIEW' : '1ST PERSON';
+      // When switching to FPV, seed smooth cam near the cart
+      if (this.cameraMode === 0) {
+        const curve = this.trackBuilder.curve;
+        const p = curve.getPoint(this.t);
+        this.smoothCamPos.copy(p.clone().add(new THREE.Vector3(0, 2, 0)));
+        this.smoothCamLook.copy(curve.getPoint(Math.min(this.t + 0.015, 0.999)));
+      }
     }
     if (e.key === 'Escape') this.stop();
     if (e.key.toLowerCase() === 'r') { this.t = 0; this.speed = 20; }
@@ -1775,33 +1813,17 @@ class RideEngine {
       // First person - stable, clear view from rider's perspective
       const fpvTarget = newPos.clone().add(stableUp.clone().multiplyScalar(2.0));
       const fpvLookAt = lookPos.clone().add(stableUp.clone().multiplyScalar(1.5));
-      // Smooth interpolation for FPV too
+      // Smooth interpolation for FPV
       this.smoothCamPos.lerp(fpvTarget, dt * 12);
       this.smoothCamLook.lerp(fpvLookAt, dt * 12);
       this.camera.position.copy(this.smoothCamPos);
       this.camera.lookAt(this.smoothCamLook);
-      this.camera.rotateZ(this.leanAngle * 0.5); // subtle lean
-      // Hide cart in FPV
+      this.camera.rotateZ(this.leanAngle * 0.5);
       this.cart.visible = false;
     } else {
-      // Third person - far behind and above, smooth cinematic follow
-      const behindDist = 18; // far enough to see cart + track ahead
-      const aboveDist = 10;  // high enough for overview
-      const behind = newTangent.clone().multiplyScalar(-behindDist);
-      const above = new THREE.Vector3(0, aboveDist, 0);
-      const idealCamPos = newPos.clone().add(behind).add(above);
-      // Where camera looks: ahead of the cart, slightly above track
-      const farLookT = Math.min(this.t + 0.03, 0.999);
-      const farLookPos = curve.getPoint(farLookT);
-      const idealLookAt = newPos.clone().lerp(farLookPos, 0.5).add(new THREE.Vector3(0, 2, 0));
-
-      // Very smooth camera - low lerp factor for cinematic feel
-      const smoothFactor = dt * 3.0;
-      this.smoothCamPos.lerp(idealCamPos, smoothFactor);
-      this.smoothCamLook.lerp(idealLookAt, smoothFactor);
-      this.camera.position.copy(this.smoothCamPos);
-      this.camera.lookAt(this.smoothCamLook);
-      // Show cart in third person
+      // Third person - FIXED stationary camera viewing the entire rollercoaster
+      this.camera.position.copy(this.overviewCamPos);
+      this.camera.lookAt(this.trackCenter);
       this.cart.visible = true;
     }
 
@@ -1810,6 +1832,11 @@ class RideEngine {
     this.cart.lookAt(lookPos);
     // Tilt cart slightly with track slope
     this.cart.rotateX(-Math.asin(clamp(newTangent.y, -0.8, 0.8)) * 0.3);
+    // Pulse the beacon so it's always easy to spot from overview
+    if (this.cartBeacon) {
+      const pulse = 0.6 + Math.sin(Date.now() * 0.005) * 0.4;
+      this.cartBeacon.scale.setScalar(pulse);
+    }
 
     // Point light follows cart - brighter and higher
     this.pointLight.position.copy(newPos).add(new THREE.Vector3(0, 10, 0));
