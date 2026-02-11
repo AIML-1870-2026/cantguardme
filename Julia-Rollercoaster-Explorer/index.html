@@ -305,7 +305,7 @@ select{background:var(--panel2);color:var(--text);border:1px solid var(--border)
 </div>
 <div class="hud-bottom">
 <div class="hud-controls">
-<span>W/S Speed</span><span>A/D Lean</span><span>SPACE Boost</span><span>C Toggle FPV</span><span>R Restart</span><span>ESC Exit</span>
+<span>W/S Speed</span><span>SPACE Boost</span><span>C Toggle FPV</span><span>Drag Rotate</span><span>Scroll Zoom</span><span>ESC Exit</span>
 </div>
 </div>
 </div>
@@ -1405,10 +1405,18 @@ class RideEngine {
     this.boostDrain = 40; // per second
 
     // Camera
-    this.cameraMode = 1; // 0=FPV, 1=third person (default)
+    this.cameraMode = 1; // 0=FPV, 1=overview (default)
     this.leanAngle = 0;
     this.smoothCamPos = new THREE.Vector3();
     this.smoothCamLook = new THREE.Vector3();
+
+    // Orbit camera state (spherical coords around track center)
+    this.orbitTheta = 0.55;   // horizontal angle
+    this.orbitPhi = 0.85;     // vertical angle (0=top, PI=bottom)
+    this.orbitRadius = 100;   // distance from center
+    this.orbitDragging = false;
+    this.orbitLastX = 0;
+    this.orbitLastY = 0;
 
     // Controls
     this.keys = {};
@@ -1417,6 +1425,10 @@ class RideEngine {
 
     this.onKeyDown = this.onKeyDown.bind(this);
     this.onKeyUp = this.onKeyUp.bind(this);
+    this.onMouseDown = this.onMouseDown.bind(this);
+    this.onMouseMove = this.onMouseMove.bind(this);
+    this.onMouseUp = this.onMouseUp.bind(this);
+    this.onWheel = this.onWheel.bind(this);
   }
 
   start() {
@@ -1688,11 +1700,13 @@ class RideEngine {
     const fovRad = (this.camera.fov / 2) * Math.PI / 180;
     const camDist = (trackSpan / 2) / Math.tan(fovRad) * 1.4;
     // Position camera at an angled overhead view
-    this.overviewCamPos = new THREE.Vector3(
-      this.trackCenter.x + camDist * 0.3,
-      this.trackCenter.y + camDist * 0.85,
-      this.trackCenter.z + camDist * 0.5
-    );
+    // Set orbit radius from computed distance and store initial angles
+    this.orbitRadius = camDist;
+    this.orbitMinRadius = camDist * 0.15;  // can zoom in close
+    this.orbitMaxRadius = camDist * 3;     // can zoom out far
+    this.orbitTheta = 0.55;
+    this.orbitPhi = 0.85;
+    this.updateOverviewCamPos();
 
     // Initialize smooth camera for FPV mode
     const startPos = curve.getPoint(0);
@@ -1709,6 +1723,13 @@ class RideEngine {
     // Controls
     document.addEventListener('keydown', this.onKeyDown);
     document.addEventListener('keyup', this.onKeyUp);
+
+    // Mouse orbit controls for overview camera
+    const rideCanvas = document.getElementById('ride-canvas');
+    rideCanvas.addEventListener('mousedown', this.onMouseDown);
+    document.addEventListener('mousemove', this.onMouseMove);
+    document.addEventListener('mouseup', this.onMouseUp);
+    rideCanvas.addEventListener('wheel', this.onWheel, { passive: false });
 
     // Audio
     this.audio.startRideAudio();
@@ -1738,6 +1759,48 @@ class RideEngine {
   }
 
   onKeyUp(e) { this.keys[e.key.toLowerCase()] = false; }
+
+  updateOverviewCamPos() {
+    // Convert spherical coords to cartesian, centered on trackCenter
+    const x = this.orbitRadius * Math.sin(this.orbitPhi) * Math.sin(this.orbitTheta);
+    const y = this.orbitRadius * Math.cos(this.orbitPhi);
+    const z = this.orbitRadius * Math.sin(this.orbitPhi) * Math.cos(this.orbitTheta);
+    this.overviewCamPos = new THREE.Vector3(
+      this.trackCenter.x + x,
+      this.trackCenter.y + y,
+      this.trackCenter.z + z
+    );
+  }
+
+  onMouseDown(e) {
+    if (this.cameraMode !== 1) return;
+    this.orbitDragging = true;
+    this.orbitLastX = e.clientX;
+    this.orbitLastY = e.clientY;
+  }
+
+  onMouseMove(e) {
+    if (!this.orbitDragging || this.cameraMode !== 1) return;
+    const dx = e.clientX - this.orbitLastX;
+    const dy = e.clientY - this.orbitLastY;
+    this.orbitLastX = e.clientX;
+    this.orbitLastY = e.clientY;
+
+    // Horizontal drag rotates theta, vertical drag changes phi
+    this.orbitTheta -= dx * 0.005;
+    this.orbitPhi = clamp(this.orbitPhi - dy * 0.005, 0.1, Math.PI * 0.48);
+    this.updateOverviewCamPos();
+  }
+
+  onMouseUp() { this.orbitDragging = false; }
+
+  onWheel(e) {
+    if (this.cameraMode !== 1) return;
+    e.preventDefault();
+    const zoomFactor = e.deltaY > 0 ? 1.08 : 0.92;
+    this.orbitRadius = clamp(this.orbitRadius * zoomFactor, this.orbitMinRadius, this.orbitMaxRadius);
+    this.updateOverviewCamPos();
+  }
 
   gameLoop() {
     if (!this.active) return;
@@ -1930,6 +1993,13 @@ class RideEngine {
     if (this.animId) cancelAnimationFrame(this.animId);
     document.removeEventListener('keydown', this.onKeyDown);
     document.removeEventListener('keyup', this.onKeyUp);
+    document.removeEventListener('mousemove', this.onMouseMove);
+    document.removeEventListener('mouseup', this.onMouseUp);
+    const rideCanvas = document.getElementById('ride-canvas');
+    if (rideCanvas) {
+      rideCanvas.removeEventListener('mousedown', this.onMouseDown);
+      rideCanvas.removeEventListener('wheel', this.onWheel);
+    }
     this.audio.stopRideAudio();
     this.audio.startAmbientMusic();
 
