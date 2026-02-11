@@ -291,6 +291,7 @@ select{background:var(--panel2);color:var(--text);border:1px solid var(--border)
 <div class="hud-bar"><div class="hud-bar-fill boost-fill" id="hud-boost" style="width:100%"></div></div></div>
 </div>
 <div class="hud-top-right">
+<div id="hud-cam-mode" style="font-size:12px;color:rgba(108,92,231,0.9);margin-bottom:8px;padding:4px 10px;border:1px solid rgba(108,92,231,0.4);border-radius:4px;display:inline-block">3RD PERSON</div>
 <div class="hud-label">Time</div>
 <div class="hud-value" id="hud-time" style="font-size:24px">0:00</div>
 <div class="hud-gforce"><div class="hud-label">G-Force</div><div class="hud-value" id="hud-gforce" style="font-size:20px">1.0g</div></div>
@@ -304,7 +305,7 @@ select{background:var(--panel2);color:var(--text);border:1px solid var(--border)
 </div>
 <div class="hud-bottom">
 <div class="hud-controls">
-<span>W/S Speed</span><span>A/D Lean</span><span>SPACE Boost</span><span>C Camera</span><span>ESC Exit</span>
+<span>W/S Speed</span><span>A/D Lean</span><span>SPACE Boost</span><span>C Toggle FPV</span><span>R Restart</span><span>ESC Exit</span>
 </div>
 </div>
 </div>
@@ -1404,8 +1405,10 @@ class RideEngine {
     this.boostDrain = 40; // per second
 
     // Camera
-    this.cameraMode = 0; // 0=FPV, 1=third person
+    this.cameraMode = 1; // 0=FPV, 1=third person (default)
     this.leanAngle = 0;
+    this.smoothCamPos = new THREE.Vector3();
+    this.smoothCamLook = new THREE.Vector3();
 
     // Controls
     this.keys = {};
@@ -1441,90 +1444,228 @@ class RideEngine {
     this.renderer.setClearColor(0x050515);
 
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(0x050515, 0.008);
+    this.scene.fog = new THREE.FogExp2(0x050515, 0.003);
 
-    this.camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.1, 1000);
+    this.camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 2000);
 
-    // Lighting
-    this.scene.add(new THREE.AmbientLight(0x303050, 0.6));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    // Lighting - bright enough to see everything clearly
+    this.scene.add(new THREE.AmbientLight(0x6060a0, 1.0));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
     dirLight.position.set(50, 100, 50);
     this.scene.add(dirLight);
-    const pointLight = new THREE.PointLight(0x6c5ce7, 1, 100);
+    const dirLight2 = new THREE.DirectionalLight(0x8888ff, 0.5);
+    dirLight2.position.set(-50, 80, -50);
+    this.scene.add(dirLight2);
+    const pointLight = new THREE.PointLight(0x6c5ce7, 2, 200);
     pointLight.position.set(0, 20, 0);
     this.scene.add(pointLight);
     this.pointLight = pointLight;
+    // Hemisphere light for natural sky/ground fill
+    this.scene.add(new THREE.HemisphereLight(0x4444aa, 0x222244, 0.6));
 
-    // Starfield
+    // Starfield - large, clearly visible
     const starsGeo = new THREE.BufferGeometry();
     const starVerts = [];
-    for (let i = 0; i < 3000; i++) {
-      starVerts.push((Math.random()-0.5)*500, Math.random()*200+20, (Math.random()-0.5)*500);
+    const starColors = [];
+    for (let i = 0; i < 5000; i++) {
+      starVerts.push((Math.random()-0.5)*800, Math.random()*300+30, (Math.random()-0.5)*800);
+      const brightness = 0.5 + Math.random() * 0.5;
+      starColors.push(brightness, brightness, brightness * (0.8 + Math.random() * 0.2));
     }
     starsGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVerts, 3));
-    const starsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5, transparent: true, opacity: 0.8 });
+    starsGeo.setAttribute('color', new THREE.Float32BufferAttribute(starColors, 3));
+    const starsMat = new THREE.PointsMaterial({ size: 1.0, transparent: true, opacity: 0.9, vertexColors: true });
     this.scene.add(new THREE.Points(starsGeo, starsMat));
 
-    // Ground
-    const groundGeo = new THREE.PlaneGeometry(500, 500, 50, 50);
-    const groundMat = new THREE.MeshLambertMaterial({ color: 0x0a0a2a, wireframe: false });
+    // Ground - visible terrain
+    const groundGeo = new THREE.PlaneGeometry(800, 800, 80, 80);
+    const groundMat = new THREE.MeshLambertMaterial({ color: 0x0e0e30 });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -5;
     this.scene.add(ground);
 
-    // Grid on ground
-    const gridHelper = new THREE.GridHelper(500, 100, 0x1a1a4a, 0x0f0f2f);
+    // Grid on ground - more visible for spatial reference
+    const gridHelper = new THREE.GridHelper(800, 80, 0x2a2a6a, 0x151540);
     gridHelper.position.y = -4.9;
     this.scene.add(gridHelper);
 
-    // Track
-    const tubeGeo = new THREE.TubeGeometry(curve, curve.points.length * 3, 0.8, 12, false);
+    // Scattered reference pillars on the ground for depth perception
+    for (let i = 0; i < 60; i++) {
+      const rx = (Math.random() - 0.5) * 400;
+      const rz = (Math.random() - 0.5) * 400;
+      const rh = 1 + Math.random() * 4;
+      const pg = new THREE.CylinderGeometry(0.3, 0.3, rh, 5);
+      const pm = new THREE.MeshPhongMaterial({ color: 0x222255, emissive: 0x0a0a20 });
+      const p = new THREE.Mesh(pg, pm);
+      p.position.set(rx, -5 + rh/2, rz);
+      this.scene.add(p);
+    }
+
+    // Glowing orbs along the track for spatial reference
+    for (let i = 0; i < 60; i++) {
+      const lt = i / 60;
+      const lp = curve.getPoint(lt);
+      const orbGeo = new THREE.SphereGeometry(0.25, 8, 8);
+      const orbMat = new THREE.MeshBasicMaterial({ color: 0x4444ff, transparent: true, opacity: 0.6 });
+      const orb = new THREE.Mesh(orbGeo, orbMat);
+      orb.position.set(lp.x, -4.5, lp.z);
+      this.scene.add(orb);
+    }
+
+    // Track - main rail (thicker, brighter)
+    const tubeGeo = new THREE.TubeGeometry(curve, curve.points.length * 3, 1.0, 12, false);
     const tubeMat = new THREE.MeshPhongMaterial({
-      color: 0x6c5ce7,
-      emissive: 0x1a0a4e,
-      specular: 0xaaaaff,
-      shininess: 100,
-      transparent: true,
-      opacity: 0.9
+      color: 0x8877ff,
+      emissive: 0x3322aa,
+      specular: 0xffffff,
+      shininess: 120
     });
     this.scene.add(new THREE.Mesh(tubeGeo, tubeMat));
 
-    // Rail edges
-    const railGeo = new THREE.TubeGeometry(curve, curve.points.length * 3, 0.2, 6, false);
-    const railMat = new THREE.MeshPhongMaterial({ color: 0xddddff, emissive: 0x444466 });
-    this.scene.add(new THREE.Mesh(railGeo, railMat));
+    // Rail edge highlights - bright white rails on sides
+    const railOffsets = [-0.8, 0.8];
+    railOffsets.forEach(offset => {
+      const railPts = [];
+      for (let i = 0; i <= 300; i++) {
+        const rt = i / 300;
+        const rp = curve.getPoint(rt);
+        const rtan = curve.getTangent(rt).normalize();
+        const rright = new THREE.Vector3().crossVectors(rtan, new THREE.Vector3(0,1,0)).normalize();
+        railPts.push(rp.clone().add(rright.multiplyScalar(offset)));
+      }
+      const railCurve = new THREE.CatmullRomCurve3(railPts, false);
+      const railGeo = new THREE.TubeGeometry(railCurve, 300, 0.12, 6, false);
+      const railMat = new THREE.MeshPhongMaterial({ color: 0xeeeeff, emissive: 0x666688 });
+      this.scene.add(new THREE.Mesh(railGeo, railMat));
+    });
 
-    // Support pillars
-    const numSupports = 40;
+    // Track ties / cross-beams for visual reference of movement
+    for (let i = 0; i < 200; i++) {
+      const tt = i / 200;
+      const tp = curve.getPoint(tt);
+      const ttan = curve.getTangent(tt).normalize();
+      const tright = new THREE.Vector3().crossVectors(ttan, new THREE.Vector3(0,1,0)).normalize();
+      const tieGeo = new THREE.BoxGeometry(2.0, 0.15, 0.15);
+      const tieMat = new THREE.MeshPhongMaterial({ color: 0x888899 });
+      const tie = new THREE.Mesh(tieGeo, tieMat);
+      tie.position.copy(tp);
+      tie.lookAt(tp.clone().add(ttan));
+      // Rotate to be perpendicular to track
+      tie.rotateY(Math.PI / 2);
+      this.scene.add(tie);
+    }
+
+    // Support pillars - thicker, more visible
+    const numSupports = 50;
     for (let i = 0; i < numSupports; i++) {
       const st = i / numSupports;
       const pt = curve.getPoint(st);
       const pillarH = pt.y + 5;
       if (pillarH > 1) {
-        const pg = new THREE.CylinderGeometry(0.15, 0.25, pillarH, 6);
-        const pm = new THREE.MeshPhongMaterial({ color: 0x555577 });
+        const pg = new THREE.CylinderGeometry(0.25, 0.35, pillarH, 6);
+        const pm = new THREE.MeshPhongMaterial({ color: 0x666688, emissive: 0x111122 });
         const pillar = new THREE.Mesh(pg, pm);
         pillar.position.set(pt.x, -5 + pillarH/2, pt.z);
         this.scene.add(pillar);
+
+        // Cross-brace at top
+        const braceGeo = new THREE.BoxGeometry(2.5, 0.2, 0.2);
+        const braceMat = new THREE.MeshPhongMaterial({ color: 0x555577 });
+        const brace = new THREE.Mesh(braceGeo, braceMat);
+        brace.position.set(pt.x, pt.y - 0.5, pt.z);
+        this.scene.add(brace);
       }
     }
 
-    // Cart
+    // Cart - large, detailed, clearly visible
     const cartGroup = new THREE.Group();
+
+    // Main body
     const cartBody = new THREE.Mesh(
-      new THREE.BoxGeometry(1.5, 0.8, 2.5),
-      new THREE.MeshPhongMaterial({ color: 0xe94560, emissive: 0x5a1020 })
+      new THREE.BoxGeometry(2.2, 1.2, 4.0),
+      new THREE.MeshPhongMaterial({ color: 0xe94560, emissive: 0x6a1530, specular: 0xffffff, shininess: 80 })
     );
+    cartBody.position.y = 0.8;
     cartGroup.add(cartBody);
-    // Headlight
-    const headlight = new THREE.SpotLight(0xffffff, 0.5, 50, Math.PI/6);
-    headlight.position.set(0, 0.3, 1.2);
-    headlight.target.position.set(0, 0, 10);
-    cartGroup.add(headlight);
-    cartGroup.add(headlight.target);
+
+    // Cockpit / windshield
+    const windshield = new THREE.Mesh(
+      new THREE.BoxGeometry(1.8, 0.8, 0.1),
+      new THREE.MeshPhongMaterial({ color: 0x88ccff, emissive: 0x224466, transparent: true, opacity: 0.7 })
+    );
+    windshield.position.set(0, 1.4, 1.8);
+    windshield.rotation.x = -0.3;
+    cartGroup.add(windshield);
+
+    // Side panels
+    [-1.1, 1.1].forEach(xOff => {
+      const panel = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1, 0.6, 3.5),
+        new THREE.MeshPhongMaterial({ color: 0xcc3050, emissive: 0x551020 })
+      );
+      panel.position.set(xOff, 1.5, 0);
+      cartGroup.add(panel);
+    });
+
+    // Wheels (4 corners)
+    [[-0.9, -1.4], [-0.9, 1.4], [0.9, -1.4], [0.9, 1.4]].forEach(([x, z]) => {
+      const wheel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.35, 0.35, 0.3, 12),
+        new THREE.MeshPhongMaterial({ color: 0x333344, emissive: 0x111122 })
+      );
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(x, 0.2, z);
+      cartGroup.add(wheel);
+    });
+
+    // Tail fin
+    const fin = new THREE.Mesh(
+      new THREE.BoxGeometry(0.15, 1.0, 1.2),
+      new THREE.MeshPhongMaterial({ color: 0xdd3355, emissive: 0x551020 })
+    );
+    fin.position.set(0, 1.6, -1.5);
+    cartGroup.add(fin);
+
+    // Headlights (two, bright)
+    [-0.6, 0.6].forEach(xOff => {
+      const headlight = new THREE.SpotLight(0xffffff, 1.5, 80, Math.PI/5, 0.3);
+      headlight.position.set(xOff, 1.0, 2.0);
+      headlight.target.position.set(xOff, 0, 20);
+      cartGroup.add(headlight);
+      cartGroup.add(headlight.target);
+      // Visible headlight bulb
+      const bulb = new THREE.Mesh(
+        new THREE.SphereGeometry(0.15, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xffffaa })
+      );
+      bulb.position.set(xOff, 1.0, 2.05);
+      cartGroup.add(bulb);
+    });
+
+    // Tail lights
+    [-0.6, 0.6].forEach(xOff => {
+      const tail = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xff2222 })
+      );
+      tail.position.set(xOff, 0.9, -2.05);
+      cartGroup.add(tail);
+    });
+
+    // Cart glow (point light on the cart itself)
+    const cartLight = new THREE.PointLight(0xe94560, 1.5, 30);
+    cartLight.position.set(0, 2, 0);
+    cartGroup.add(cartLight);
+
     this.cart = cartGroup;
     this.scene.add(this.cart);
+
+    // Initialize smooth camera position from starting point
+    const startPos = curve.getPoint(0);
+    const startTan = curve.getTangent(0).normalize();
+    this.smoothCamPos.copy(startPos.clone().add(startTan.clone().multiplyScalar(-18)).add(new THREE.Vector3(0, 10, 0)));
+    this.smoothCamLook.copy(startPos.clone().add(new THREE.Vector3(0, 2, 0)));
 
     // Draw minimap
     this.drawMinimap();
@@ -1549,8 +1690,10 @@ class RideEngine {
     this.keys[e.key.toLowerCase()] = true;
     if (e.key.toLowerCase() === 'c') {
       this.cameraMode = (this.cameraMode + 1) % 2;
-      this.camera.fov = this.cameraMode === 0 ? 90 : 70;
+      // Third person = wider view, FPV = narrower for clarity
+      this.camera.fov = this.cameraMode === 1 ? 65 : 75;
       this.camera.updateProjectionMatrix();
+      document.getElementById('hud-cam-mode').textContent = this.cameraMode === 1 ? '3RD PERSON' : '1ST PERSON';
     }
     if (e.key === 'Escape') this.stop();
     if (e.key.toLowerCase() === 'r') { this.t = 0; this.speed = 20; }
@@ -1617,35 +1760,59 @@ class RideEngine {
 
     // Camera
     const newPos = curve.getPoint(this.t);
-    const lookT = Math.min(this.t + 0.01, 0.999);
-    const lookPos = curve.getPoint(lookT);
+    const lookAheadT = Math.min(this.t + 0.015, 0.999);
+    const lookPos = curve.getPoint(lookAheadT);
     const newTangent = curve.getTangent(this.t).normalize();
 
-    // Compute up vector from tangent
+    // Stable up vector - mostly world up with slight track influence
     const worldUp = new THREE.Vector3(0, 1, 0);
     const right = new THREE.Vector3().crossVectors(newTangent, worldUp).normalize();
-    const up = new THREE.Vector3().crossVectors(right, newTangent).normalize();
+    const trackUp = new THREE.Vector3().crossVectors(right, newTangent).normalize();
+    // Blend between world up and track up for stability
+    const stableUp = worldUp.clone().lerp(trackUp, 0.3).normalize();
 
     if (this.cameraMode === 0) {
-      // First person
-      this.camera.position.copy(newPos).add(up.clone().multiplyScalar(1.5));
-      this.camera.lookAt(lookPos.clone().add(up.clone().multiplyScalar(1.2)));
-      this.camera.rotateZ(this.leanAngle);
+      // First person - stable, clear view from rider's perspective
+      const fpvTarget = newPos.clone().add(stableUp.clone().multiplyScalar(2.0));
+      const fpvLookAt = lookPos.clone().add(stableUp.clone().multiplyScalar(1.5));
+      // Smooth interpolation for FPV too
+      this.smoothCamPos.lerp(fpvTarget, dt * 12);
+      this.smoothCamLook.lerp(fpvLookAt, dt * 12);
+      this.camera.position.copy(this.smoothCamPos);
+      this.camera.lookAt(this.smoothCamLook);
+      this.camera.rotateZ(this.leanAngle * 0.5); // subtle lean
+      // Hide cart in FPV
+      this.cart.visible = false;
     } else {
-      // Third person
-      const behind = newTangent.clone().multiplyScalar(-8);
-      const above = up.clone().multiplyScalar(5);
-      const camTarget = newPos.clone().add(behind).add(above);
-      this.camera.position.lerp(camTarget, dt * 5);
-      this.camera.lookAt(newPos.clone().add(up.clone().multiplyScalar(2)));
+      // Third person - far behind and above, smooth cinematic follow
+      const behindDist = 18; // far enough to see cart + track ahead
+      const aboveDist = 10;  // high enough for overview
+      const behind = newTangent.clone().multiplyScalar(-behindDist);
+      const above = new THREE.Vector3(0, aboveDist, 0);
+      const idealCamPos = newPos.clone().add(behind).add(above);
+      // Where camera looks: ahead of the cart, slightly above track
+      const farLookT = Math.min(this.t + 0.03, 0.999);
+      const farLookPos = curve.getPoint(farLookT);
+      const idealLookAt = newPos.clone().lerp(farLookPos, 0.5).add(new THREE.Vector3(0, 2, 0));
+
+      // Very smooth camera - low lerp factor for cinematic feel
+      const smoothFactor = dt * 3.0;
+      this.smoothCamPos.lerp(idealCamPos, smoothFactor);
+      this.smoothCamLook.lerp(idealLookAt, smoothFactor);
+      this.camera.position.copy(this.smoothCamPos);
+      this.camera.lookAt(this.smoothCamLook);
+      // Show cart in third person
+      this.cart.visible = true;
     }
 
-    // Cart position
+    // Cart position and orientation
     this.cart.position.copy(newPos);
     this.cart.lookAt(lookPos);
+    // Tilt cart slightly with track slope
+    this.cart.rotateX(-Math.asin(clamp(newTangent.y, -0.8, 0.8)) * 0.3);
 
-    // Point light follows cart
-    this.pointLight.position.copy(newPos).add(new THREE.Vector3(0, 5, 0));
+    // Point light follows cart - brighter and higher
+    this.pointLight.position.copy(newPos).add(new THREE.Vector3(0, 10, 0));
 
     // Audio
     this.audio.updateRideAudio(this.speed, boosting);
