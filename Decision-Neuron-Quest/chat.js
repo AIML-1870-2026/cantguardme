@@ -35,6 +35,45 @@ const Chat = {
     /\b(depends on|up to|contingent).*(someone|wife|husband|boss|parent|partner|manager)\b/i,
   ],
 
+  // "A vs B" choice patterns — when the user is choosing between two options
+  vsPatterns: [
+    /\bshould i\b.+\bor\b.+/i,
+    /\bbetween\b.+\band\b.+/i,
+    /\bchoose between\b/i,
+    /\bdeciding between\b/i,
+    /\b(\w[\w\s]*?)\s+(?:vs\.?|versus)\s+(\w[\w\s]*)/i,
+    /\bchoice between\b/i,
+    /\bpick between\b/i,
+    /\bone or the other\b/i,
+    /\bcan't decide (?:between|if)\b.+\bor\b/i,
+    /\btorn between\b/i,
+  ],
+
+  // Extract two options from "A or B" / "A vs B" / "between A and B" patterns
+  extractVsOptions(text) {
+    let match;
+    // "should I [do X] or [do Y]"
+    match = text.match(/should i\s+(.+?)\s+or\s+(.+?)(?:\?|$)/i);
+    if (match) return { optionA: match[1].trim(), optionB: match[2].trim() };
+    // "between [X] and [Y]"
+    match = text.match(/between\s+(.+?)\s+and\s+(.+?)(?:\?|$)/i);
+    if (match) return { optionA: match[1].trim(), optionB: match[2].trim() };
+    // "[X] vs [Y]"
+    match = text.match(/(.+?)\s+(?:vs\.?|versus)\s+(.+?)(?:\?|$)/i);
+    if (match) return { optionA: match[1].trim(), optionB: match[2].trim() };
+    // "can't decide if [X] or [Y]"
+    match = text.match(/can'?t decide (?:if|whether)\s+(.+?)\s+or\s+(.+?)(?:\?|$)/i);
+    if (match) return { optionA: match[1].trim(), optionB: match[2].trim() };
+    // "torn between [X] and [Y]"
+    match = text.match(/torn between\s+(.+?)\s+and\s+(.+?)(?:\?|$)/i);
+    if (match) return { optionA: match[1].trim(), optionB: match[2].trim() };
+    return null;
+  },
+
+  detectVsDecision(text) {
+    return this.vsPatterns.some(pattern => pattern.test(text));
+  },
+
   // Gatekeeper label extraction
   detectGatekeeper(text) {
     const lower = text.toLowerCase();
@@ -77,6 +116,10 @@ const Chat = {
     job: [
       "What industry or role is this job in?",
       "How does the salary compare to what you're making now?",
+    ],
+    vs: [
+      "What's drawing you most toward each option?",
+      "Is there a deadline or time pressure on either choice?",
     ],
     generic: [
       "What are the top two things making this decision hard for you?",
@@ -314,6 +357,62 @@ const Chat = {
         ],
       },
     ],
+    vs: [
+      {
+        question: "How excited are you about {optionA}?",
+        options: [
+          { label: "A. Extremely excited", effect: { 'Excitement A': 0.95, 'Gut Feeling A': 0.9 } },
+          { label: "B. Pretty interested", effect: { 'Excitement A': 0.7, 'Gut Feeling A': 0.65 } },
+          { label: "C. Somewhat interested", effect: { 'Excitement A': 0.4, 'Gut Feeling A': 0.35 } },
+          { label: "D. Not very excited", effect: { 'Excitement A': 0.15, 'Gut Feeling A': 0.15 } },
+        ],
+      },
+      {
+        question: "How practical or affordable is {optionA}?",
+        options: [
+          { label: "A. Very practical and affordable", effect: { 'Practicality A': 0.9, 'Cost A': 0.9 } },
+          { label: "B. Reasonable", effect: { 'Practicality A': 0.65, 'Cost A': 0.65 } },
+          { label: "C. A bit of a stretch", effect: { 'Practicality A': 0.35, 'Cost A': 0.35 } },
+          { label: "D. Impractical or expensive", effect: { 'Practicality A': 0.1, 'Cost A': 0.15 } },
+        ],
+      },
+      {
+        question: "How excited are you about {optionB}?",
+        options: [
+          { label: "A. Extremely excited", effect: { 'Excitement B': 0.95, 'Gut Feeling B': 0.9 } },
+          { label: "B. Pretty interested", effect: { 'Excitement B': 0.7, 'Gut Feeling B': 0.65 } },
+          { label: "C. Somewhat interested", effect: { 'Excitement B': 0.4, 'Gut Feeling B': 0.35 } },
+          { label: "D. Not very excited", effect: { 'Excitement B': 0.15, 'Gut Feeling B': 0.15 } },
+        ],
+      },
+      {
+        question: "How practical or affordable is {optionB}?",
+        options: [
+          { label: "A. Very practical and affordable", effect: { 'Practicality B': 0.9, 'Cost B': 0.9 } },
+          { label: "B. Reasonable", effect: { 'Practicality B': 0.65, 'Cost B': 0.65 } },
+          { label: "C. A bit of a stretch", effect: { 'Practicality B': 0.35, 'Cost B': 0.35 } },
+          { label: "D. Impractical or expensive", effect: { 'Practicality B': 0.1, 'Cost B': 0.15 } },
+        ],
+      },
+      {
+        question: "Which would you regret missing out on more?",
+        options: [
+          { label: "A. Definitely {optionA}", effect: { 'Regret A': 0.9, 'Regret B': 0.2 } },
+          { label: "B. Slightly {optionA}", effect: { 'Regret A': 0.65, 'Regret B': 0.4 } },
+          { label: "C. Slightly {optionB}", effect: { 'Regret A': 0.4, 'Regret B': 0.65 } },
+          { label: "D. Definitely {optionB}", effect: { 'Regret A': 0.2, 'Regret B': 0.9 } },
+        ],
+      },
+      {
+        question: "How time-sensitive is this? Could you do both eventually?",
+        options: [
+          { label: "A. Must choose now, can only do one", effect: { 'Urgency': 0.9, 'Time Pressure': 0.9 } },
+          { label: "B. Soon-ish, but not urgent", effect: { 'Urgency': 0.6, 'Time Pressure': 0.55 } },
+          { label: "C. No rush, could do both over time", effect: { 'Urgency': 0.25, 'Time Pressure': 0.2 } },
+          { label: "D. Could easily do both whenever", effect: { 'Urgency': 0.1, 'Time Pressure': 0.05 } },
+        ],
+      },
+    ],
     generic: [
       {
         question: "How long have you been thinking about this decision?",
@@ -436,11 +535,11 @@ const Chat = {
 
     // Score each category — specific terms get priority over generic ones
     const categories = {
-      tech:     { score: 0, specific: ['laptop', 'computer', 'phone', 'iphone', 'macbook', 'ipad', 'tablet', 'gpu', 'pc build'], general: ['tech', 'upgrade', 'device'] },
+      tech:     { score: 0, specific: ['laptop', 'computer', 'phone', 'iphone', 'macbook', 'ipad', 'tablet', 'gpu', 'pc build', 'camera', 'console', 'playstation', 'xbox', 'nintendo', 'monitor', 'headphones'], general: ['tech', 'upgrade', 'device', 'gadget'] },
       college:  { score: 0, specific: ['college', 'university', 'school', 'degree', 'major', 'campus'], general: ['enroll', 'tuition'] },
       pet:      { score: 0, specific: ['dog', 'puppy', 'cat', 'kitten', 'pet', 'hamster', 'fish tank'], general: ['adopt', 'rescue'] },
-      roadtrip: { score: 0, specific: ['road trip', 'roadtrip', 'vacation', 'travel'], general: ['trip', 'drive cross country'] },
-      car:      { score: 0, specific: ['car', 'vehicle', 'truck', 'suv', 'sedan', 'motorcycle'], general: ['buy a car', 'new ride', 'dealership'] },
+      roadtrip: { score: 0, specific: ['road trip', 'roadtrip', 'vacation', 'travel', 'cancun', 'hawaii', 'europe', 'paris', 'tokyo', 'bali', 'caribbean', 'cruise', 'mexico', 'beach trip', 'spring break', 'backpacking'], general: ['trip', 'drive cross country', 'flight', 'getaway', 'destination'] },
+      car:      { score: 0, specific: ['car', 'vehicle', 'truck', 'suv', 'sedan', 'motorcycle', 'tesla', 'honda', 'toyota', 'ford'], general: ['buy a car', 'new ride', 'dealership'] },
       job:      { score: 0, specific: ['job', 'career', 'job offer', 'position', 'employer'], general: ['quit', 'resign', 'work', 'salary offer'] },
     };
 
@@ -451,13 +550,6 @@ const Chat = {
       for (const term of data.general) {
         if (lower.includes(term)) data.score += 1;
       }
-    }
-
-    // Generic purchase terms only boost car if no other category scored
-    if ((/\bbuy a\b/.test(lower) || /\bpurchase\b/.test(lower)) && categories.car.score === 0) {
-      // Only default to car if nothing else matched
-      const anyOtherMatch = Object.entries(categories).some(([cat, d]) => cat !== 'car' && d.score > 0);
-      if (!anyOtherMatch) categories.car.score += 1;
     }
 
     let best = 'generic';
@@ -477,10 +569,12 @@ const Chat = {
     await new Promise(r => setTimeout(r, 600 + Math.random() * 800));
 
     if (!hasNetwork && this.currentPhase === 'initial') {
-      // First message — detect category and detect if two-neuron chain needed
-      const category = this.detectCategory(text);
-      const isTwoNeuron = this.detectTwoNeuron(text);
-      const gatekeeper = isTwoNeuron ? this.detectGatekeeper(text) : null;
+      // First message — detect category, detect vs decision, detect approval gatekeeper
+      const isVsDecision = this.detectVsDecision(text);
+      const vsOptions = isVsDecision ? this.extractVsOptions(text) : null;
+      const category = isVsDecision ? 'vs' : this.detectCategory(text);
+      const isTwoNeuron = isVsDecision || this.detectTwoNeuron(text);
+      const gatekeeper = (!isVsDecision && isTwoNeuron) ? this.detectGatekeeper(text) : null;
 
       this.decisionContext = {
         category,
@@ -488,6 +582,8 @@ const Chat = {
         contextAnswers: [],
         twoNeuron: isTwoNeuron,
         gatekeeper,
+        vsDecision: isVsDecision,
+        vsOptions,
       };
       this.currentPhase = 'context';
       this.questionIndex = 0;
@@ -496,8 +592,10 @@ const Chat = {
       this.questionQueue = contextQs;
 
       Audio.playReceive();
-      let greeting = this.getContextGreeting(category);
-      if (isTwoNeuron) {
+      let greeting = this.getContextGreeting(category, text);
+      if (isVsDecision && vsOptions) {
+        greeting += ` I'll model this as a two-neuron comparison — one for "${vsOptions.optionA}" and one for "${vsOptions.optionB}"!`;
+      } else if (isTwoNeuron && gatekeeper) {
         greeting += ` I noticed ${gatekeeper} needs to approve — I'll model this as a two-neuron chain!`;
       }
       this.addMessageToUI(greeting, 'bot');
@@ -528,9 +626,16 @@ const Chat = {
         await new Promise(r => setTimeout(r, 600));
         Audio.playReceive();
         const isTwoNeuron = this.decisionContext.twoNeuron;
-        const buildMsg = isTwoNeuron
-          ? "I've built a two-neuron chain — Neuron 1 evaluates your personal preference, and Neuron 2 factors in approval. Let me fine-tune the weights..."
-          : "Great, I've built your decision network! Now let me ask a few questions to fine-tune the weights...";
+        const isVs = this.decisionContext.vsDecision;
+        let buildMsg;
+        if (isVs && this.decisionContext.vsOptions) {
+          const opts = this.decisionContext.vsOptions;
+          buildMsg = `I've built a two-neuron comparison — Neuron 1 evaluates "${opts.optionA}" and Neuron 2 evaluates "${opts.optionB}". Let me ask some questions to fine-tune the weights...`;
+        } else if (isTwoNeuron) {
+          buildMsg = "I've built a two-neuron chain — Neuron 1 evaluates your personal preference, and Neuron 2 factors in approval. Let me fine-tune the weights...";
+        } else {
+          buildMsg = "Great, I've built your decision network! Now let me ask a few questions to fine-tune the weights...";
+        }
         this.addMessageToUI(buildMsg, 'bot');
 
         // Transition to multi-choice phase
@@ -539,8 +644,21 @@ const Chat = {
         const category = this.decisionContext.category;
         let questions = this.multiChoiceQuestions[category] || this.multiChoiceQuestions.generic;
 
-        // Append neuron2 questions if two-neuron chain
-        if (isTwoNeuron) {
+        // Replace {optionA}/{optionB} placeholders for vs decisions
+        if (this.decisionContext.vsDecision && this.decisionContext.vsOptions) {
+          const opts = this.decisionContext.vsOptions;
+          questions = questions.map(q => ({
+            ...q,
+            question: q.question.replace(/\{optionA\}/g, opts.optionA).replace(/\{optionB\}/g, opts.optionB),
+            options: q.options.map(opt => ({
+              ...opt,
+              label: opt.label.replace(/\{optionA\}/g, opts.optionA).replace(/\{optionB\}/g, opts.optionB),
+            })),
+          }));
+        }
+
+        // Append neuron2 questions if approval-style two-neuron chain (not vs)
+        if (isTwoNeuron && !this.decisionContext.vsDecision) {
           const gatekeeper = this.decisionContext.gatekeeper || 'Approver';
           const n2Qs = this.neuron2Questions.map(q => ({
             ...q,
@@ -577,14 +695,15 @@ const Chat = {
     }
   },
 
-  getContextGreeting(category) {
+  getContextGreeting(category, userText) {
     const greetings = {
       car: "A car purchase — that's a big one! Let me understand your situation better before we model this decision.",
       college: "Choosing a college is one of the biggest decisions you'll make! Let me learn more about what you're looking for.",
       pet: "Thinking about a furry friend! Let me ask you a couple things to understand your situation.",
-      roadtrip: "Road trip vibes! Let me learn a bit more about what you're planning.",
-      tech: "A tech upgrade decision — let me dig into the details first.",
+      roadtrip: "Sounds like an adventure is calling! Let me learn a bit more about what you're planning.",
+      tech: "A tech decision — let me dig into the details first.",
       job: "Career moves are important! Let me understand the full picture.",
+      vs: "A tough choice between two options!",
       generic: "Interesting decision! Let me understand the context better before we break it down.",
     };
     return greetings[category] || greetings.generic;
@@ -681,6 +800,19 @@ const Chat = {
         noLabel: 'Pass',
         activationFunction: 'sigmoid',
       },
+      vs: {
+        title: `${this.decisionContext.vsOptions?.optionA || 'Option A'} vs ${this.decisionContext.vsOptions?.optionB || 'Option B'}`,
+        emoji: '\u2696\uFE0F',
+        inputs: [
+          { name: 'Excitement A', weight: 0.8, value: 0.5, description: `How excited you are about ${this.decisionContext.vsOptions?.optionA || 'Option A'}` },
+          { name: 'Practicality A', weight: 0.6, value: 0.5, description: `How practical ${this.decisionContext.vsOptions?.optionA || 'Option A'} is` },
+          { name: 'Regret A', weight: 0.7, value: 0.5, description: `Fear of missing ${this.decisionContext.vsOptions?.optionA || 'Option A'}` },
+        ],
+        bias: { value: 0, label: 'Neutral' },
+        yesLabel: this.decisionContext.vsOptions?.optionA || 'Option A',
+        noLabel: this.decisionContext.vsOptions?.optionB || 'Option B',
+        activationFunction: 'sigmoid',
+      },
       generic: {
         title: 'Decision Analysis',
         emoji: '\uD83E\uDD14',
@@ -701,17 +833,33 @@ const Chat = {
 
     // If two-neuron chain, add neuron2 config
     if (this.decisionContext.twoNeuron) {
-      const gatekeeper = this.decisionContext.gatekeeper || 'Approver';
-      config.twoNeuron = true;
-      config.neuron2 = {
-        label: `${gatekeeper} Approval`,
-        inputs: [
-          { name: 'Approval Likelihood', weight: 0.8, value: 0.5, description: `How likely ${gatekeeper} is to approve` },
-          { name: 'Veto Power', weight: -0.7, value: 0.5, description: `${gatekeeper}'s influence over the decision` },
-        ],
-        bias: { value: -0.3, label: 'Cautious' },
-        chainWeight: 0.7,
-      };
+      if (this.decisionContext.vsDecision && this.decisionContext.vsOptions) {
+        // "A vs B" comparison — Neuron 1 evaluates Option A, Neuron 2 evaluates Option B
+        const opts = this.decisionContext.vsOptions;
+        config.twoNeuron = true;
+        config.neuron2 = {
+          label: `${opts.optionB} Score`,
+          inputs: [
+            { name: 'Excitement B', weight: 0.8, value: 0.5, description: `How excited you are about ${opts.optionB}` },
+            { name: 'Practicality B', weight: 0.6, value: 0.5, description: `How practical ${opts.optionB} is` },
+            { name: 'Regret B', weight: 0.7, value: 0.5, description: `Fear of missing ${opts.optionB}` },
+          ],
+          bias: { value: 0, label: 'Neutral' },
+          chainWeight: -0.8,
+        };
+      } else {
+        const gatekeeper = this.decisionContext.gatekeeper || 'Approver';
+        config.twoNeuron = true;
+        config.neuron2 = {
+          label: `${gatekeeper} Approval`,
+          inputs: [
+            { name: 'Approval Likelihood', weight: 0.8, value: 0.5, description: `How likely ${gatekeeper} is to approve` },
+            { name: 'Veto Power', weight: -0.7, value: 0.5, description: `${gatekeeper}'s influence over the decision` },
+          ],
+          bias: { value: -0.3, label: 'Cautious' },
+          chainWeight: 0.7,
+        };
+      }
     }
 
     return config;
@@ -728,7 +876,17 @@ const Chat = {
         const result = Utils.twoNeuronForward(network);
         output = result.output;
         const n1Pct = (result.a1 * 100).toFixed(0);
-        summaryExtra = ` Neuron 1 (your preference) scored ${n1Pct}%, then Neuron 2 factored in approval.`;
+        if (this.decisionContext?.vsDecision) {
+          // For vs decisions: a1 = Option A score, output = final combined. Compute Option B neuron score separately.
+          const n2 = network.neuron2 || { inputs: [], bias: { value: 0 } };
+          let n2z = n2.bias.value;
+          for (const inp of (n2.inputs || [])) { n2z += inp.weight * inp.value; }
+          const n2Score = Utils.activate(n2z, network.activationFunction);
+          const n2Pct = (n2Score * 100).toFixed(0);
+          summaryExtra = ` Neuron 1 scored ${n1Pct}% for "${network.yesLabel}", Neuron 2 scored ${n2Pct}% for "${network.noLabel}".`;
+        } else {
+          summaryExtra = ` Neuron 1 (your preference) scored ${n1Pct}%, then Neuron 2 factored in approval.`;
+        }
       } else {
         output = Utils.forwardPass(network).output;
       }
