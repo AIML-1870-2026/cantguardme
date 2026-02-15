@@ -38,9 +38,16 @@ window.NeuronApp = {
     if (config.yesLabel !== undefined) this.state.network.yesLabel = config.yesLabel;
     if (config.noLabel !== undefined) this.state.network.noLabel = config.noLabel;
     if (config.activationFunction !== undefined) this.state.network.activationFunction = config.activationFunction;
+    if (config.twoNeuron !== undefined) this.state.network.twoNeuron = config.twoNeuron;
+    if (config.neuron2 !== undefined) this.state.network.neuron2 = config.neuron2;
 
     for (const inp of this.state.network.inputs) {
       if (inp.value === undefined) inp.value = 0.5;
+    }
+    if (this.state.network.neuron2 && this.state.network.neuron2.inputs) {
+      for (const inp of this.state.network.neuron2.inputs) {
+        if (inp.value === undefined) inp.value = 0.5;
+      }
     }
 
     this.emit('networkUpdate', this.state.network);

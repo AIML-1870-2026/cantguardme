@@ -21,6 +21,37 @@ const Chat = {
     tech: "I'm considering upgrading my laptop",
   },
 
+  // Two-neuron detection patterns — when a decision involves external approval/gatekeeping
+  twoNeuronPatterns: [
+    /\b(wife|husband|spouse|partner)\b.*\b(approv|agree|okay|ok|permission|decide|say|think|allow)\b/i,
+    /\b(approv|agree|okay|ok|permission|decide|say|think|allow)\b.*\b(wife|husband|spouse|partner)\b/i,
+    /\b(boss|manager|supervisor)\b.*\b(approv|agree|sign off|allow|decide)\b/i,
+    /\b(approv|agree|sign off|allow|decide)\b.*\b(boss|manager|supervisor)\b/i,
+    /\b(parent|mom|dad|mother|father)\b.*\b(approv|agree|allow|permission|okay|ok|let me)\b/i,
+    /\b(approv|agree|allow|permission|okay|ok|let me)\b.*\b(parent|mom|dad|mother|father)\b/i,
+    /\bneed.*(approval|permission|sign.?off|green light|go.?ahead)\b/i,
+    /\b(someone|somebody) else.*(decide|approve|agree)\b/i,
+    /\b(has to|have to|need to|must).*(approve|agree|sign off|okay|ok)\b/i,
+    /\b(depends on|up to|contingent).*(someone|wife|husband|boss|parent|partner|manager)\b/i,
+  ],
+
+  // Gatekeeper label extraction
+  detectGatekeeper(text) {
+    const lower = text.toLowerCase();
+    if (/\b(wife|spouse)\b/i.test(lower)) return 'Wife';
+    if (/\bhusband\b/i.test(lower)) return 'Husband';
+    if (/\bpartner\b/i.test(lower)) return 'Partner';
+    if (/\b(boss|manager|supervisor)\b/i.test(lower)) return 'Boss';
+    if (/\b(mom|mother)\b/i.test(lower)) return 'Mom';
+    if (/\b(dad|father)\b/i.test(lower)) return 'Dad';
+    if (/\bparent/i.test(lower)) return 'Parent';
+    return 'Approver';
+  },
+
+  detectTwoNeuron(text) {
+    return this.twoNeuronPatterns.some(pattern => pattern.test(text));
+  },
+
   // Templates for contextual follow-up questions before the multi-choice phase
   contextQuestions: {
     car: [
@@ -323,6 +354,28 @@ const Chat = {
     ],
   },
 
+  // Multi-choice questions for the second neuron (gatekeeper/approval)
+  neuron2Questions: [
+    {
+      question: "How likely is {gatekeeper} to approve this?",
+      options: [
+        { label: "A. Very likely — they're on board", effect: { 'Approval Likelihood': 0.9, 'Gatekeeper Mood': 0.85 } },
+        { label: "B. Probably, with some convincing", effect: { 'Approval Likelihood': 0.65, 'Gatekeeper Mood': 0.6 } },
+        { label: "C. It's a toss-up", effect: { 'Approval Likelihood': 0.4, 'Gatekeeper Mood': 0.4 } },
+        { label: "D. Unlikely — they'll push back", effect: { 'Approval Likelihood': 0.15, 'Gatekeeper Mood': 0.2 } },
+      ],
+    },
+    {
+      question: "How strong is {gatekeeper}'s influence on this decision?",
+      options: [
+        { label: "A. Absolute veto power", effect: { 'Veto Power': 0.95, 'Autonomy': 0.1 } },
+        { label: "B. Very influential", effect: { 'Veto Power': 0.75, 'Autonomy': 0.3 } },
+        { label: "C. Some influence", effect: { 'Veto Power': 0.45, 'Autonomy': 0.6 } },
+        { label: "D. I could go ahead anyway", effect: { 'Veto Power': 0.15, 'Autonomy': 0.85 } },
+      ],
+    },
+  ],
+
   init() {
     const input = document.getElementById('chat-input');
     const sendBtn = document.getElementById('send-btn');
@@ -380,13 +433,42 @@ const Chat = {
 
   detectCategory(text) {
     const lower = text.toLowerCase();
-    if (lower.includes('car') || lower.includes('vehicle') || lower.includes('buy a') || lower.includes('purchase')) return 'car';
-    if (lower.includes('college') || lower.includes('university') || lower.includes('school')) return 'college';
-    if (lower.includes('dog') || lower.includes('pet') || lower.includes('adopt') || lower.includes('cat')) return 'pet';
-    if (lower.includes('road trip') || lower.includes('travel') || lower.includes('trip') || lower.includes('vacation')) return 'roadtrip';
-    if (lower.includes('laptop') || lower.includes('tech') || lower.includes('upgrade') || lower.includes('computer') || lower.includes('phone')) return 'tech';
-    if (lower.includes('job') || lower.includes('career') || lower.includes('work') || lower.includes('quit') || lower.includes('offer')) return 'job';
-    return 'generic';
+
+    // Score each category — specific terms get priority over generic ones
+    const categories = {
+      tech:     { score: 0, specific: ['laptop', 'computer', 'phone', 'iphone', 'macbook', 'ipad', 'tablet', 'gpu', 'pc build'], general: ['tech', 'upgrade', 'device'] },
+      college:  { score: 0, specific: ['college', 'university', 'school', 'degree', 'major', 'campus'], general: ['enroll', 'tuition'] },
+      pet:      { score: 0, specific: ['dog', 'puppy', 'cat', 'kitten', 'pet', 'hamster', 'fish tank'], general: ['adopt', 'rescue'] },
+      roadtrip: { score: 0, specific: ['road trip', 'roadtrip', 'vacation', 'travel'], general: ['trip', 'drive cross country'] },
+      car:      { score: 0, specific: ['car', 'vehicle', 'truck', 'suv', 'sedan', 'motorcycle'], general: ['buy a car', 'new ride', 'dealership'] },
+      job:      { score: 0, specific: ['job', 'career', 'job offer', 'position', 'employer'], general: ['quit', 'resign', 'work', 'salary offer'] },
+    };
+
+    for (const [cat, data] of Object.entries(categories)) {
+      for (const term of data.specific) {
+        if (lower.includes(term)) data.score += 3;
+      }
+      for (const term of data.general) {
+        if (lower.includes(term)) data.score += 1;
+      }
+    }
+
+    // Generic purchase terms only boost car if no other category scored
+    if ((/\bbuy a\b/.test(lower) || /\bpurchase\b/.test(lower)) && categories.car.score === 0) {
+      // Only default to car if nothing else matched
+      const anyOtherMatch = Object.entries(categories).some(([cat, d]) => cat !== 'car' && d.score > 0);
+      if (!anyOtherMatch) categories.car.score += 1;
+    }
+
+    let best = 'generic';
+    let bestScore = 0;
+    for (const [cat, data] of Object.entries(categories)) {
+      if (data.score > bestScore) {
+        bestScore = data.score;
+        best = cat;
+      }
+    }
+    return best;
   },
 
   async processUserInput(text) {
@@ -395,12 +477,17 @@ const Chat = {
     await new Promise(r => setTimeout(r, 600 + Math.random() * 800));
 
     if (!hasNetwork && this.currentPhase === 'initial') {
-      // First message — detect category and ask context questions
+      // First message — detect category and detect if two-neuron chain needed
       const category = this.detectCategory(text);
+      const isTwoNeuron = this.detectTwoNeuron(text);
+      const gatekeeper = isTwoNeuron ? this.detectGatekeeper(text) : null;
+
       this.decisionContext = {
         category,
         userDescription: text,
         contextAnswers: [],
+        twoNeuron: isTwoNeuron,
+        gatekeeper,
       };
       this.currentPhase = 'context';
       this.questionIndex = 0;
@@ -409,7 +496,10 @@ const Chat = {
       this.questionQueue = contextQs;
 
       Audio.playReceive();
-      const greeting = this.getContextGreeting(category);
+      let greeting = this.getContextGreeting(category);
+      if (isTwoNeuron) {
+        greeting += ` I noticed ${gatekeeper} needs to approve — I'll model this as a two-neuron chain!`;
+      }
       this.addMessageToUI(greeting, 'bot');
 
       // Ask first context question after a pause
@@ -437,13 +527,31 @@ const Chat = {
 
         await new Promise(r => setTimeout(r, 600));
         Audio.playReceive();
-        this.addMessageToUI("Great, I've built your decision network! Now let me ask a few questions to fine-tune the weights...", 'bot');
+        const isTwoNeuron = this.decisionContext.twoNeuron;
+        const buildMsg = isTwoNeuron
+          ? "I've built a two-neuron chain — Neuron 1 evaluates your personal preference, and Neuron 2 factors in approval. Let me fine-tune the weights..."
+          : "Great, I've built your decision network! Now let me ask a few questions to fine-tune the weights...";
+        this.addMessageToUI(buildMsg, 'bot');
 
         // Transition to multi-choice phase
         this.currentPhase = 'questions';
         this.questionIndex = 0;
         const category = this.decisionContext.category;
-        this.questionQueue = this.multiChoiceQuestions[category] || this.multiChoiceQuestions.generic;
+        let questions = this.multiChoiceQuestions[category] || this.multiChoiceQuestions.generic;
+
+        // Append neuron2 questions if two-neuron chain
+        if (isTwoNeuron) {
+          const gatekeeper = this.decisionContext.gatekeeper || 'Approver';
+          const n2Qs = this.neuron2Questions.map(q => ({
+            ...q,
+            question: q.question.replace(/\{gatekeeper\}/g, gatekeeper),
+            options: q.options.map(opt => ({ ...opt })),
+            isNeuron2: true,
+          }));
+          questions = [...questions, ...n2Qs];
+        }
+
+        this.questionQueue = questions;
         this.questionsAsked = 0;
 
         // Ask first multi-choice question
@@ -589,7 +697,24 @@ const Chat = {
       },
     };
 
-    return configs[cat] || configs.generic;
+    const config = configs[cat] || configs.generic;
+
+    // If two-neuron chain, add neuron2 config
+    if (this.decisionContext.twoNeuron) {
+      const gatekeeper = this.decisionContext.gatekeeper || 'Approver';
+      config.twoNeuron = true;
+      config.neuron2 = {
+        label: `${gatekeeper} Approval`,
+        inputs: [
+          { name: 'Approval Likelihood', weight: 0.8, value: 0.5, description: `How likely ${gatekeeper} is to approve` },
+          { name: 'Veto Power', weight: -0.7, value: 0.5, description: `${gatekeeper}'s influence over the decision` },
+        ],
+        bias: { value: -0.3, label: 'Cautious' },
+        chainWeight: 0.7,
+      };
+    }
+
+    return config;
   },
 
   askMultipleChoice() {
@@ -598,13 +723,21 @@ const Chat = {
       this.currentPhase = 'done';
       Audio.playReceive();
       const network = window.NeuronApp.state.network;
-      const { output } = Utils.forwardPass(network);
+      let output, summaryExtra = '';
+      if (network.twoNeuron && network.neuron2) {
+        const result = Utils.twoNeuronForward(network);
+        output = result.output;
+        const n1Pct = (result.a1 * 100).toFixed(0);
+        summaryExtra = ` Neuron 1 (your preference) scored ${n1Pct}%, then Neuron 2 factored in approval.`;
+      } else {
+        output = Utils.forwardPass(network).output;
+      }
       const isYes = output > 0.5;
       const pct = (output * 100).toFixed(0);
       const verdict = isYes ? network.yesLabel : network.noLabel;
 
       this.addMessageToUI(
-        `Analysis complete! Based on your responses, the network says: ${verdict} (${pct}% confidence). You can still adjust the sliders to explore different scenarios, or tell me if anything has changed.`,
+        `Analysis complete! Based on your responses, the network says: ${verdict} (${pct}% confidence).${summaryExtra} You can still adjust the sliders to explore different scenarios, or tell me if anything has changed.`,
         'bot'
       );
       Audio.playMilestone();
@@ -670,12 +803,16 @@ const Chat = {
     const effects = selectedOption.effect;
 
     for (const [factorName, targetValue] of Object.entries(effects)) {
-      // Find matching input by name
-      const input = network.inputs.find(inp =>
+      // Search neuron1 inputs first, then neuron2 inputs if applicable
+      let input = network.inputs.find(inp =>
         inp.name.toLowerCase() === factorName.toLowerCase()
       );
+      if (!input && network.twoNeuron && network.neuron2) {
+        input = network.neuron2.inputs.find(inp =>
+          inp.name.toLowerCase() === factorName.toLowerCase()
+        );
+      }
       if (input) {
-        // Animate the slider value change
         this.animateSliderChange(input, targetValue, network);
       }
     }

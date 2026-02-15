@@ -168,20 +168,35 @@ const NetworkViz = {
     }
     this.sliderContainer.style.display = '';
 
+    // Combine neuron1 + neuron2 inputs for slider rendering
+    const n2Inputs = (network.twoNeuron && network.neuron2 && network.neuron2.inputs) ? network.neuron2.inputs : [];
+    const allInputs = [...inputs, ...n2Inputs];
+    const n1Count = inputs.length;
+
     const existingSliders = this.sliderContainer.querySelectorAll('.factor-slider-row');
-    const needsRebuild = existingSliders.length !== inputs.length ||
-      Array.from(existingSliders).some((el, i) => el.dataset.name !== inputs[i].name);
+    const needsRebuild = existingSliders.length !== allInputs.length ||
+      Array.from(existingSliders).some((el, i) => el.dataset.name !== allInputs[i].name);
 
     if (needsRebuild) {
       this.sliderContainer.innerHTML = '';
 
-      inputs.forEach((inp, i) => {
+      // Add a section header for neuron2 if applicable
+      allInputs.forEach((inp, i) => {
+        // Insert separator before neuron2 inputs
+        if (i === n1Count && n2Inputs.length > 0) {
+          const sep = document.createElement('div');
+          sep.className = 'factor-slider-separator';
+          sep.innerHTML = `<span class="separator-label">${network.neuron2.label || 'Neuron 2'}</span>`;
+          this.sliderContainer.appendChild(sep);
+        }
+
         const row = document.createElement('div');
         row.className = 'factor-slider-row';
         row.dataset.name = inp.name;
 
         const isPositive = inp.weight >= 0;
-        const color = isPositive ? 'var(--cyan)' : 'var(--magenta)';
+        const isN2 = i >= n1Count;
+        const color = isN2 ? 'var(--gold, #ffd700)' : (isPositive ? 'var(--cyan)' : 'var(--magenta)');
 
         row.innerHTML = `
           <div class="factor-slider-label">
@@ -202,7 +217,12 @@ const NetworkViz = {
         const slider = row.querySelector('.factor-slider');
         slider.addEventListener('input', (e) => {
           const val = parseInt(e.target.value) / 100;
-          network.inputs[i].value = parseFloat(val.toFixed(2));
+          // Determine which input array to update
+          if (i < n1Count) {
+            network.inputs[i].value = parseFloat(val.toFixed(2));
+          } else {
+            network.neuron2.inputs[i - n1Count].value = parseFloat(val.toFixed(2));
+          }
           document.getElementById(`factor-val-${i}`).textContent = `${Math.round(val * 100)}%`;
           document.getElementById(`factor-fill-${i}`).style.width = `${val * 100}%`;
           Audio.playSliderTick();
@@ -210,7 +230,7 @@ const NetworkViz = {
         });
       });
     } else {
-      inputs.forEach((inp, i) => {
+      allInputs.forEach((inp, i) => {
         const slider = this.sliderContainer.querySelector(`[data-index="${i}"]`);
         if (slider && !slider.matches(':active')) {
           slider.value = Math.round(inp.value * 100);
@@ -266,12 +286,21 @@ const NetworkViz = {
 
     const inputs = network.inputs;
     const numInputs = inputs.length;
-    const { z, output } = Utils.forwardPass(network);
+    const isTwoNeuron = network.twoNeuron && network.neuron2;
 
-    // --- Layout: input nodes on left arc, massive orb in center-right ---
-    const centerX = W * 0.52;
+    let z, output, a1, z2;
+    if (isTwoNeuron) {
+      const result = Utils.twoNeuronForward(network);
+      z = result.z1; a1 = result.a1; z2 = result.z2; output = result.output;
+    } else {
+      const result = Utils.forwardPass(network);
+      z = result.z; output = result.output;
+    }
+
+    // --- Layout ---
+    const centerX = isTwoNeuron ? W * 0.35 : W * 0.52;
     const centerY = H * 0.48;
-    const inputArcCenterX = W * 0.15;
+    const inputArcCenterX = W * 0.12;
     const padding = 50;
 
     const inputPositions = inputs.map((_, i) => {
@@ -472,35 +501,240 @@ const NetworkViz = {
       style: `animation-duration: ${2 - pulseIntensity * 0.8}s`,
     }));
 
-    // --- Percentage text ---
-    const pctText = Utils.createSvgElement('text', {
-      x: centerX, y: centerY - 6, 'text-anchor': 'middle', fill: 'white',
-      'font-family': "'JetBrains Mono', monospace",
-      'font-size': Math.max(28, orbR * 0.4), 'font-weight': '700',
-      opacity: '0.95',
-    });
-    pctText.textContent = (output * 100).toFixed(0) + '%';
-    this.svg.appendChild(pctText);
+    if (isTwoNeuron) {
+      // --- TWO-NEURON CHAIN MODE ---
+      // Neuron 1 shows its own output (a1)
+      const n1Output = a1;
+      const n1Pct = (n1Output * 100).toFixed(0);
+      const pctText1 = Utils.createSvgElement('text', {
+        x: centerX, y: centerY - 4, 'text-anchor': 'middle', fill: 'white',
+        'font-family': "'JetBrains Mono', monospace",
+        'font-size': Math.max(20, orbR * 0.32), 'font-weight': '700', opacity: '0.9',
+      });
+      pctText1.textContent = n1Pct + '%';
+      this.svg.appendChild(pctText1);
 
-    // Verdict label
-    const verdict = isYes ? network.yesLabel : network.noLabel;
-    const verdictText = Utils.createSvgElement('text', {
-      x: centerX, y: centerY + orbR * 0.28, 'text-anchor': 'middle',
-      fill: centralColor, 'font-family': "'Space Grotesk', sans-serif",
-      'font-size': Math.max(13, orbR * 0.17), 'font-weight': '600',
-      opacity: '0.85',
-    });
-    verdictText.textContent = verdict;
-    this.svg.appendChild(verdictText);
+      const n1Label = Utils.createSvgElement('text', {
+        x: centerX, y: centerY + orbR * 0.25, 'text-anchor': 'middle',
+        fill: 'rgba(255,255,255,0.5)', 'font-family': "'Space Grotesk', sans-serif",
+        'font-size': '10', 'font-weight': '500',
+      });
+      n1Label.textContent = 'Your Preference';
+      this.svg.appendChild(n1Label);
 
-    // "confidence" sub-label
-    const confLabel = Utils.createSvgElement('text', {
-      x: centerX, y: centerY + orbR * 0.28 + 16, 'text-anchor': 'middle',
-      fill: 'rgba(255,255,255,0.35)', 'font-family': "'JetBrains Mono', monospace",
-      'font-size': '10',
-    });
-    confLabel.textContent = 'confidence';
-    this.svg.appendChild(confLabel);
+      // --- Neuron 2 orb ---
+      const n2X = W * 0.72;
+      const n2Y = centerY;
+      const n2R = orbR * 0.85;
+      const n2Color = isYes ? '#00f0ff' : '#ff00aa';
+      const n2RGB = isYes ? '0, 240, 255' : '255, 0, 170';
+
+      // Chain synapse edge from N1 → N2
+      const chainWeight = network.neuron2.chainWeight || 0.5;
+      this.svg.appendChild(Utils.createSvgElement('line', {
+        x1: centerX + orbR, y1: centerY, x2: n2X - n2R, y2: n2Y,
+        stroke: '#ffd700', 'stroke-width': 2 + chainWeight * 4, 'stroke-opacity': 0.3,
+        filter: 'url(#glow)',
+      }));
+      this.svg.appendChild(Utils.createSvgElement('line', {
+        x1: centerX + orbR, y1: centerY, x2: n2X - n2R, y2: n2Y,
+        stroke: '#ffd700', 'stroke-width': 1 + chainWeight * 2, 'stroke-opacity': 0.6,
+        'stroke-dasharray': '6 10', class: 'edge-flow-dash',
+      }));
+      // Chain weight badge
+      const chainMidX = (centerX + orbR + n2X - n2R) / 2;
+      this.svg.appendChild(Utils.createSvgElement('rect', {
+        x: chainMidX - 20, y: centerY - 22, width: 40, height: 18, rx: 6,
+        fill: 'rgba(10, 10, 26, 0.85)', stroke: '#ffd700', 'stroke-width': 0.6, 'stroke-opacity': 0.5,
+      }));
+      const cwLabel = Utils.createSvgElement('text', {
+        x: chainMidX, y: centerY - 10, 'text-anchor': 'middle', fill: '#ffd700',
+        'font-family': "'JetBrains Mono', monospace", 'font-size': '9', 'font-weight': '600',
+      });
+      cwLabel.textContent = 'w:' + chainWeight.toFixed(2);
+      this.svg.appendChild(cwLabel);
+      // "chain" sub-label
+      const chainLabel = Utils.createSvgElement('text', {
+        x: chainMidX, y: centerY + 6, 'text-anchor': 'middle',
+        fill: 'rgba(255, 215, 0, 0.45)', 'font-family': "'JetBrains Mono', monospace", 'font-size': '8',
+      });
+      chainLabel.textContent = 'chain';
+      this.svg.appendChild(chainLabel);
+
+      // Neuron 2 inputs (from top-right)
+      const n2Inputs = network.neuron2.inputs || [];
+      const n2InputPositions = n2Inputs.map((_, i) => {
+        const t = n2Inputs.length === 1 ? 0.5 : i / (n2Inputs.length - 1);
+        return {
+          x: n2X + n2R + 60 + Math.cos((t - 0.5) * 0.4) * 15,
+          y: padding + 30 + t * (H * 0.4),
+        };
+      });
+
+      // Draw N2 input edges
+      n2Inputs.forEach((inp, i) => {
+        const pos = n2InputPositions[i];
+        const absWeight = Math.abs(inp.weight);
+        const isPos = inp.weight >= 0;
+        const color = isPos ? '#00f0ff' : '#ff00aa';
+        const thickness = 1.5 + absWeight * 4;
+        const value = inp.value || 0.5;
+
+        this.svg.appendChild(Utils.createSvgElement('line', {
+          x1: pos.x, y1: pos.y, x2: n2X, y2: n2Y,
+          stroke: color, 'stroke-width': thickness + 4, 'stroke-opacity': 0.05 + value * absWeight * 0.08,
+          filter: 'url(#glow)',
+        }));
+        this.svg.appendChild(Utils.createSvgElement('line', {
+          x1: pos.x, y1: pos.y, x2: n2X, y2: n2Y,
+          stroke: color, 'stroke-width': thickness, 'stroke-opacity': 0.25 + absWeight * value * 0.4,
+        }));
+        this.svg.appendChild(Utils.createSvgElement('line', {
+          x1: pos.x, y1: pos.y, x2: n2X, y2: n2Y,
+          stroke: color, 'stroke-width': Math.max(1, thickness * 0.3),
+          'stroke-opacity': 0.5 + value * 0.4, 'stroke-dasharray': '4 14', class: 'edge-flow-dash',
+        }));
+        // Weight badge
+        const midX2 = pos.x * 0.5 + n2X * 0.5;
+        const midY2 = pos.y * 0.5 + n2Y * 0.5;
+        this.svg.appendChild(Utils.createSvgElement('rect', {
+          x: midX2 - 18, y: midY2 - 9, width: 36, height: 18, rx: 6,
+          fill: 'rgba(10, 10, 26, 0.85)', stroke: color, 'stroke-width': 0.6, 'stroke-opacity': 0.35,
+        }));
+        const wl = Utils.createSvgElement('text', {
+          x: midX2, y: midY2 + 4, 'text-anchor': 'middle', fill: color,
+          'font-family': "'JetBrains Mono', monospace", 'font-size': '9', 'font-weight': '600',
+        });
+        wl.textContent = inp.weight.toFixed(2);
+        this.svg.appendChild(wl);
+      });
+
+      // Draw N2 input nodes
+      n2Inputs.forEach((inp, i) => {
+        const pos = n2InputPositions[i];
+        const value = inp.value || 0.5;
+        const isPos = inp.weight >= 0;
+        const nColor = isPos ? '#00f0ff' : '#ff00aa';
+        const gId = `n2-node-grad-${i}`;
+        const g = Utils.createSvgElement('radialGradient', { id: gId, cx: '40%', cy: '40%', r: '60%' });
+        g.appendChild(Utils.createSvgElement('stop', { offset: '0%', 'stop-color': 'white', 'stop-opacity': '0.2' }));
+        g.appendChild(Utils.createSvgElement('stop', { offset: '50%', 'stop-color': nColor, 'stop-opacity': `${0.1 + value * 0.15}` }));
+        g.appendChild(Utils.createSvgElement('stop', { offset: '100%', 'stop-color': nColor, 'stop-opacity': '0.03' }));
+        defs.appendChild(g);
+
+        this.svg.appendChild(Utils.createSvgElement('circle', {
+          cx: pos.x, cy: pos.y, r: 16,
+          fill: `url(#${gId})`, stroke: nColor, 'stroke-width': 1.5,
+        }));
+        this.svg.appendChild(Utils.createSvgElement('circle', {
+          cx: pos.x, cy: pos.y, r: 4 + value * 3,
+          fill: nColor, opacity: 0.1 + value * 0.18, filter: 'url(#glow)',
+          class: 'orb-core-pulse', style: `animation-delay: ${i * 0.2}s`,
+        }));
+        const vt = Utils.createSvgElement('text', {
+          x: pos.x, y: pos.y + 3, 'text-anchor': 'middle', fill: 'white',
+          'font-family': "'JetBrains Mono', monospace", 'font-size': '8', 'font-weight': '600',
+        });
+        vt.textContent = (value * 100).toFixed(0) + '%';
+        this.svg.appendChild(vt);
+        // Label
+        const nl = Utils.createSvgElement('text', {
+          x: pos.x + 24, y: pos.y + 4, 'text-anchor': 'start', fill: 'rgba(255,255,255,0.65)',
+          'font-family': "'Space Grotesk', sans-serif", 'font-size': '10',
+        });
+        nl.textContent = inp.name;
+        this.svg.appendChild(nl);
+      });
+
+      // Neuron 2 orb body
+      this.svg.appendChild(Utils.createSvgElement('circle', {
+        cx: n2X, cy: n2Y, r: n2R + 20,
+        fill: `rgba(${n2RGB}, 0.02)`, stroke: n2Color,
+        'stroke-width': 1.5, 'stroke-opacity': 0.1 + output * 0.12,
+        filter: 'url(#glow-mega)', class: 'central-mega-pulse',
+        style: `animation-duration: ${3.5 - output * 1.5}s`,
+      }));
+      this.svg.appendChild(Utils.createSvgElement('circle', {
+        cx: n2X, cy: n2Y, r: n2R + 10,
+        fill: 'none', stroke: n2Color, 'stroke-width': 1, 'stroke-opacity': 0.15,
+        'stroke-dasharray': '6 8 3 8', class: 'central-ring-spin',
+      }));
+      const n2GradId = 'n2-grad';
+      const n2Grad = Utils.createSvgElement('radialGradient', { id: n2GradId, cx: '38%', cy: '38%', r: '62%' });
+      n2Grad.appendChild(Utils.createSvgElement('stop', { offset: '0%', 'stop-color': 'white', 'stop-opacity': '0.2' }));
+      n2Grad.appendChild(Utils.createSvgElement('stop', { offset: '35%', 'stop-color': n2Color, 'stop-opacity': `${0.12 + output * 0.2}` }));
+      n2Grad.appendChild(Utils.createSvgElement('stop', { offset: '100%', 'stop-color': n2Color, 'stop-opacity': '0.03' }));
+      defs.appendChild(n2Grad);
+      this.svg.appendChild(Utils.createSvgElement('circle', {
+        cx: n2X, cy: n2Y, r: n2R,
+        fill: `url(#${n2GradId})`, stroke: n2Color, 'stroke-width': 2,
+        class: 'central-orb-pulse', style: `animation-duration: ${2.5 - output * 1}s`,
+      }));
+      const n2CoreR = n2R * 0.3 + n2R * 0.35 * output;
+      this.svg.appendChild(Utils.createSvgElement('circle', {
+        cx: n2X, cy: n2Y, r: n2CoreR,
+        fill: n2Color, opacity: 0.12 + output * 0.25,
+        filter: 'url(#glow-strong)', class: 'central-core-pulse',
+        style: `animation-duration: ${2 - output * 0.8}s`,
+      }));
+
+      // Neuron 2 percentage & verdict (final output)
+      const n2PctText = Utils.createSvgElement('text', {
+        x: n2X, y: n2Y - 6, 'text-anchor': 'middle', fill: 'white',
+        'font-family': "'JetBrains Mono', monospace",
+        'font-size': Math.max(24, n2R * 0.38), 'font-weight': '700', opacity: '0.95',
+      });
+      n2PctText.textContent = (output * 100).toFixed(0) + '%';
+      this.svg.appendChild(n2PctText);
+
+      const verdict = isYes ? network.yesLabel : network.noLabel;
+      const n2Verdict = Utils.createSvgElement('text', {
+        x: n2X, y: n2Y + n2R * 0.25, 'text-anchor': 'middle',
+        fill: n2Color, 'font-family': "'Space Grotesk', sans-serif",
+        'font-size': Math.max(11, n2R * 0.15), 'font-weight': '600', opacity: '0.85',
+      });
+      n2Verdict.textContent = verdict;
+      this.svg.appendChild(n2Verdict);
+
+      const n2ConfLabel = Utils.createSvgElement('text', {
+        x: n2X, y: n2Y + n2R * 0.25 + 14, 'text-anchor': 'middle',
+        fill: 'rgba(255,255,255,0.3)', 'font-family': "'JetBrains Mono', monospace", 'font-size': '9',
+      });
+      n2ConfLabel.textContent = network.neuron2.label || 'Final Decision';
+      this.svg.appendChild(n2ConfLabel);
+
+    } else {
+      // --- SINGLE NEURON MODE ---
+      // --- Percentage text ---
+      const pctText = Utils.createSvgElement('text', {
+        x: centerX, y: centerY - 6, 'text-anchor': 'middle', fill: 'white',
+        'font-family': "'JetBrains Mono', monospace",
+        'font-size': Math.max(28, orbR * 0.4), 'font-weight': '700',
+        opacity: '0.95',
+      });
+      pctText.textContent = (output * 100).toFixed(0) + '%';
+      this.svg.appendChild(pctText);
+
+      // Verdict label
+      const verdict = isYes ? network.yesLabel : network.noLabel;
+      const verdictText = Utils.createSvgElement('text', {
+        x: centerX, y: centerY + orbR * 0.28, 'text-anchor': 'middle',
+        fill: centralColor, 'font-family': "'Space Grotesk', sans-serif",
+        'font-size': Math.max(13, orbR * 0.17), 'font-weight': '600',
+        opacity: '0.85',
+      });
+      verdictText.textContent = verdict;
+      this.svg.appendChild(verdictText);
+
+      // "confidence" sub-label
+      const confLabel = Utils.createSvgElement('text', {
+        x: centerX, y: centerY + orbR * 0.28 + 16, 'text-anchor': 'middle',
+        fill: 'rgba(255,255,255,0.35)', 'font-family': "'JetBrains Mono', monospace",
+        'font-size': '10',
+      });
+      confLabel.textContent = 'confidence';
+      this.svg.appendChild(confLabel);
+    }
 
     // --- Update particle streams ---
     const svgRect = this.svg.getBoundingClientRect();
