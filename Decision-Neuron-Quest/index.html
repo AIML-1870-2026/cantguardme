@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Decision Neuron Quest</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Ambient background particles -->
+  <canvas id="bg-particles"></canvas>
+
+  <!-- Top Bar -->
+  <header id="top-bar">
+    <div class="logo">
+      <span class="logo-icon">&#9889;</span>
+      <h1>Decision Neuron Quest</h1>
+    </div>
+    <div class="mode-toggle">
+      <button id="decide-tab" class="mode-btn active" data-mode="decide">
+        <span class="mode-icon">&#9881;</span> Decide
+      </button>
+      <button id="learn-tab" class="mode-btn" data-mode="learn">
+        <span class="mode-icon">&#9733;</span> Learn
+      </button>
+      <div class="mode-slider"></div>
+    </div>
+    <div class="settings-area">
+      <button id="audio-toggle-btn" class="icon-btn audio-on" title="Toggle Sound">
+        <svg id="audio-icon-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07"/>
+        </svg>
+        <svg id="audio-icon-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ============ DECIDE MODE ============ -->
+  <main id="decide-mode" class="mode-container active">
+    <!-- Visualization Panel -->
+    <div id="viz-panel" class="panel">
+      <!-- Network Title -->
+      <div id="network-title" class="network-title">
+        <span id="network-emoji" class="network-emoji"></span>
+        <span id="network-title-text"></span>
+      </div>
+
+      <!-- Main SVG Network -->
+      <div id="network-container">
+        <svg id="network-svg" width="100%" height="100%"></svg>
+        <!-- Placeholder when no network -->
+        <div id="network-placeholder">
+          <div class="placeholder-neuron"></div>
+          <p>Describe a decision in the chat to begin...</p>
+        </div>
+      </div>
+
+      <!-- Factor Sliders Panel -->
+      <div id="factor-sliders" class="factor-sliders-panel" style="display:none;"></div>
+    </div>
+
+    <!-- Chat Panel -->
+    <div id="chat-panel" class="panel glass-panel">
+      <div class="chat-header">
+        <div class="chat-avatar" id="chat-avatar">
+          <div class="neuron-icon"></div>
+        </div>
+        <span class="chat-title">Neural Assistant</span>
+      </div>
+
+      <!-- Quick Start Presets -->
+      <div id="quick-starts">
+        <div class="quick-start-label">Quick Start</div>
+        <div class="quick-start-grid">
+          <button class="quick-btn" data-preset="college">&#127891; College</button>
+          <button class="quick-btn" data-preset="pet">&#128021; Adopt Pet</button>
+          <button class="quick-btn" data-preset="roadtrip">&#128663; Road Trip</button>
+          <button class="quick-btn" data-preset="tech">&#128187; Tech Upgrade</button>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <div id="chat-messages">
+        <div class="message bot-message">
+          <div class="message-avatar"><div class="neuron-icon small"></div></div>
+          <div class="message-content">
+            <p>Hey! I'm your Decision Neuron. Tell me about a decision you're facing, and I'll help you model it as a neural network.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Thinking Indicator -->
+      <div id="thinking-indicator" class="thinking" style="display:none;">
+        <div class="neural-wave">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <span class="thinking-text">Processing...</span>
+      </div>
+
+      <!-- Input Area -->
+      <div id="chat-input-area">
+        <textarea id="chat-input" placeholder="Describe your decision..." rows="1"></textarea>
+        <button id="send-btn" title="Send">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- ============ LEARN MODE ============ -->
+  <main id="learn-mode" class="mode-container">
+    <div id="learn-container">
+      <div id="learn-top-row">
+        <div id="learn-canvas-area">
+          <div class="learn-section-label">Data Space <span class="learn-hint">(click to place points)</span></div>
+          <canvas id="learn-canvas" width="600" height="600"></canvas>
+          <div id="learn-axes-labels">
+            <span class="axis-label x-label">Input X&#8321;</span>
+            <span class="axis-label y-label">Input X&#8322;</span>
+          </div>
+        </div>
+        <div id="learn-network-area" class="glass-panel">
+          <div class="learn-section-label">Live Neuron</div>
+          <svg id="learn-network-svg" width="100%" height="100%"></svg>
+          <canvas id="learn-sigmoid-inset" width="140" height="90"></canvas>
+          <div id="learn-output-badge">
+            <span id="learn-output-text">?</span>
+            <span id="learn-output-pct"></span>
+          </div>
+          <div id="learn-math" class="math-display"></div>
+        </div>
+      </div>
+      <div id="learn-controls" class="glass-panel">
+        <div class="control-group">
+          <label class="control-label">Label</label>
+          <div class="label-toggle">
+            <button id="label-yes" class="label-btn active" data-label="1">Yes</button>
+            <button id="label-no" class="label-btn" data-label="0">No</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <label class="control-label">Train</label>
+          <div class="action-buttons">
+            <button id="step-btn" class="action-btn">Step</button>
+            <button id="train-btn" class="action-btn primary">Auto</button>
+            <button id="reset-btn" class="action-btn danger">Reset</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <label class="control-label">Speed</label>
+          <input type="range" id="speed-slider" min="1" max="100" value="50" class="sci-slider">
+        </div>
+        <div class="control-group">
+          <label class="control-label">LR: <span id="lr-display" class="slider-value">0.10</span></label>
+          <input type="range" id="lr-slider" min="1" max="100" value="10" class="sci-slider">
+        </div>
+        <div class="control-group">
+          <label class="control-label">Presets</label>
+          <div class="preset-buttons">
+            <button class="preset-btn" data-preset="linear">Linear</button>
+            <button class="preset-btn" data-preset="clustered">Cluster</button>
+            <button class="preset-btn" data-preset="noisy">Noisy</button>
+          </div>
+        </div>
+        <div class="control-group stats-group">
+          <label class="control-label">Stats</label>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <span class="stat-label">W&#8321;</span>
+              <span id="stat-w1" class="stat-value">0.00</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">W&#8322;</span>
+              <span id="stat-w2" class="stat-value">0.00</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Bias</span>
+              <span id="stat-bias" class="stat-value">0.00</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Step</span>
+              <span id="stat-step" class="stat-value">0</span>
+            </div>
+            <div class="stat-item full-width">
+              <span class="stat-label">Accuracy</span>
+              <span id="stat-accuracy" class="stat-value">--</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ============ Energy Pulse Overlay ============ -->
+  <canvas id="pulse-canvas"></canvas>
+
+  <!-- Scripts -->
+  <script src="audio.js"></script>
+  <script src="utils.js"></script>
+  <script src="network-viz.js"></script>
+  <script src="decision-boundary.js"></script>
+  <script src="learn-mode.js"></script>
+  <script src="chat.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

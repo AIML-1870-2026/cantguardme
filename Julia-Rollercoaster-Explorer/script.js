@@ -1,0 +1,2058 @@
+'use strict';
+
+// ===== CONSTANTS =====
+const PRESETS = [
+  { name: 'Dendrite', re: 0, im: 1 },
+  { name: 'Spiral', re: -0.75, im: 0.11 },
+  { name: 'Douady Rabbit', re: -0.123, im: 0.745 },
+  { name: 'San Marco', re: -0.75, im: 0 },
+  { name: 'Dragons', re: -0.8, im: 0.156 },
+  { name: 'Siegel Disk', re: -0.391, im: -0.587 },
+  { name: 'Airplane', re: -0.75, im: 0.2 },
+  { name: 'Cauliflower', re: 0.25, im: 0 }
+];
+
+const GRADIENT_PRESETS = [
+  { name: 'Classic', stops: [[0,'#000764'],[0.16,'#206bcb'],[0.42,'#edffff'],[0.6425,'#ffaa00'],[0.8575,'#000200'],[1,'#000764']] },
+  { name: 'Fire', stops: [[0,'#000000'],[0.25,'#8b0000'],[0.5,'#ff4500'],[0.75,'#ffa500'],[1,'#ffff00']] },
+  { name: 'Ocean', stops: [[0,'#000033'],[0.3,'#003366'],[0.6,'#0099cc'],[0.8,'#66ccff'],[1,'#ffffff']] },
+  { name: 'Psychedelic', stops: [[0,'#ff0000'],[0.17,'#ff8800'],[0.33,'#ffff00'],[0.5,'#00ff00'],[0.67,'#0088ff'],[0.83,'#8800ff'],[1,'#ff0000']] },
+  { name: 'Mono', stops: [[0,'#000000'],[1,'#ffffff']] },
+  { name: 'Neon', stops: [[0,'#ff00ff'],[0.25,'#00ffff'],[0.5,'#ff00ff'],[0.75,'#ffff00'],[1,'#ff00ff']] },
+  { name: 'Earth', stops: [[0,'#1a0f00'],[0.25,'#4a3728'],[0.5,'#6b8e23'],[0.75,'#8fbc8f'],[1,'#f5f5dc']] },
+  { name: 'Frost', stops: [[0,'#0a001a'],[0.3,'#1a0066'],[0.5,'#6666ff'],[0.7,'#aaddff'],[1,'#ffffff']] }
+];
+
+// ===== UTILITY FUNCTIONS =====
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16)/255;
+  const g = parseInt(hex.slice(3,5),16)/255;
+  const b = parseInt(hex.slice(5,7),16)/255;
+  return [r,g,b];
+}
+function sampleGradient(stops, t) {
+  t = clamp(t, 0, 1);
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (t >= stops[i][0] && t <= stops[i+1][0]) {
+      const lt = (t - stops[i][0]) / (stops[i+1][0] - stops[i][0]);
+      const c1 = hexToRgb(stops[i][1]);
+      const c2 = hexToRgb(stops[i+1][1]);
+      return [lerp(c1[0],c2[0],lt), lerp(c1[1],c2[1],lt), lerp(c1[2],c2[2],lt)];
+    }
+  }
+  const last = hexToRgb(stops[stops.length-1][1]);
+  return last;
+}
+
+// ===== JULIA SET RENDERER (WebGL) =====
+class JuliaRenderer {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.gl = canvas.getContext('webgl', { preserveDrawingBuffer: true }) || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+    if (!this.gl) { alert('WebGL not supported'); return; }
+    this.cReal = -0.75; this.cImag = 0.11;
+    this.maxIter = 256;
+    this.centerX = 0; this.centerY = 0; this.zoom = 1;
+    this.colorMode = 2; // 0=linear,1=log,2=smooth
+    this.gradientStops = GRADIENT_PRESETS[0].stops;
+    this.reversed = false;
+    this.initGL();
+    this.createGradientTexture();
+  }
+
+  initGL() {
+    const gl = this.gl;
+    const vs = `attribute vec2 a_pos; void main(){gl_Position=vec4(a_pos,0,1);}`;
+    const fs = `
+    precision highp float;
+    uniform vec2 u_c, u_res, u_center;
+    uniform float u_zoom, u_maxIter;
+    uniform int u_colorMode;
+    uniform sampler2D u_gradient;
+    void main(){
+      vec2 uv=(gl_FragCoord.xy/u_res-0.5)*2.0;
+      uv.x*=u_res.x/u_res.y;
+      vec2 z=uv/u_zoom+u_center;
+      float i=0.0;
+      for(int n=0;n<500;n++){
+        if(float(n)>=u_maxIter)break;
+        float x2=z.x*z.x, y2=z.y*z.y;
+        if(x2+y2>256.0){
+          // smooth coloring
+          float log_zn=log(x2+y2)*0.5;
+          float nu=log(log_zn/log(2.0))/log(2.0);
+          i=float(n)+1.0-nu;
+          float t;
+          if(u_colorMode==0) t=i/u_maxIter;
+          else if(u_colorMode==1) t=log(i+1.0)/log(u_maxIter+1.0);
+          else t=i/u_maxIter;
+          t=clamp(t,0.0,1.0);
+          gl_FragColor=texture2D(u_gradient,vec2(t,0.5));
+          return;
+        }
+        z=vec2(x2-y2+u_c.x, 2.0*z.x*z.y+u_c.y);
+        i+=1.0;
+      }
+      gl_FragColor=vec4(0,0,0,1);
+    }`;
+
+    function compile(src, type) {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s));
+      return s;
+    }
+    this.prog = gl.createProgram();
+    gl.attachShader(this.prog, compile(vs, gl.VERTEX_SHADER));
+    gl.attachShader(this.prog, compile(fs, gl.FRAGMENT_SHADER));
+    gl.linkProgram(this.prog);
+    gl.useProgram(this.prog);
+
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(this.prog, 'a_pos');
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+    this.u = {};
+    ['u_c','u_res','u_center','u_zoom','u_maxIter','u_colorMode','u_gradient'].forEach(n => {
+      this.u[n] = gl.getUniformLocation(this.prog, n);
+    });
+  }
+
+  createGradientTexture() {
+    const gl = this.gl;
+    this.gradTex = gl.createTexture();
+    this.updateGradientTexture();
+  }
+
+  updateGradientTexture() {
+    const gl = this.gl;
+    const data = new Uint8Array(256 * 4);
+    const stops = this.reversed ? this.gradientStops.map(s => [1-s[0], s[1]]).reverse() : this.gradientStops;
+    for (let i = 0; i < 256; i++) {
+      const t = i / 255;
+      const [r,g,b] = sampleGradient(stops, t);
+      data[i*4] = r*255; data[i*4+1] = g*255; data[i*4+2] = b*255; data[i*4+3] = 255;
+    }
+    gl.bindTexture(gl.TEXTURE_2D, this.gradTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  }
+
+  resize() {
+    const r = this.canvas.parentElement.getBoundingClientRect();
+    const h = r.height - 36; // subtract status bar
+    this.canvas.width = r.width * devicePixelRatio;
+    this.canvas.height = h * devicePixelRatio;
+    this.canvas.style.height = h + 'px';
+    this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+  }
+
+  render() {
+    const gl = this.gl;
+    gl.useProgram(this.prog);
+    gl.uniform2f(this.u.u_c, this.cReal, this.cImag);
+    gl.uniform2f(this.u.u_res, this.canvas.width, this.canvas.height);
+    gl.uniform2f(this.u.u_center, this.centerX, this.centerY);
+    gl.uniform1f(this.u.u_zoom, this.zoom);
+    gl.uniform1f(this.u.u_maxIter, this.maxIter);
+    gl.uniform1i(this.u.u_colorMode, this.colorMode);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.gradTex);
+    gl.uniform1i(this.u.u_gradient, 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  }
+
+  renderToCanvas(width, height) {
+    const offscreen = document.createElement('canvas');
+    offscreen.width = width; offscreen.height = height;
+    const gl = offscreen.getContext('webgl', {preserveDrawingBuffer:true});
+    if (!gl) return null;
+
+    // Recreate shader program on offscreen context
+    const vs = `attribute vec2 a_pos; void main(){gl_Position=vec4(a_pos,0,1);}`;
+    const fs = `
+    precision highp float;
+    uniform vec2 u_c, u_res, u_center;
+    uniform float u_zoom, u_maxIter;
+    uniform int u_colorMode;
+    uniform sampler2D u_gradient;
+    void main(){
+      vec2 uv=(gl_FragCoord.xy/u_res-0.5)*2.0;
+      uv.x*=u_res.x/u_res.y;
+      vec2 z=uv/u_zoom+u_center;
+      float i=0.0;
+      for(int n=0;n<500;n++){
+        if(float(n)>=u_maxIter)break;
+        float x2=z.x*z.x, y2=z.y*z.y;
+        if(x2+y2>256.0){
+          float log_zn=log(x2+y2)*0.5;
+          float nu=log(log_zn/log(2.0))/log(2.0);
+          i=float(n)+1.0-nu;
+          float t;
+          if(u_colorMode==0) t=i/u_maxIter;
+          else if(u_colorMode==1) t=log(i+1.0)/log(u_maxIter+1.0);
+          else t=i/u_maxIter;
+          t=clamp(t,0.0,1.0);
+          gl_FragColor=texture2D(u_gradient,vec2(t,0.5));
+          return;
+        }
+        z=vec2(x2-y2+u_c.x, 2.0*z.x*z.y+u_c.y);
+        i+=1.0;
+      }
+      gl_FragColor=vec4(0,0,0,1);
+    }`;
+
+    function compile(src, type) {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      return s;
+    }
+    const prog = gl.createProgram();
+    gl.attachShader(prog, compile(vs, gl.VERTEX_SHADER));
+    gl.attachShader(prog, compile(fs, gl.FRAGMENT_SHADER));
+    gl.linkProgram(prog);
+    gl.useProgram(prog);
+
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, 'a_pos');
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+    const gradTex = gl.createTexture();
+    const data = new Uint8Array(256 * 4);
+    const stops = this.reversed ? this.gradientStops.map(s => [1-s[0], s[1]]).reverse() : this.gradientStops;
+    for (let i = 0; i < 256; i++) {
+      const t = i / 255;
+      const [r,g,b] = sampleGradient(stops, t);
+      data[i*4] = r*255; data[i*4+1] = g*255; data[i*4+2] = b*255; data[i*4+3] = 255;
+    }
+    gl.bindTexture(gl.TEXTURE_2D, gradTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    gl.viewport(0, 0, width, height);
+    gl.uniform2f(gl.getUniformLocation(prog,'u_c'), this.cReal, this.cImag);
+    gl.uniform2f(gl.getUniformLocation(prog,'u_res'), width, height);
+    gl.uniform2f(gl.getUniformLocation(prog,'u_center'), this.centerX, this.centerY);
+    gl.uniform1f(gl.getUniformLocation(prog,'u_zoom'), this.zoom);
+    gl.uniform1f(gl.getUniformLocation(prog,'u_maxIter'), this.maxIter);
+    gl.uniform1i(gl.getUniformLocation(prog,'u_colorMode'), this.colorMode);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, gradTex);
+    gl.uniform1i(gl.getUniformLocation(prog,'u_gradient'), 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+    return offscreen;
+  }
+
+  screenToComplex(sx, sy) {
+    const rect = this.canvas.getBoundingClientRect();
+    const nx = (sx - rect.left) / rect.width;
+    const ny = 1 - (sy - rect.top) / rect.height;
+    const aspect = this.canvas.width / this.canvas.height;
+    const x = (nx - 0.5) * 2 * aspect / this.zoom + this.centerX;
+    const y = (ny - 0.5) * 2 / this.zoom + this.centerY;
+    return { x, y };
+  }
+}
+
+// ===== COLOR GRADIENT MANAGER =====
+class GradientManager {
+  constructor(renderer) {
+    this.renderer = renderer;
+    this.currentPreset = 0;
+    this.setupUI();
+  }
+  setupUI() {
+    const container = document.getElementById('gradient-presets');
+    GRADIENT_PRESETS.forEach((preset, i) => {
+      const div = document.createElement('div');
+      div.className = 'grad-preset' + (i === 0 ? ' active' : '');
+      div.title = preset.name;
+      div.style.background = `linear-gradient(90deg, ${preset.stops.map(s => s[1] + ' ' + (s[0]*100)+'%').join(',')})`;
+      div.onclick = () => {
+        container.querySelectorAll('.grad-preset').forEach(d => d.classList.remove('active'));
+        div.classList.add('active');
+        this.currentPreset = i;
+        this.renderer.gradientStops = preset.stops;
+        this.renderer.updateGradientTexture();
+        this.renderer.render();
+        this.updateBar();
+      };
+      container.appendChild(div);
+    });
+    this.updateBar();
+
+    // Mapping buttons
+    const mappings = ['Linear', 'Logarithmic', 'Smooth'];
+    const mbContainer = document.getElementById('mapping-btns');
+    mappings.forEach((name, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'map-btn' + (i === 2 ? ' active' : '');
+      btn.textContent = name;
+      btn.onclick = () => {
+        mbContainer.querySelectorAll('.map-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.renderer.colorMode = i;
+        this.renderer.render();
+      };
+      mbContainer.appendChild(btn);
+    });
+  }
+  updateBar() {
+    const bar = document.getElementById('gradient-bar');
+    const stops = this.renderer.reversed
+      ? this.renderer.gradientStops.map(s => [1-s[0], s[1]]).reverse()
+      : this.renderer.gradientStops;
+    bar.style.background = `linear-gradient(90deg, ${stops.map(s => s[1]+' '+(s[0]*100)+'%').join(',')})`;
+  }
+}
+
+// ===== PARAMETER MORPHING =====
+class ParameterMorph {
+  constructor(renderer, updateUI) {
+    this.renderer = renderer;
+    this.updateUI = updateUI;
+    this.playing = false;
+    this.t = 0;
+    this.speed = 3;
+    this.path = 'circle';
+    this.animId = null;
+
+    document.getElementById('anim-play').onclick = () => this.play();
+    document.getElementById('anim-pause').onclick = () => this.pause();
+    document.getElementById('anim-reset').onclick = () => this.reset();
+    document.getElementById('anim-path').onchange = e => this.path = e.target.value;
+    document.getElementById('anim-speed').oninput = e => {
+      this.speed = parseFloat(e.target.value);
+      document.getElementById('anim-speed-label').textContent = this.speed;
+    };
+  }
+  getC(t) {
+    switch (this.path) {
+      case 'circle': return { re: 0.7885 * Math.cos(t * Math.PI * 2), im: 0.7885 * Math.sin(t * Math.PI * 2) };
+      case 'spiral': {
+        const r = 0.3 + 0.5 * t;
+        return { re: r * Math.cos(t * Math.PI * 6), im: r * Math.sin(t * Math.PI * 6) };
+      }
+      case 'linear': return { re: lerp(-1.5, 0.5, t), im: lerp(-0.5, 0.5, Math.sin(t * Math.PI * 4) * 0.5 + 0.5) };
+      case 'figure8': return { re: 0.7 * Math.sin(t * Math.PI * 2), im: 0.7 * Math.sin(t * Math.PI * 4) * 0.5 };
+      default: return { re: 0, im: 0 };
+    }
+  }
+  play() {
+    if (this.playing) return;
+    this.playing = true;
+    document.getElementById('anim-play').classList.add('playing');
+    const step = () => {
+      if (!this.playing) return;
+      this.t += this.speed * 0.0005;
+      if (this.t > 1) this.t -= 1;
+      const c = this.getC(this.t);
+      this.renderer.cReal = c.re;
+      this.renderer.cImag = c.im;
+      this.renderer.render();
+      this.updateUI();
+      this.animId = requestAnimationFrame(step);
+    };
+    step();
+  }
+  pause() {
+    this.playing = false;
+    document.getElementById('anim-play').classList.remove('playing');
+    if (this.animId) cancelAnimationFrame(this.animId);
+  }
+  reset() {
+    this.pause();
+    this.t = 0;
+  }
+}
+
+// ===== EDUCATION MODE =====
+class EducationMode {
+  constructor(renderer) {
+    this.renderer = renderer;
+    this.enabled = false;
+    this.iterPath = [];
+    this.currentStep = 0;
+    this.z0 = { x: 0, y: 0 };
+    this.playing = false;
+    this.playId = null;
+    this.overlayCanvas = null;
+
+    document.getElementById('edu-toggle').onchange = e => {
+      this.enabled = e.target.checked;
+      document.getElementById('edu-overlay').classList.toggle('visible', this.enabled);
+      if (!this.enabled) this.clearOverlay();
+    };
+    document.getElementById('edu-step').onclick = () => this.step();
+    document.getElementById('edu-play').onclick = () => this.togglePlay();
+    document.getElementById('edu-reset').onclick = () => this.resetVis();
+  }
+
+  onClick(sx, sy) {
+    if (!this.enabled) return;
+    const p = this.renderer.screenToComplex(sx, sy);
+    this.z0 = p;
+    this.computePath();
+    this.currentStep = 0;
+    this.drawPath();
+    this.updateInfo();
+  }
+
+  computePath() {
+    this.iterPath = [];
+    let zx = this.z0.x, zy = this.z0.y;
+    this.iterPath.push({ x: zx, y: zy, mag: Math.sqrt(zx*zx+zy*zy) });
+    for (let i = 0; i < this.renderer.maxIter; i++) {
+      const x2 = zx*zx - zy*zy + this.renderer.cReal;
+      const y2 = 2*zx*zy + this.renderer.cImag;
+      zx = x2; zy = y2;
+      const mag = Math.sqrt(zx*zx+zy*zy);
+      this.iterPath.push({ x: zx, y: zy, mag });
+      if (mag > 256) break;
+    }
+  }
+
+  step() {
+    if (this.currentStep < this.iterPath.length - 1) {
+      this.currentStep++;
+      this.drawPath();
+      this.updateInfo();
+    }
+  }
+
+  togglePlay() {
+    this.playing = !this.playing;
+    document.getElementById('edu-play').textContent = this.playing ? 'Pause' : 'Play';
+    if (this.playing) this.autoStep();
+    else if (this.playId) clearTimeout(this.playId);
+  }
+
+  autoStep() {
+    if (!this.playing || this.currentStep >= this.iterPath.length - 1) {
+      this.playing = false;
+      document.getElementById('edu-play').textContent = 'Play';
+      return;
+    }
+    this.step();
+    this.playId = setTimeout(() => this.autoStep(), 100);
+  }
+
+  resetVis() {
+    this.currentStep = 0;
+    this.playing = false;
+    document.getElementById('edu-play').textContent = 'Play';
+    this.drawPath();
+    this.updateInfo();
+  }
+
+  updateInfo() {
+    const p = this.iterPath[this.currentStep];
+    if (!p) return;
+    document.getElementById('edu-z').textContent = `${p.x.toFixed(4)} + ${p.y.toFixed(4)}i`;
+    document.getElementById('edu-mag').textContent = p.mag.toFixed(4);
+    document.getElementById('edu-iter').textContent = this.currentStep;
+    const escaped = p.mag > 2;
+    const inSet = this.currentStep === this.iterPath.length - 1 && !escaped;
+    document.getElementById('edu-status').textContent = escaped ? 'Escaped' : inSet ? 'In Set' : 'Bounded';
+    document.getElementById('edu-formula').textContent = `z${this.currentStep} = (${p.x.toFixed(3)})² + (${this.renderer.cReal.toFixed(3)} + ${this.renderer.cImag.toFixed(3)}i)`;
+  }
+
+  drawPath() {
+    if (!this.overlayCanvas) {
+      this.overlayCanvas = document.createElement('canvas');
+      this.overlayCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5';
+      document.getElementById('canvas-area').appendChild(this.overlayCanvas);
+    }
+    const c = this.overlayCanvas;
+    const rect = this.renderer.canvas.getBoundingClientRect();
+    c.width = rect.width * devicePixelRatio;
+    c.height = rect.height * devicePixelRatio;
+    c.style.height = rect.height + 'px';
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, c.width, c.height);
+
+    const toScreen = (px, py) => {
+      const aspect = c.width / c.height;
+      const sx = ((px - this.renderer.centerX) * this.renderer.zoom / (2 * aspect) + 0.5) * c.width;
+      const sy = (0.5 - (py - this.renderer.centerY) * this.renderer.zoom / 2) * c.height;
+      return { x: sx, y: sy };
+    };
+
+    // Draw path up to currentStep
+    for (let i = 0; i <= this.currentStep && i < this.iterPath.length - 1; i++) {
+      const p1 = toScreen(this.iterPath[i].x, this.iterPath[i].y);
+      const p2 = toScreen(this.iterPath[i+1].x, this.iterPath[i+1].y);
+      const hue = (i / this.iterPath.length) * 360;
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.strokeStyle = `hsl(${hue},100%,60%)`;
+      ctx.lineWidth = 2 * devicePixelRatio;
+      ctx.stroke();
+
+      // Draw point
+      ctx.beginPath();
+      ctx.arc(p1.x, p1.y, 3 * devicePixelRatio, 0, Math.PI * 2);
+      ctx.fillStyle = `hsl(${hue},100%,70%)`;
+      ctx.fill();
+    }
+    // Current point
+    if (this.currentStep < this.iterPath.length) {
+      const p = toScreen(this.iterPath[this.currentStep].x, this.iterPath[this.currentStep].y);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 5 * devicePixelRatio, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.strokeStyle = '#e94560';
+      ctx.lineWidth = 2 * devicePixelRatio;
+      ctx.stroke();
+    }
+  }
+
+  clearOverlay() {
+    if (this.overlayCanvas) {
+      const ctx = this.overlayCanvas.getContext('2d');
+      ctx.clearRect(0, 0, this.overlayCanvas.width, this.overlayCanvas.height);
+    }
+  }
+}
+
+// ===== TRACK BUILDER =====
+class TrackBuilder {
+  constructor(renderer) {
+    this.renderer = renderer;
+    this.trackPoints2D = [];
+    this.trackPoints3D = [];
+    this.hasTrack = false;
+    this.previewScene = null;
+    this.previewRenderer = null;
+    this.previewCamera = null;
+    this.previewAnimId = null;
+    this.curve = null;
+    this.trackLength = 0;
+
+    this.initPreview();
+  }
+
+  initPreview() {
+    const container = document.getElementById('preview-3d');
+    const w = container.clientWidth || 260;
+    const h = container.clientHeight || 180;
+
+    this.previewRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    this.previewRenderer.setSize(w, h);
+    this.previewRenderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    container.appendChild(this.previewRenderer.domElement);
+
+    this.previewScene = new THREE.Scene();
+    this.previewScene.fog = new THREE.FogExp2(0x0a0a1a, 0.015);
+    this.previewCamera = new THREE.PerspectiveCamera(50, w/h, 0.1, 1000);
+    this.previewCamera.position.set(0, 30, 50);
+    this.previewCamera.lookAt(0, 0, 0);
+
+    this.previewScene.add(new THREE.AmbientLight(0x404060));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(10, 20, 10);
+    this.previewScene.add(dirLight);
+
+    // Ground
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(400, 400),
+      new THREE.MeshLambertMaterial({ color: 0x111128 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = 0;
+    this.previewScene.add(ground);
+
+    // Grid
+    const grid = new THREE.GridHelper(300, 30, 0x2a2a4a, 0x1a1a3a);
+    grid.position.y = 0.1;
+    this.previewScene.add(grid);
+
+    this.animatePreview();
+  }
+
+  animatePreview() {
+    const animate = () => {
+      this.previewAnimId = requestAnimationFrame(animate);
+      const time = Date.now() * 0.0003;
+      this.previewCamera.position.x = Math.cos(time) * 180;
+      this.previewCamera.position.z = Math.sin(time) * 180;
+      this.previewCamera.position.y = 80;
+      this.previewCamera.lookAt(0, 15, 0);
+      this.previewRenderer.render(this.previewScene, this.previewCamera);
+    };
+    animate();
+  }
+
+  extractBoundary() {
+    const res = 200;
+    const grid = new Array(res * res);
+    const cR = this.renderer.cReal;
+    const cI = this.renderer.cImag;
+    const maxIter = Math.min(this.renderer.maxIter, 100);
+
+    for (let gy = 0; gy < res; gy++) {
+      for (let gx = 0; gx < res; gx++) {
+        const x0 = (gx / res - 0.5) * 4;
+        const y0 = (gy / res - 0.5) * 4;
+        let zx = x0, zy = y0;
+        let iter = 0;
+        for (let i = 0; i < maxIter; i++) {
+          const x2 = zx*zx - zy*zy + cR;
+          const y2 = 2*zx*zy + cI;
+          zx = x2; zy = y2;
+          if (zx*zx + zy*zy > 4) break;
+          iter++;
+        }
+        grid[gy * res + gx] = iter >= maxIter ? 1 : 0;
+      }
+    }
+
+    const boundaryPoints = [];
+    for (let gy = 1; gy < res - 1; gy++) {
+      for (let gx = 1; gx < res - 1; gx++) {
+        const v = grid[gy * res + gx];
+        const neighbors = [
+          grid[(gy-1)*res+gx], grid[(gy+1)*res+gx],
+          grid[gy*res+gx-1], grid[gy*res+gx+1]
+        ];
+        if (neighbors.some(n => n !== v)) {
+          boundaryPoints.push({
+            x: (gx / res - 0.5) * 4,
+            y: (gy / res - 0.5) * 4
+          });
+        }
+      }
+    }
+
+    if (boundaryPoints.length < 10) return null;
+
+    // Order by nearest-neighbor
+    const ordered = [boundaryPoints.shift()];
+    while (boundaryPoints.length > 0 && ordered.length < 800) {
+      const last = ordered[ordered.length - 1];
+      let bestIdx = -1, bestDist = Infinity;
+      for (let i = 0; i < boundaryPoints.length; i++) {
+        const dx = boundaryPoints[i].x - last.x;
+        const dy = boundaryPoints[i].y - last.y;
+        const d = dx*dx + dy*dy;
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      }
+      if (bestDist > 0.15) break;
+      ordered.push(boundaryPoints.splice(bestIdx, 1)[0]);
+    }
+
+    if (ordered.length < 20) return null;
+
+    // Heavy smoothing: 6 passes of Chaikin to kill fractal noise
+    let smoothed = ordered;
+    for (let pass = 0; pass < 6; pass++) {
+      const next = [];
+      for (let i = 0; i < smoothed.length - 1; i++) {
+        const p1 = smoothed[i], p2 = smoothed[i+1];
+        next.push({ x: p1.x * 0.75 + p2.x * 0.25, y: p1.y * 0.75 + p2.y * 0.25 });
+        next.push({ x: p1.x * 0.25 + p2.x * 0.75, y: p1.y * 0.25 + p2.y * 0.75 });
+      }
+      smoothed = next;
+    }
+
+    // Resample by arc-length to get evenly spaced points
+    // First compute cumulative arc-length
+    const arcLen = [0];
+    for (let i = 1; i < smoothed.length; i++) {
+      const dx = smoothed[i].x - smoothed[i-1].x;
+      const dy = smoothed[i].y - smoothed[i-1].y;
+      arcLen.push(arcLen[i-1] + Math.sqrt(dx*dx + dy*dy));
+    }
+    const totalLen = arcLen[arcLen.length - 1];
+    if (totalLen < 0.5) return null;
+
+    // Sample 80 evenly-spaced points along the arc
+    const numPts = 80;
+    const result = [];
+    let si = 0;
+    for (let i = 0; i < numPts; i++) {
+      const targetDist = (i / numPts) * totalLen;
+      while (si < arcLen.length - 2 && arcLen[si+1] < targetDist) si++;
+      const segLen = arcLen[si+1] - arcLen[si];
+      const frac = segLen > 0 ? (targetDist - arcLen[si]) / segLen : 0;
+      result.push({
+        x: smoothed[si].x + (smoothed[si+1].x - smoothed[si].x) * frac,
+        y: smoothed[si].y + (smoothed[si+1].y - smoothed[si].y) * frac
+      });
+    }
+
+    return result;
+  }
+
+  buildTrack() {
+    const points2D = this.extractBoundary();
+    if (!points2D || points2D.length < 15) {
+      alert('Could not extract a viable track from this Julia set. Try a different c parameter.');
+      return false;
+    }
+
+    this.trackPoints2D = points2D;
+
+    // Normalize 2D path to fill a large area and center it
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const p of points2D) {
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    }
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    const span = Math.max(maxX - minX, maxY - minY, 0.5);
+    const SCALE = 120; // spread the track across 240 units
+
+    // Build roller coaster height profile
+    const n = points2D.length;
+    this.trackPoints3D = points2D.map((p, i) => {
+      const t = i / n;
+      // Normalize x,z to [-SCALE, SCALE]
+      const nx = ((p.x - cx) / span) * SCALE;
+      const nz = ((p.y - cy) / span) * SCALE;
+
+      // Roller coaster height profile:
+      // 1. Big climb at start (chain lift) up to peak
+      // 2. Steep first drop
+      // 3. Series of hills that gradually get shorter
+      // 4. Banked turn section (elevated)
+      // 5. Final small hills and gentle stop
+      let height;
+      if (t < 0.08) {
+        // Chain lift: climb from 2 to 45
+        height = 2 + (t / 0.08) * 43;
+      } else if (t < 0.15) {
+        // First drop: 45 down to 3
+        const dropT = (t - 0.08) / 0.07;
+        height = 45 - dropT * dropT * 42;  // accelerating drop
+      } else if (t < 0.7) {
+        // Series of hills, each smaller than the last
+        const hillT = (t - 0.15) / 0.55;
+        const hillCount = 4;
+        const envelope = 35 * (1 - hillT * 0.7); // hills shrink
+        height = 3 + Math.abs(Math.sin(hillT * Math.PI * hillCount)) * envelope;
+      } else if (t < 0.85) {
+        // Banked elevated turn
+        const turnT = (t - 0.7) / 0.15;
+        height = 8 + Math.sin(turnT * Math.PI) * 12;
+      } else {
+        // Final descent and braking run
+        const endT = (t - 0.85) / 0.15;
+        height = 8 * (1 - endT) + 2;
+      }
+
+      return new THREE.Vector3(nx, height, nz);
+    });
+
+    // Create curve
+    this.curve = new THREE.CatmullRomCurve3(this.trackPoints3D, false, 'catmullrom', 0.5);
+    this.trackLength = this.curve.getLength();
+
+    this.updatePreview();
+    this.hasTrack = true;
+
+    // Show track info
+    document.getElementById('track-info').style.display = 'block';
+    document.getElementById('track-length').textContent = Math.round(this.trackLength) + 'm';
+    document.getElementById('track-points').textContent = points2D.length;
+    document.getElementById('track-time').textContent = Math.round(this.trackLength / 20) + 's';
+    document.getElementById('ride-btn').style.display = 'block';
+
+    return true;
+  }
+
+  updatePreview() {
+    // Remove old track mesh
+    const old = this.previewScene.getObjectByName('track');
+    if (old) this.previewScene.remove(old);
+    const oldSupp = this.previewScene.getObjectByName('supports');
+    if (oldSupp) this.previewScene.remove(oldSupp);
+
+    if (!this.curve) return;
+
+    // Track tube
+    const tubeGeo = new THREE.TubeGeometry(this.curve, this.trackPoints3D.length * 2, 0.5, 8, false);
+    const tubeMat = new THREE.MeshPhongMaterial({
+      color: 0x6c5ce7,
+      emissive: 0x2a1a6e,
+      specular: 0xffffff,
+      shininess: 80
+    });
+    const tube = new THREE.Mesh(tubeGeo, tubeMat);
+    tube.name = 'track';
+    this.previewScene.add(tube);
+
+    // Rail lines
+    const railGeo = new THREE.TubeGeometry(this.curve, this.trackPoints3D.length * 2, 0.15, 4, false);
+    const railMat = new THREE.MeshPhongMaterial({ color: 0xcccccc, emissive: 0x333333 });
+    const rail1 = new THREE.Mesh(railGeo, railMat);
+    rail1.name = 'track';
+    this.previewScene.add(rail1);
+
+    // Support pillars
+    const supportGroup = new THREE.Group();
+    supportGroup.name = 'supports';
+    const numSupports = 30;
+    for (let i = 0; i < numSupports; i++) {
+      const t = i / numSupports;
+      const pt = this.curve.getPoint(t);
+      const pillarHeight = pt.y;
+      if (pillarHeight > 2) {
+        const pillarGeo = new THREE.CylinderGeometry(0.15, 0.2, pillarHeight, 6);
+        const pillarMat = new THREE.MeshPhongMaterial({ color: 0x444466 });
+        const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+        pillar.position.set(pt.x, pillarHeight / 2, pt.z);
+        supportGroup.add(pillar);
+      }
+    }
+    this.previewScene.add(supportGroup);
+  }
+
+  drawTrackOnCanvas() {
+    if (!this.trackPoints2D.length) return;
+    const canvas = this.renderer.canvas;
+    const rect = canvas.getBoundingClientRect();
+
+    let overlay = document.getElementById('track-overlay');
+    if (!overlay) {
+      overlay = document.createElement('canvas');
+      overlay.id = 'track-overlay';
+      overlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;pointer-events:none;z-index:4';
+      document.getElementById('canvas-area').appendChild(overlay);
+    }
+    overlay.width = rect.width * devicePixelRatio;
+    overlay.height = rect.height * devicePixelRatio;
+    overlay.style.height = rect.height + 'px';
+
+    const ctx = overlay.getContext('2d');
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+    const aspect = overlay.width / overlay.height;
+    const toScreen = (px, py) => ({
+      x: ((px - this.renderer.centerX) * this.renderer.zoom / (2 * aspect) + 0.5) * overlay.width,
+      y: (0.5 - (py - this.renderer.centerY) * this.renderer.zoom / 2) * overlay.height
+    });
+
+    ctx.beginPath();
+    const first = toScreen(this.trackPoints2D[0].x, this.trackPoints2D[0].y);
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i < this.trackPoints2D.length; i++) {
+      const p = toScreen(this.trackPoints2D[i].x, this.trackPoints2D[i].y);
+      ctx.lineTo(p.x, p.y);
+    }
+    ctx.strokeStyle = 'rgba(233,69,96,0.8)';
+    ctx.lineWidth = 3 * devicePixelRatio;
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 1 * devicePixelRatio;
+    ctx.stroke();
+  }
+
+  clearTrack() {
+    this.trackPoints2D = [];
+    this.trackPoints3D = [];
+    this.hasTrack = false;
+    this.curve = null;
+    document.getElementById('track-info').style.display = 'none';
+    document.getElementById('ride-btn').style.display = 'none';
+
+    const overlay = document.getElementById('track-overlay');
+    if (overlay) {
+      const ctx = overlay.getContext('2d');
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+    }
+
+    const old = this.previewScene.getObjectByName('track');
+    if (old) this.previewScene.remove(old);
+    const oldS = this.previewScene.getObjectByName('supports');
+    if (oldS) this.previewScene.remove(oldS);
+  }
+}
+
+// ===== AUDIO SYSTEM =====
+class AudioSystem {
+  constructor() {
+    this.ctx = null;
+    this.masterGain = null;
+    this.musicGain = null;
+    this.sfxGain = null;
+    this.muted = false;
+    this.initialized = false;
+    this.nodes = {};
+  }
+
+  init() {
+    if (this.initialized) return;
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    this.masterGain = this.ctx.createGain();
+    this.masterGain.gain.value = 0.7;
+    this.masterGain.connect(this.ctx.destination);
+
+    this.musicGain = this.ctx.createGain();
+    this.musicGain.gain.value = 0.5;
+    this.musicGain.connect(this.masterGain);
+
+    this.sfxGain = this.ctx.createGain();
+    this.sfxGain.gain.value = 0.7;
+    this.sfxGain.connect(this.masterGain);
+
+    this.initialized = true;
+  }
+
+  setVolume(type, value) {
+    if (!this.initialized) return;
+    const v = value / 100;
+    if (type === 'master') this.masterGain.gain.value = v;
+    else if (type === 'music') this.musicGain.gain.value = v;
+    else if (type === 'sfx') this.sfxGain.gain.value = v;
+  }
+
+  toggleMute() {
+    if (!this.initialized) return;
+    this.muted = !this.muted;
+    this.masterGain.gain.value = this.muted ? 0 : parseFloat(document.getElementById('vol-master').value) / 100;
+    return this.muted;
+  }
+
+  startAmbientMusic() {
+    if (!this.initialized) this.init();
+    if (this.nodes.ambient) return;
+
+    // Create ambient drone
+    const osc1 = this.ctx.createOscillator();
+    osc1.type = 'sine';
+    osc1.frequency.value = 110;
+    const osc2 = this.ctx.createOscillator();
+    osc2.type = 'sine';
+    osc2.frequency.value = 165;
+    const osc3 = this.ctx.createOscillator();
+    osc3.type = 'triangle';
+    osc3.frequency.value = 82.5;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 400;
+    filter.Q.value = 2;
+
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0.15;
+
+    [osc1, osc2, osc3].forEach(o => { o.connect(filter); o.start(); });
+    filter.connect(gain);
+    gain.connect(this.musicGain);
+
+    // LFO for gentle modulation
+    const lfo = this.ctx.createOscillator();
+    lfo.frequency.value = 0.1;
+    const lfoGain = this.ctx.createGain();
+    lfoGain.gain.value = 20;
+    lfo.connect(lfoGain);
+    lfoGain.connect(filter.frequency);
+    lfo.start();
+
+    this.nodes.ambient = { oscs: [osc1, osc2, osc3, lfo], gain, filter };
+  }
+
+  stopAmbientMusic() {
+    if (this.nodes.ambient) {
+      this.nodes.ambient.oscs.forEach(o => { try { o.stop(); } catch(e){} });
+      this.nodes.ambient = null;
+    }
+  }
+
+  startRideAudio() {
+    if (!this.initialized) this.init();
+    this.stopAmbientMusic();
+
+    // Wind noise
+    const bufferSize = this.ctx.sampleRate * 2;
+    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+    const windSource = this.ctx.createBufferSource();
+    windSource.buffer = noiseBuffer;
+    windSource.loop = true;
+    const windFilter = this.ctx.createBiquadFilter();
+    windFilter.type = 'bandpass';
+    windFilter.frequency.value = 500;
+    windFilter.Q.value = 0.5;
+    const windGain = this.ctx.createGain();
+    windGain.gain.value = 0.1;
+    windSource.connect(windFilter);
+    windFilter.connect(windGain);
+    windGain.connect(this.sfxGain);
+    windSource.start();
+
+    // Rolling sound
+    const rollSource = this.ctx.createBufferSource();
+    rollSource.buffer = noiseBuffer;
+    rollSource.loop = true;
+    const rollFilter = this.ctx.createBiquadFilter();
+    rollFilter.type = 'lowpass';
+    rollFilter.frequency.value = 200;
+    const rollGain = this.ctx.createGain();
+    rollGain.gain.value = 0.08;
+    rollSource.connect(rollFilter);
+    rollFilter.connect(rollGain);
+    rollGain.connect(this.sfxGain);
+    rollSource.start();
+
+    // Ride music - energetic bass
+    const bassOsc = this.ctx.createOscillator();
+    bassOsc.type = 'sawtooth';
+    bassOsc.frequency.value = 55;
+    const bassFilter = this.ctx.createBiquadFilter();
+    bassFilter.type = 'lowpass';
+    bassFilter.frequency.value = 150;
+    const bassGain = this.ctx.createGain();
+    bassGain.gain.value = 0.12;
+    bassOsc.connect(bassFilter);
+    bassFilter.connect(bassGain);
+    bassGain.connect(this.musicGain);
+    bassOsc.start();
+
+    // Pad
+    const padOsc1 = this.ctx.createOscillator();
+    padOsc1.type = 'sine';
+    padOsc1.frequency.value = 220;
+    const padOsc2 = this.ctx.createOscillator();
+    padOsc2.type = 'sine';
+    padOsc2.frequency.value = 330;
+    const padGain = this.ctx.createGain();
+    padGain.gain.value = 0.06;
+    padOsc1.connect(padGain);
+    padOsc2.connect(padGain);
+    padGain.connect(this.musicGain);
+    padOsc1.start();
+    padOsc2.start();
+
+    this.nodes.ride = {
+      windSource, windFilter, windGain,
+      rollSource, rollFilter, rollGain,
+      bassOsc, bassFilter, bassGain,
+      padOsc1, padOsc2, padGain
+    };
+  }
+
+  updateRideAudio(speed, boost) {
+    if (!this.nodes.ride) return;
+    const n = this.nodes.ride;
+    const normalizedSpeed = Math.abs(speed) / 60;
+
+    // Wind increases with speed
+    n.windGain.gain.value = 0.05 + normalizedSpeed * 0.25;
+    n.windFilter.frequency.value = 300 + normalizedSpeed * 2000;
+
+    // Rolling sound
+    n.rollGain.gain.value = 0.05 + normalizedSpeed * 0.15;
+    n.rollFilter.frequency.value = 100 + normalizedSpeed * 400;
+
+    // Bass pitch follows speed
+    n.bassOsc.frequency.value = 40 + normalizedSpeed * 40;
+    n.bassGain.gain.value = 0.08 + normalizedSpeed * 0.1;
+  }
+
+  playBoostSound() {
+    if (!this.initialized || !this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = 200;
+    osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.3);
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0.2;
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.5);
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.5);
+  }
+
+  playClickSound() {
+    if (!this.initialized || !this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = 1000;
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0.1;
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.05);
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.05);
+  }
+
+  stopRideAudio() {
+    if (this.nodes.ride) {
+      const n = this.nodes.ride;
+      [n.windSource, n.rollSource, n.bassOsc, n.padOsc1, n.padOsc2].forEach(s => {
+        try { s.stop(); } catch(e) {}
+      });
+      this.nodes.ride = null;
+    }
+  }
+
+  stopAll() {
+    this.stopAmbientMusic();
+    this.stopRideAudio();
+  }
+}
+
+// ===== RIDE ENGINE =====
+class RideEngine {
+  constructor(trackBuilder, audioSystem) {
+    this.trackBuilder = trackBuilder;
+    this.audio = audioSystem;
+    this.active = false;
+    this.scene = null;
+    this.renderer = null;
+    this.camera = null;
+    this.cart = null;
+    this.animId = null;
+
+    // Physics
+    this.t = 0; // position along curve [0,1]
+    this.speed = 0; // units/second
+    this.boost = 100;
+    this.maxBoost = 100;
+    this.boostRegen = 15; // per second
+    this.boostDrain = 40; // per second
+
+    // Camera
+    this.cameraMode = 1; // 0=FPV, 1=overview (default)
+    this.leanAngle = 0;
+    this.smoothCamPos = new THREE.Vector3();
+    this.smoothCamLook = new THREE.Vector3();
+
+    // Orbit camera state (spherical coords around track center)
+    this.orbitTheta = 0.55;   // horizontal angle
+    this.orbitPhi = 0.85;     // vertical angle (0=top, PI=bottom)
+    this.orbitRadius = 100;   // distance from center
+    this.orbitDragging = false;
+    this.orbitLastX = 0;
+    this.orbitLastY = 0;
+
+    // Controls
+    this.keys = {};
+    this.startTime = 0;
+    this.totalDistance = 0;
+
+    this.onKeyDown = this.onKeyDown.bind(this);
+    this.onKeyUp = this.onKeyUp.bind(this);
+    this.onMouseDown = this.onMouseDown.bind(this);
+    this.onMouseMove = this.onMouseMove.bind(this);
+    this.onMouseUp = this.onMouseUp.bind(this);
+    this.onWheel = this.onWheel.bind(this);
+  }
+
+  start() {
+    const curve = this.trackBuilder.curve;
+    if (!curve) return;
+
+    this.active = true;
+    this.t = 0;
+    this.speed = 20;
+    this.boost = 100;
+    this.startTime = Date.now();
+    this.totalDistance = 0;
+
+    document.getElementById('builder-mode').style.display = 'none';
+    document.getElementById('ride-mode').style.display = 'block';
+
+    const canvas = document.getElementById('ride-canvas');
+    canvas.width = window.innerWidth * devicePixelRatio;
+    canvas.height = window.innerHeight * devicePixelRatio;
+
+    // Setup Three.js
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this.renderer.setClearColor(0x050515);
+
+    this.scene = new THREE.Scene();
+    // No fog - need to see the entire rollercoaster from far away
+
+    this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 5000);
+
+    // Lighting
+    this.scene.add(new THREE.AmbientLight(0x6060a0, 1.2));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.4);
+    dirLight.position.set(100, 200, 100);
+    this.scene.add(dirLight);
+    const dirLight2 = new THREE.DirectionalLight(0x8888ff, 0.6);
+    dirLight2.position.set(-100, 150, -100);
+    this.scene.add(dirLight2);
+    const pointLight = new THREE.PointLight(0x6c5ce7, 3, 400);
+    pointLight.position.set(0, 60, 0);
+    this.scene.add(pointLight);
+    this.pointLight = pointLight;
+    this.scene.add(new THREE.HemisphereLight(0x5555bb, 0x222244, 0.8));
+
+    // Starfield
+    const starsGeo = new THREE.BufferGeometry();
+    const starVerts = [];
+    const starColors = [];
+    for (let i = 0; i < 6000; i++) {
+      starVerts.push((Math.random()-0.5)*2000, Math.random()*500+60, (Math.random()-0.5)*2000);
+      const b = 0.5 + Math.random() * 0.5;
+      starColors.push(b, b, b * (0.8 + Math.random() * 0.2));
+    }
+    starsGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVerts, 3));
+    starsGeo.setAttribute('color', new THREE.Float32BufferAttribute(starColors, 3));
+    this.scene.add(new THREE.Points(starsGeo, new THREE.PointsMaterial({ size: 1.2, transparent: true, opacity: 0.9, vertexColors: true })));
+
+    // Ground
+    const GROUND_Y = 0;
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(1500, 1500),
+      new THREE.MeshLambertMaterial({ color: 0x0a0e25 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = GROUND_Y;
+    this.scene.add(ground);
+
+    // Ground grid
+    const gridHelper = new THREE.GridHelper(1500, 75, 0x222260, 0x111140);
+    gridHelper.position.y = GROUND_Y + 0.1;
+    this.scene.add(gridHelper);
+
+    // Track - two steel rails with gap between them (like a real coaster)
+    const railSep = 1.2; // rail separation
+    const segments = curve.points.length * 4;
+    const railOffsets = [-railSep/2, railSep/2];
+    railOffsets.forEach(offset => {
+      const railPts = [];
+      for (let i = 0; i <= segments; i++) {
+        const rt = i / segments;
+        const rp = curve.getPoint(rt);
+        const rtan = curve.getTangent(rt).normalize();
+        const rright = new THREE.Vector3().crossVectors(rtan, new THREE.Vector3(0,1,0)).normalize();
+        railPts.push(rp.clone().add(rright.multiplyScalar(offset)));
+      }
+      const railCurve = new THREE.CatmullRomCurve3(railPts, false);
+      // Main rail tube
+      const railGeo = new THREE.TubeGeometry(railCurve, segments, 0.3, 8, false);
+      const railMat = new THREE.MeshPhongMaterial({ color: 0xbbbbdd, emissive: 0x444466, specular: 0xffffff, shininess: 100 });
+      this.scene.add(new THREE.Mesh(railGeo, railMat));
+    });
+
+    // Cross-ties between the two rails
+    const numTies = 300;
+    const tieMat = new THREE.MeshPhongMaterial({ color: 0x555588 });
+    for (let i = 0; i < numTies; i++) {
+      const tt = i / numTies;
+      const tp = curve.getPoint(tt);
+      const ttan = curve.getTangent(tt).normalize();
+      const tright = new THREE.Vector3().crossVectors(ttan, new THREE.Vector3(0,1,0)).normalize();
+      const tieGeo = new THREE.BoxGeometry(railSep + 0.6, 0.12, 0.2);
+      const tie = new THREE.Mesh(tieGeo, tieMat);
+      tie.position.copy(tp);
+      tie.lookAt(tp.clone().add(ttan));
+      tie.rotateY(Math.PI / 2);
+      this.scene.add(tie);
+    }
+
+    // Support structure - vertical pillars + diagonal braces
+    const numSupports = 60;
+    const supportMat = new THREE.MeshPhongMaterial({ color: 0x5555aa, emissive: 0x111133 });
+    for (let i = 0; i < numSupports; i++) {
+      const st = i / numSupports;
+      const pt = curve.getPoint(st);
+      const pillarH = pt.y - GROUND_Y;
+      if (pillarH > 2) {
+        // Main vertical pillar
+        const pg = new THREE.CylinderGeometry(0.4, 0.5, pillarH, 6);
+        const pillar = new THREE.Mesh(pg, supportMat);
+        pillar.position.set(pt.x, GROUND_Y + pillarH/2, pt.z);
+        this.scene.add(pillar);
+
+        // Second pillar offset slightly for A-frame look
+        const ttan = curve.getTangent(st).normalize();
+        const tright = new THREE.Vector3().crossVectors(ttan, new THREE.Vector3(0,1,0)).normalize();
+        const pg2 = new THREE.CylinderGeometry(0.3, 0.45, pillarH, 6);
+        const pillar2 = new THREE.Mesh(pg2, supportMat);
+        pillar2.position.set(pt.x + tright.x * 3, GROUND_Y + pillarH/2, pt.z + tright.z * 3);
+        this.scene.add(pillar2);
+
+        // Horizontal cross-brace at top
+        const braceLen = 4;
+        const braceGeo = new THREE.BoxGeometry(braceLen, 0.25, 0.25);
+        const braceMat = new THREE.MeshPhongMaterial({ color: 0x4444aa });
+        const brace = new THREE.Mesh(braceGeo, braceMat);
+        brace.position.set(pt.x + tright.x * 1.5, pt.y - 0.3, pt.z + tright.z * 1.5);
+        brace.lookAt(brace.position.clone().add(tright));
+        this.scene.add(brace);
+
+        // Diagonal brace for tall sections
+        if (pillarH > 10) {
+          const diagGeo = new THREE.CylinderGeometry(0.12, 0.12, pillarH * 0.8, 4);
+          const diag = new THREE.Mesh(diagGeo, supportMat);
+          diag.position.set(pt.x + tright.x * 1.5, GROUND_Y + pillarH * 0.45, pt.z + tright.z * 1.5);
+          diag.rotation.z = 0.3;
+          this.scene.add(diag);
+        }
+      }
+    }
+
+    // Chain-lift section highlight (first 8% of track) - add chain line
+    const chainPts = [];
+    for (let i = 0; i <= 40; i++) {
+      const ct = i / 40 * 0.08;
+      chainPts.push(curve.getPoint(ct).clone().add(new THREE.Vector3(0, -0.5, 0)));
+    }
+    const chainCurve = new THREE.CatmullRomCurve3(chainPts, false);
+    const chainGeo = new THREE.TubeGeometry(chainCurve, 40, 0.08, 4, false);
+    const chainMat = new THREE.MeshPhongMaterial({ color: 0xaaaa44, emissive: 0x444400 });
+    this.scene.add(new THREE.Mesh(chainGeo, chainMat));
+
+    // Ground-level track markers: colored lights along the base
+    for (let i = 0; i < 80; i++) {
+      const lt = i / 80;
+      const lp = curve.getPoint(lt);
+      const orb = new THREE.Mesh(
+        new THREE.SphereGeometry(0.4, 8, 8),
+        new THREE.MeshBasicMaterial({ color: i < 6 ? 0x44ff44 : (i > 74 ? 0xff4444 : 0x3333ff), transparent: true, opacity: 0.7 })
+      );
+      orb.position.set(lp.x, GROUND_Y + 0.4, lp.z);
+      this.scene.add(orb);
+    }
+
+    // Cart - large, detailed, clearly visible
+    const cartGroup = new THREE.Group();
+
+    // Main body
+    const cartBody = new THREE.Mesh(
+      new THREE.BoxGeometry(2.2, 1.2, 4.0),
+      new THREE.MeshPhongMaterial({ color: 0xe94560, emissive: 0x6a1530, specular: 0xffffff, shininess: 80 })
+    );
+    cartBody.position.y = 0.8;
+    cartGroup.add(cartBody);
+
+    // Cockpit / windshield
+    const windshield = new THREE.Mesh(
+      new THREE.BoxGeometry(1.8, 0.8, 0.1),
+      new THREE.MeshPhongMaterial({ color: 0x88ccff, emissive: 0x224466, transparent: true, opacity: 0.7 })
+    );
+    windshield.position.set(0, 1.4, 1.8);
+    windshield.rotation.x = -0.3;
+    cartGroup.add(windshield);
+
+    // Side panels
+    [-1.1, 1.1].forEach(xOff => {
+      const panel = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1, 0.6, 3.5),
+        new THREE.MeshPhongMaterial({ color: 0xcc3050, emissive: 0x551020 })
+      );
+      panel.position.set(xOff, 1.5, 0);
+      cartGroup.add(panel);
+    });
+
+    // Wheels (4 corners)
+    [[-0.9, -1.4], [-0.9, 1.4], [0.9, -1.4], [0.9, 1.4]].forEach(([x, z]) => {
+      const wheel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.35, 0.35, 0.3, 12),
+        new THREE.MeshPhongMaterial({ color: 0x333344, emissive: 0x111122 })
+      );
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(x, 0.2, z);
+      cartGroup.add(wheel);
+    });
+
+    // Tail fin
+    const fin = new THREE.Mesh(
+      new THREE.BoxGeometry(0.15, 1.0, 1.2),
+      new THREE.MeshPhongMaterial({ color: 0xdd3355, emissive: 0x551020 })
+    );
+    fin.position.set(0, 1.6, -1.5);
+    cartGroup.add(fin);
+
+    // Headlights (two, bright)
+    [-0.6, 0.6].forEach(xOff => {
+      const headlight = new THREE.SpotLight(0xffffff, 1.5, 80, Math.PI/5, 0.3);
+      headlight.position.set(xOff, 1.0, 2.0);
+      headlight.target.position.set(xOff, 0, 20);
+      cartGroup.add(headlight);
+      cartGroup.add(headlight.target);
+      // Visible headlight bulb
+      const bulb = new THREE.Mesh(
+        new THREE.SphereGeometry(0.15, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xffffaa })
+      );
+      bulb.position.set(xOff, 1.0, 2.05);
+      cartGroup.add(bulb);
+    });
+
+    // Tail lights
+    [-0.6, 0.6].forEach(xOff => {
+      const tail = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xff2222 })
+      );
+      tail.position.set(xOff, 0.9, -2.05);
+      cartGroup.add(tail);
+    });
+
+    // Cart glow - very bright so it's visible from far overview camera
+    const cartLight = new THREE.PointLight(0xff4466, 4, 80);
+    cartLight.position.set(0, 3, 0);
+    cartGroup.add(cartLight);
+
+    // Bright beacon on top so you can always spot the cart from far away
+    const beacon = new THREE.Mesh(
+      new THREE.SphereGeometry(0.6, 12, 12),
+      new THREE.MeshBasicMaterial({ color: 0xff3355 })
+    );
+    beacon.position.set(0, 2.4, 0);
+    cartGroup.add(beacon);
+    this.cartBeacon = beacon;
+
+    this.cart = cartGroup;
+    this.scene.add(this.cart);
+
+    // Compute track bounding box for the stationary overview camera
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+    let minZ = Infinity, maxZ = -Infinity;
+    for (let i = 0; i <= 200; i++) {
+      const p = curve.getPoint(i / 200);
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+      minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
+    }
+    this.trackCenter = new THREE.Vector3((minX+maxX)/2, (minY+maxY)/2, (minZ+maxZ)/2);
+    const trackSpanX = maxX - minX;
+    const trackSpanZ = maxZ - minZ;
+    const trackSpan = Math.max(trackSpanX, trackSpanZ, 40);
+    // Camera distance: far enough to fit entire track with padding
+    const fovRad = (this.camera.fov / 2) * Math.PI / 180;
+    const camDist = (trackSpan / 2) / Math.tan(fovRad) * 1.4;
+    // Position camera at an angled overhead view
+    // Set orbit radius from computed distance and store initial angles
+    this.orbitRadius = camDist;
+    this.orbitMinRadius = camDist * 0.15;  // can zoom in close
+    this.orbitMaxRadius = camDist * 3;     // can zoom out far
+    this.orbitTheta = 0.55;
+    this.orbitPhi = 0.85;
+    this.updateOverviewCamPos();
+
+    // Initialize smooth camera for FPV mode
+    const startPos = curve.getPoint(0);
+    this.smoothCamPos.copy(this.overviewCamPos);
+    this.smoothCamLook.copy(this.trackCenter);
+
+    // Draw minimap
+    this.drawMinimap();
+
+    // Update HUD julia set info
+    document.getElementById('hud-julia').textContent =
+      `c = ${this.trackBuilder.renderer.cReal.toFixed(3)} + ${this.trackBuilder.renderer.cImag.toFixed(3)}i`;
+
+    // Controls
+    document.addEventListener('keydown', this.onKeyDown);
+    document.addEventListener('keyup', this.onKeyUp);
+
+    // Mouse orbit controls for overview camera
+    const rideCanvas = document.getElementById('ride-canvas');
+    rideCanvas.addEventListener('mousedown', this.onMouseDown);
+    document.addEventListener('mousemove', this.onMouseMove);
+    document.addEventListener('mouseup', this.onMouseUp);
+    rideCanvas.addEventListener('wheel', this.onWheel, { passive: false });
+
+    // Audio
+    this.audio.startRideAudio();
+
+    // Start game loop
+    this.lastTime = performance.now();
+    this.gameLoop();
+  }
+
+  onKeyDown(e) {
+    this.keys[e.key.toLowerCase()] = true;
+    if (e.key.toLowerCase() === 'c') {
+      this.cameraMode = (this.cameraMode + 1) % 2;
+      this.camera.fov = this.cameraMode === 1 ? 55 : 75;
+      this.camera.updateProjectionMatrix();
+      document.getElementById('hud-cam-mode').textContent = this.cameraMode === 1 ? 'OVERVIEW' : '1ST PERSON';
+      // When switching to FPV, seed smooth cam near the cart
+      if (this.cameraMode === 0) {
+        const curve = this.trackBuilder.curve;
+        const p = curve.getPoint(this.t);
+        this.smoothCamPos.copy(p.clone().add(new THREE.Vector3(0, 2, 0)));
+        this.smoothCamLook.copy(curve.getPoint(Math.min(this.t + 0.015, 0.999)));
+      }
+    }
+    if (e.key === 'Escape') this.stop();
+    if (e.key.toLowerCase() === 'r') { this.t = 0; this.speed = 20; }
+  }
+
+  onKeyUp(e) { this.keys[e.key.toLowerCase()] = false; }
+
+  updateOverviewCamPos() {
+    // Convert spherical coords to cartesian, centered on trackCenter
+    const x = this.orbitRadius * Math.sin(this.orbitPhi) * Math.sin(this.orbitTheta);
+    const y = this.orbitRadius * Math.cos(this.orbitPhi);
+    const z = this.orbitRadius * Math.sin(this.orbitPhi) * Math.cos(this.orbitTheta);
+    this.overviewCamPos = new THREE.Vector3(
+      this.trackCenter.x + x,
+      this.trackCenter.y + y,
+      this.trackCenter.z + z
+    );
+  }
+
+  onMouseDown(e) {
+    if (this.cameraMode !== 1) return;
+    this.orbitDragging = true;
+    this.orbitLastX = e.clientX;
+    this.orbitLastY = e.clientY;
+  }
+
+  onMouseMove(e) {
+    if (!this.orbitDragging || this.cameraMode !== 1) return;
+    const dx = e.clientX - this.orbitLastX;
+    const dy = e.clientY - this.orbitLastY;
+    this.orbitLastX = e.clientX;
+    this.orbitLastY = e.clientY;
+
+    // Horizontal drag rotates theta, vertical drag changes phi
+    this.orbitTheta -= dx * 0.005;
+    this.orbitPhi = clamp(this.orbitPhi - dy * 0.005, 0.1, Math.PI * 0.48);
+    this.updateOverviewCamPos();
+  }
+
+  onMouseUp() { this.orbitDragging = false; }
+
+  onWheel(e) {
+    if (this.cameraMode !== 1) return;
+    e.preventDefault();
+    const zoomFactor = e.deltaY > 0 ? 1.08 : 0.92;
+    this.orbitRadius = clamp(this.orbitRadius * zoomFactor, this.orbitMinRadius, this.orbitMaxRadius);
+    this.updateOverviewCamPos();
+  }
+
+  gameLoop() {
+    if (!this.active) return;
+    this.animId = requestAnimationFrame(() => this.gameLoop());
+
+    const now = performance.now();
+    const dt = Math.min((now - this.lastTime) / 1000, 0.05);
+    this.lastTime = now;
+
+    const curve = this.trackBuilder.curve;
+    const trackLen = this.trackBuilder.trackLength;
+
+    // Physics
+    const pos = curve.getPoint(this.t);
+    const tangent = curve.getTangent(this.t);
+
+    // Gravity effect: project gravity onto tangent direction
+    const gravityForce = -9.8 * tangent.y * 3; // amplified for fun
+
+    // User input
+    let accel = 0;
+    if (this.keys['w']) accel += 25;
+    if (this.keys['s']) accel -= 35;
+
+    // Boost
+    let boosting = false;
+    if (this.keys[' '] && this.boost > 0) {
+      accel += 40;
+      this.boost -= this.boostDrain * dt;
+      this.boost = Math.max(0, this.boost);
+      boosting = true;
+      if (!this._boostPlayed) {
+        this.audio.playBoostSound();
+        this._boostPlayed = true;
+      }
+    } else {
+      this._boostPlayed = false;
+      this.boost = Math.min(this.maxBoost, this.boost + this.boostRegen * dt);
+    }
+
+    // Lean
+    if (this.keys['a']) this.leanAngle = lerp(this.leanAngle, -0.3, dt * 5);
+    else if (this.keys['d']) this.leanAngle = lerp(this.leanAngle, 0.3, dt * 5);
+    else this.leanAngle = lerp(this.leanAngle, 0, dt * 5);
+
+    // Apply forces
+    const friction = 0.3;
+    this.speed += (gravityForce + accel - friction * this.speed) * dt;
+    this.speed = clamp(this.speed, -10, boosting ? 60 : 45);
+
+    // Update position
+    this.t += (this.speed * dt) / trackLen;
+    this.totalDistance += Math.abs(this.speed * dt);
+
+    // Wrap or stop at ends
+    if (this.t >= 1) { this.t = 0.999; this.speed *= -0.5; }
+    if (this.t < 0) { this.t = 0.001; this.speed *= -0.5; }
+
+    // Camera
+    const newPos = curve.getPoint(this.t);
+    const lookAheadT = Math.min(this.t + 0.015, 0.999);
+    const lookPos = curve.getPoint(lookAheadT);
+    const newTangent = curve.getTangent(this.t).normalize();
+
+    // Stable up vector - mostly world up with slight track influence
+    const worldUp = new THREE.Vector3(0, 1, 0);
+    const right = new THREE.Vector3().crossVectors(newTangent, worldUp).normalize();
+    const trackUp = new THREE.Vector3().crossVectors(right, newTangent).normalize();
+    // Blend between world up and track up for stability
+    const stableUp = worldUp.clone().lerp(trackUp, 0.3).normalize();
+
+    if (this.cameraMode === 0) {
+      // First person - stable, clear view from rider's perspective
+      const fpvTarget = newPos.clone().add(stableUp.clone().multiplyScalar(2.0));
+      const fpvLookAt = lookPos.clone().add(stableUp.clone().multiplyScalar(1.5));
+      // Smooth interpolation for FPV
+      this.smoothCamPos.lerp(fpvTarget, dt * 12);
+      this.smoothCamLook.lerp(fpvLookAt, dt * 12);
+      this.camera.position.copy(this.smoothCamPos);
+      this.camera.lookAt(this.smoothCamLook);
+      this.camera.rotateZ(this.leanAngle * 0.5);
+      this.cart.visible = false;
+    } else {
+      // Third person - FIXED stationary camera viewing the entire rollercoaster
+      this.camera.position.copy(this.overviewCamPos);
+      this.camera.lookAt(this.trackCenter);
+      this.cart.visible = true;
+    }
+
+    // Cart position and orientation
+    this.cart.position.copy(newPos);
+    this.cart.lookAt(lookPos);
+    // Tilt cart slightly with track slope
+    this.cart.rotateX(-Math.asin(clamp(newTangent.y, -0.8, 0.8)) * 0.3);
+    // Pulse the beacon so it's always easy to spot from overview
+    if (this.cartBeacon) {
+      const pulse = 0.6 + Math.sin(Date.now() * 0.005) * 0.4;
+      this.cartBeacon.scale.setScalar(pulse);
+    }
+
+    // Point light follows cart
+    this.pointLight.position.copy(newPos).add(new THREE.Vector3(0, 20, 0));
+
+    // Audio
+    this.audio.updateRideAudio(this.speed, boosting);
+
+    // G-force calculation
+    const prevT = clamp(this.t - 0.005, 0, 1);
+    const nextT = clamp(this.t + 0.005, 0, 1);
+    const prevPos = curve.getPoint(prevT);
+    const nextPos2 = curve.getPoint(nextT);
+    const accelVec = nextPos2.clone().add(prevPos).sub(newPos.clone().multiplyScalar(2));
+    const gForce = 1 + accelVec.length() * this.speed * this.speed * 0.001;
+
+    // Update HUD
+    document.getElementById('hud-speed').textContent = Math.abs(Math.round(this.speed * 2.237));
+    document.getElementById('hud-boost').style.width = (this.boost / this.maxBoost * 100) + '%';
+    const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+    document.getElementById('hud-time').textContent = `${Math.floor(elapsed/60)}:${(elapsed%60).toString().padStart(2,'0')}`;
+    document.getElementById('hud-gforce').textContent = clamp(gForce, 0.1, 9.9).toFixed(1) + 'g';
+    document.getElementById('hud-progress').style.width = (this.t * 100) + '%';
+    document.getElementById('hud-distance').textContent = `${Math.round(this.t * trackLen)} / ${Math.round(trackLen)} m`;
+
+    // Update minimap position
+    this.updateMinimapPosition();
+
+    // Render
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  drawMinimap() {
+    const canvas = document.getElementById('minimap-canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, 160, 160);
+
+    const curve = this.trackBuilder.curve;
+    if (!curve) return;
+
+    // Find bounds
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (let i = 0; i <= 100; i++) {
+      const p = curve.getPoint(i/100);
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
+    }
+    const pad = 10;
+    const scaleX = (160 - 2*pad) / (maxX - minX || 1);
+    const scaleZ = (160 - 2*pad) / (maxZ - minZ || 1);
+    const scale = Math.min(scaleX, scaleZ);
+
+    ctx.strokeStyle = 'rgba(108,92,231,0.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i <= 200; i++) {
+      const p = curve.getPoint(i/200);
+      const sx = pad + (p.x - minX) * scale;
+      const sy = pad + (p.z - minZ) * scale;
+      if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+    }
+    ctx.stroke();
+
+    this._minimapScale = scale;
+    this._minimapMinX = minX;
+    this._minimapMinZ = minZ;
+    this._minimapPad = pad;
+  }
+
+  updateMinimapPosition() {
+    const canvas = document.getElementById('minimap-canvas');
+    const ctx = canvas.getContext('2d');
+    this.drawMinimap();
+
+    const curve = this.trackBuilder.curve;
+    const p = curve.getPoint(this.t);
+    const sx = this._minimapPad + (p.x - this._minimapMinX) * this._minimapScale;
+    const sy = this._minimapPad + (p.z - this._minimapMinZ) * this._minimapScale;
+
+    ctx.beginPath();
+    ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#e94560';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  stop() {
+    this.active = false;
+    if (this.animId) cancelAnimationFrame(this.animId);
+    document.removeEventListener('keydown', this.onKeyDown);
+    document.removeEventListener('keyup', this.onKeyUp);
+    document.removeEventListener('mousemove', this.onMouseMove);
+    document.removeEventListener('mouseup', this.onMouseUp);
+    const rideCanvas = document.getElementById('ride-canvas');
+    if (rideCanvas) {
+      rideCanvas.removeEventListener('mousedown', this.onMouseDown);
+      rideCanvas.removeEventListener('wheel', this.onWheel);
+    }
+    this.audio.stopRideAudio();
+    this.audio.startAmbientMusic();
+
+    document.getElementById('ride-mode').style.display = 'none';
+    document.getElementById('builder-mode').style.display = 'flex';
+
+    // Cleanup
+    if (this.renderer) {
+      this.renderer.dispose();
+      this.renderer = null;
+    }
+    this.scene = null;
+  }
+}
+
+// ===== EXPORT HANDLER =====
+class ExportHandler {
+  constructor(renderer) {
+    this.renderer = renderer;
+  }
+
+  exportImage(width, height) {
+    const offscreen = this.renderer.renderToCanvas(width, height);
+    if (!offscreen) { alert('Export failed'); return; }
+    const link = document.createElement('a');
+    link.download = `julia_${this.renderer.cReal.toFixed(3)}_${this.renderer.cImag.toFixed(3)}_${width}x${height}.png`;
+    link.href = offscreen.toDataURL('image/png');
+    link.click();
+  }
+
+  exportTrack(trackBuilder) {
+    const data = {
+      c: { re: this.renderer.cReal, im: this.renderer.cImag },
+      maxIter: this.renderer.maxIter,
+      gradient: this.renderer.gradientStops,
+      track2D: trackBuilder.trackPoints2D,
+      track3D: trackBuilder.trackPoints3D.map(p => ({ x: p.x, y: p.y, z: p.z }))
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.download = `julia_track_${Date.now()}.json`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+  }
+
+  importTrack(trackBuilder, callback) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          if (data.c) {
+            this.renderer.cReal = data.c.re;
+            this.renderer.cImag = data.c.im;
+          }
+          if (data.maxIter) this.renderer.maxIter = data.maxIter;
+          if (data.gradient) {
+            this.renderer.gradientStops = data.gradient;
+            this.renderer.updateGradientTexture();
+          }
+          this.renderer.render();
+          if (data.track3D && data.track3D.length > 0) {
+            trackBuilder.trackPoints2D = data.track2D || [];
+            trackBuilder.trackPoints3D = data.track3D.map(p => new THREE.Vector3(p.x, p.y, p.z));
+            trackBuilder.curve = new THREE.CatmullRomCurve3(trackBuilder.trackPoints3D, false, 'catmullrom', 0.5);
+            trackBuilder.trackLength = trackBuilder.curve.getLength();
+            trackBuilder.hasTrack = true;
+            trackBuilder.updatePreview();
+            document.getElementById('track-info').style.display = 'block';
+            document.getElementById('track-length').textContent = Math.round(trackBuilder.trackLength) + 'm';
+            document.getElementById('track-points').textContent = trackBuilder.trackPoints2D.length;
+            document.getElementById('track-time').textContent = Math.round(trackBuilder.trackLength / 20) + 's';
+            document.getElementById('ride-btn').style.display = 'block';
+          }
+          if (callback) callback();
+        } catch(err) {
+          alert('Failed to load track: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }
+}
+
+// ===== MAIN APP =====
+class App {
+  constructor() {
+    this.canvas = document.getElementById('julia-canvas');
+    this.renderer = new JuliaRenderer(this.canvas);
+    this.gradient = new GradientManager(this.renderer);
+    this.audio = new AudioSystem();
+    this.trackBuilder = new TrackBuilder(this.renderer);
+    this.rideEngine = new RideEngine(this.trackBuilder, this.audio);
+    this.exportHandler = new ExportHandler(this.renderer);
+    this.eduMode = new EducationMode(this.renderer);
+    this.morpher = new ParameterMorph(this.renderer, () => this.updateUIFromRenderer());
+
+    this.setupPresets();
+    this.setupControls();
+    this.setupSections();
+    this.setupExport();
+    this.setupAudioControls();
+
+    // Initial render
+    this.renderer.resize();
+    this.renderer.render();
+
+    // Resize handler
+    window.addEventListener('resize', () => {
+      this.renderer.resize();
+      this.renderer.render();
+      if (this.trackBuilder.hasTrack) this.trackBuilder.drawTrackOnCanvas();
+    });
+
+    // Canvas click for education mode
+    this.canvas.addEventListener('click', e => {
+      this.eduMode.onClick(e.clientX, e.clientY);
+    });
+
+    // Canvas zoom
+    this.canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+      this.renderer.zoom *= zoomFactor;
+      this.renderer.zoom = clamp(this.renderer.zoom, 0.1, 100);
+      this.renderer.render();
+      if (this.trackBuilder.hasTrack) this.trackBuilder.drawTrackOnCanvas();
+    }, { passive: false });
+
+    // Canvas pan
+    let dragging = false, lastX, lastY;
+    this.canvas.addEventListener('mousedown', e => {
+      if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+        dragging = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+      }
+    });
+    window.addEventListener('mousemove', e => {
+      if (!dragging) return;
+      const rect = this.canvas.getBoundingClientRect();
+      const dx = (e.clientX - lastX) / rect.width * 4 / this.renderer.zoom;
+      const dy = (e.clientY - lastY) / rect.height * 4 / this.renderer.zoom;
+      this.renderer.centerX -= dx;
+      this.renderer.centerY += dy;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      this.renderer.render();
+    });
+    window.addEventListener('mouseup', () => dragging = false);
+
+    // Welcome modal
+    document.getElementById('welcome-start').onclick = () => {
+      document.getElementById('welcome-modal').classList.add('hidden');
+      this.audio.init();
+      this.audio.startAmbientMusic();
+    };
+
+    // Loading screen
+    setTimeout(() => document.getElementById('loading').classList.add('done'), 500);
+  }
+
+  setupPresets() {
+    const grid = document.getElementById('preset-grid');
+    PRESETS.forEach((p, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'preset-btn' + (i === 1 ? ' active' : '');
+      btn.textContent = p.name;
+      btn.onclick = () => {
+        grid.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.renderer.cReal = p.re;
+        this.renderer.cImag = p.im;
+        this.renderer.render();
+        this.updateUIFromRenderer();
+        this.audio.playClickSound();
+        if (this.trackBuilder.hasTrack) this.trackBuilder.drawTrackOnCanvas();
+      };
+      grid.appendChild(btn);
+    });
+  }
+
+  setupControls() {
+    const cReal = document.getElementById('c-real');
+    const cImag = document.getElementById('c-imag');
+    const cRealNum = document.getElementById('c-real-num');
+    const cImagNum = document.getElementById('c-imag-num');
+    const iterSlider = document.getElementById('iter-slider');
+
+    const updateC = () => {
+      this.renderer.cReal = parseFloat(cReal.value);
+      this.renderer.cImag = parseFloat(cImag.value);
+      cRealNum.value = cReal.value;
+      cImagNum.value = cImag.value;
+      this.updateCDisplay();
+      this.renderer.render();
+    };
+
+    cReal.oninput = cImag.oninput = updateC;
+    cRealNum.onchange = () => { cReal.value = cRealNum.value; updateC(); };
+    cImagNum.onchange = () => { cImag.value = cImagNum.value; updateC(); };
+
+    iterSlider.oninput = () => {
+      this.renderer.maxIter = parseInt(iterSlider.value);
+      document.getElementById('iter-label').textContent = iterSlider.value;
+      document.getElementById('status-iter').textContent = `Iterations: ${iterSlider.value}`;
+      this.renderer.render();
+    };
+
+    document.getElementById('reverse-grad').onchange = e => {
+      this.renderer.reversed = e.target.checked;
+      this.renderer.updateGradientTexture();
+      this.renderer.render();
+      this.gradient.updateBar();
+    };
+
+    // Track builder
+    document.getElementById('trace-auto').onclick = () => {
+      document.getElementById('status-text').textContent = 'Tracing boundary...';
+      document.getElementById('render-indicator').classList.add('rendering');
+      setTimeout(() => {
+        const success = this.trackBuilder.buildTrack();
+        if (success) {
+          this.trackBuilder.drawTrackOnCanvas();
+          document.getElementById('status-text').textContent = 'Track generated!';
+        } else {
+          document.getElementById('status-text').textContent = 'Track generation failed';
+        }
+        document.getElementById('render-indicator').classList.remove('rendering');
+        setTimeout(() => { document.getElementById('status-text').textContent = 'Ready'; }, 2000);
+      }, 50);
+    };
+
+    document.getElementById('trace-clear').onclick = () => {
+      this.trackBuilder.clearTrack();
+    };
+
+    document.getElementById('ride-btn').onclick = () => {
+      if (this.trackBuilder.hasTrack) {
+        this.audio.stopAmbientMusic();
+        this.rideEngine.start();
+      }
+    };
+  }
+
+  setupSections() {
+    document.querySelectorAll('.section-title').forEach(title => {
+      title.onclick = () => {
+        const section = title.dataset.section;
+        const content = document.getElementById('sec-' + section);
+        if (content) {
+          title.classList.toggle('collapsed');
+          content.classList.toggle('hidden');
+        }
+      };
+    });
+  }
+
+  setupExport() {
+    document.getElementById('export-img').onclick = () => this.exportHandler.exportImage(1920, 1080);
+    document.getElementById('export-4k').onclick = () => this.exportHandler.exportImage(3840, 2160);
+    document.getElementById('export-track').onclick = () => this.exportHandler.exportTrack(this.trackBuilder);
+    document.getElementById('import-track').onclick = () => this.exportHandler.importTrack(this.trackBuilder, () => this.updateUIFromRenderer());
+  }
+
+  setupAudioControls() {
+    document.getElementById('vol-master').oninput = e => this.audio.setVolume('master', e.target.value);
+    document.getElementById('vol-music').oninput = e => this.audio.setVolume('music', e.target.value);
+    document.getElementById('vol-sfx').oninput = e => this.audio.setVolume('sfx', e.target.value);
+    document.getElementById('mute-btn').onclick = () => {
+      const muted = this.audio.toggleMute();
+      document.getElementById('mute-btn').textContent = muted ? 'Unmute' : 'Mute All';
+      document.getElementById('mute-btn').classList.toggle('muted', muted);
+    };
+  }
+
+  updateUIFromRenderer() {
+    const cReal = document.getElementById('c-real');
+    const cImag = document.getElementById('c-imag');
+    const cRealNum = document.getElementById('c-real-num');
+    const cImagNum = document.getElementById('c-imag-num');
+    cReal.value = this.renderer.cReal;
+    cImag.value = this.renderer.cImag;
+    cRealNum.value = this.renderer.cReal.toFixed(3);
+    cImagNum.value = this.renderer.cImag.toFixed(3);
+    this.updateCDisplay();
+  }
+
+  updateCDisplay() {
+    const re = this.renderer.cReal.toFixed(3);
+    const im = this.renderer.cImag.toFixed(3);
+    const sign = this.renderer.cImag >= 0 ? '+' : '';
+    const display = `c = ${re} ${sign} ${im}i`;
+    document.getElementById('c-display').textContent = display;
+    document.getElementById('status-c').textContent = display;
+  }
+}
+
+// ===== INITIALIZE =====
+window.addEventListener('DOMContentLoaded', () => {
+  window.app = new App();
+});
