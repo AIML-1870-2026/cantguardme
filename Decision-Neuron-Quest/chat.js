@@ -407,7 +407,7 @@ const Chat = {
         question: "How time-sensitive is this? Could you do both eventually?",
         options: [
           { label: "A. Must choose now, can only do one", effect: { 'Urgency': 0.9, 'Time Pressure': 0.9 } },
-          { label: "B. Soon-ish, but not urgent", effect: { 'Urgency': 0.6, 'Time Pressure': 0.55 } },
+          { label: "B. Soon-ish, but no real rush", effect: { 'Urgency': 0.6, 'Time Pressure': 0.55 } },
           { label: "C. No rush, could do both over time", effect: { 'Urgency': 0.25, 'Time Pressure': 0.2 } },
           { label: "D. Could easily do both whenever", effect: { 'Urgency': 0.1, 'Time Pressure': 0.05 } },
         ],
