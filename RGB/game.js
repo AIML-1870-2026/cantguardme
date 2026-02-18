@@ -21,10 +21,10 @@ let potFill = 0; // 0-1, for liquid height
 
 // ---- Player ----
 let player = {
-  x: 370, y: 390,
+  x: 240, y: 390,
   w: 38, h: 48,
   vx: 0, vy: 0,
-  speed: 2.8,
+  speed: 175,  // pixels per second (used with dt)
   facing: 'down',
   carrying: null, // null | 'red' | 'green' | 'blue'
   animFrame: 0,
@@ -104,6 +104,7 @@ let pourStreams = [];
 // ---- Game Slider Primary Constraint ----
 let gameSelectedPrimaries = ['r', 'g'];
 let gameListenersAdded = false;
+let gameLoopRunning = false; // guard against duplicate requestAnimationFrame loops
 
 // ---- Animation state ----
 let bubbles = [];
@@ -193,23 +194,27 @@ function startPlaying() {
   potAnim = { r: 0, g: 0, b: 0 };
   potFill = 0;
   // Reset player to safe starting position (below pot, not inside it)
-  player.x = 370; player.y = 390;
+  player.x = 240; player.y = 390;
   player.vx = 0; player.vy = 0;
   player.carrying = null;
   player.animFrame = 0; player.animTimer = 0;
   player.expression = 'idle'; player.pouring = false;
-  hint.text = ''; hint.timer = 0;
+  hint.text = 'WASD / Arrow keys to move  •  E or SPACE to interact  •  Q to drop';
+  hint.timer = 7;
   updateScoreDisplay();
   spawnCustomer();
   lastTime = performance.now();
-  requestAnimationFrame(gameLoop);
+  if (!gameLoopRunning) {
+    gameLoopRunning = true;
+    requestAnimationFrame(gameLoop);
+  }
 }
 
 function resumeGame() {
   document.getElementById('pauseMenu').classList.add('hidden');
   gameState = 'playing';
-  lastTime = performance.now();
-  requestAnimationFrame(gameLoop);
+  lastTime = performance.now(); // reset dt so no spike after pause
+  // NOTE: loop is already running while paused — do NOT call requestAnimationFrame again
 }
 
 function showControls() {
@@ -248,7 +253,7 @@ function restartGame() {
   potFill = 0;
   customer = null;
   // Reset player to safe starting position
-  player.x = 370; player.y = 390;
+  player.x = 240; player.y = 390;
   player.vx = 0; player.vy = 0;
   player.carrying = null;
   player.animFrame = 0; player.animTimer = 0;
@@ -259,7 +264,10 @@ function restartGame() {
   spawnCustomer();
   gameState = 'playing';
   lastTime = performance.now();
-  requestAnimationFrame(gameLoop);
+  if (!gameLoopRunning) {
+    gameLoopRunning = true;
+    requestAnimationFrame(gameLoop);
+  }
 }
 
 // ============================================================
@@ -274,10 +282,11 @@ function spawnCustomer() {
   const type = CUSTOMER_TYPES[currentLevelIdx % CUSTOMER_TYPES.length];
   const maxPat = level.patience;
 
+  const targetX = ST.servingWindow.x + 70;
   customer = {
-    x: CW + 60,         // starts off-screen right of serving window
+    x: targetX + 160,   // spawn just 160px off-screen — arrives in ~0.6 s
     y: 55,
-    targetX: ST.servingWindow.x + 70,
+    targetX,
     type,
     name: type.name,
     order: { ...level.target },
@@ -300,7 +309,7 @@ function updateCustomer(dt) {
   if (!customer) return;
 
   if (customer.state === 'entering') {
-    customer.x -= 120 * dt;
+    customer.x -= 280 * dt;
     if (customer.x <= customer.targetX) {
       customer.x = customer.targetX;
       customer.state = 'waiting';
@@ -436,9 +445,9 @@ function updatePlayer(dt) {
   // Normalize diagonal
   if (player.vx && player.vy) { player.vx *= 0.707; player.vy *= 0.707; }
 
-  // Move + collide
-  let nx = player.x + player.vx;
-  let ny = player.y + player.vy;
+  // Move + collide  (scale velocity by dt so speed is frame-rate independent)
+  let nx = player.x + player.vx * dt;
+  let ny = player.y + player.vy * dt;
   const pw = player.w, ph = player.h;
 
   for (const c of colliders) {
@@ -934,6 +943,8 @@ function gameLoop(timestamp) {
   draw();
   if (gameState !== 'gameover' && gameState !== 'controls') {
     requestAnimationFrame(gameLoop);
+  } else {
+    gameLoopRunning = false;
   }
 }
 
@@ -1653,6 +1664,16 @@ function drawPlayer() {
 
   const legAnim = player.animFrame;
   const legOffset = [0, 5, 0, -5][legAnim] || 0;
+
+  // Floor shadow / glow — makes the chef immediately visible
+  const shadowGrd = ctx.createRadialGradient(cx, py + player.h - 4, 0, cx, py + player.h - 4, 28);
+  shadowGrd.addColorStop(0, 'rgba(255,200,80,0.30)');
+  shadowGrd.addColorStop(0.5, 'rgba(255,200,80,0.12)');
+  shadowGrd.addColorStop(1, 'rgba(255,200,80,0)');
+  ctx.fillStyle = shadowGrd;
+  ctx.beginPath();
+  ctx.ellipse(cx, py + player.h - 2, 26, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
 
   // Carrying bottle above head
   if (player.carrying) {
