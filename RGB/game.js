@@ -21,7 +21,7 @@ let potFill = 0; // 0-1, for liquid height
 
 // ---- Player ----
 let player = {
-  x: 370, y: 340,
+  x: 370, y: 390,
   w: 38, h: 48,
   vx: 0, vy: 0,
   speed: 2.8,
@@ -101,6 +101,10 @@ const ORDER_MESSAGES = [
 // ---- Pour Stream Particles ----
 let pourStreams = [];
 
+// ---- Game Slider Primary Constraint ----
+let gameSelectedPrimaries = ['r', 'g'];
+let gameListenersAdded = false;
+
 // ---- Animation state ----
 let bubbles = [];
 let steamParticles = [];
@@ -134,16 +138,19 @@ function initGame() {
   // Build collision rects (station bodies)
   buildColliders();
 
-  // Input listeners
-  document.addEventListener('keydown', (e) => {
-    if (!keys[e.code]) justPressed[e.code] = true;
-    keys[e.code] = true;
-    if (e.code === 'Escape') handleEscape();
-    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) {
-      e.preventDefault();
-    }
-  });
-  document.addEventListener('keyup', (e) => { keys[e.code] = false; });
+  // Input listeners — only add once to avoid duplicates on re-init
+  if (!gameListenersAdded) {
+    document.addEventListener('keydown', (e) => {
+      if (!keys[e.code]) justPressed[e.code] = true;
+      keys[e.code] = true;
+      if (e.code === 'Escape') handleEscape();
+      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) {
+        e.preventDefault();
+      }
+    });
+    document.addEventListener('keyup', (e) => { keys[e.code] = false; });
+    gameListenersAdded = true;
+  }
 
   // Spawn initial bubbles
   for (let i = 0; i < 8; i++) spawnBubble();
@@ -175,6 +182,7 @@ function startGame() {
   document.getElementById('mainMenu').classList.add('hidden');
   document.getElementById('gameMode').classList.remove('hidden');
   initGame();
+  AudioManager.start();
 }
 
 function startPlaying() {
@@ -183,8 +191,17 @@ function startPlaying() {
   score = 0; lives = 3; starsTotal = 0; currentLevelIdx = 0;
   pot = { r: 0, g: 0, b: 0 };
   potAnim = { r: 0, g: 0, b: 0 };
+  potFill = 0;
+  // Reset player to safe starting position (below pot, not inside it)
+  player.x = 370; player.y = 390;
+  player.vx = 0; player.vy = 0;
+  player.carrying = null;
+  player.animFrame = 0; player.animTimer = 0;
+  player.expression = 'idle'; player.pouring = false;
+  hint.text = ''; hint.timer = 0;
   updateScoreDisplay();
   spawnCustomer();
+  lastTime = performance.now();
   requestAnimationFrame(gameLoop);
 }
 
@@ -212,6 +229,7 @@ function handleEscape() {
 
 function goToMainMenu() {
   gameState = 'controls';
+  AudioManager.stop();
   document.getElementById('gameMode').classList.add('hidden');
   document.getElementById('learnMode').classList.add('hidden');
   document.getElementById('mainMenu').classList.remove('hidden');
@@ -226,7 +244,15 @@ function restartGame() {
   document.getElementById('servingResult').classList.add('hidden');
   score = 0; lives = 3; starsTotal = 0; currentLevelIdx = 0;
   pot = { r: 0, g: 0, b: 0 };
+  potAnim = { r: 0, g: 0, b: 0 };
+  potFill = 0;
   customer = null;
+  // Reset player to safe starting position
+  player.x = 370; player.y = 390;
+  player.vx = 0; player.vy = 0;
+  player.carrying = null;
+  player.animFrame = 0; player.animTimer = 0;
+  player.expression = 'idle'; player.pouring = false;
   particles = []; pourStreams = []; celebrationParticles = [];
   diningNPCs = []; diningSpawnTimer = 3.5; initDiningNPCs();
   updateScoreDisplay();
@@ -294,8 +320,11 @@ function updateCustomer(dt) {
       customer.expression = 'angry';
       customer.state = 'leaving';
       customer.exitDir = -1;
+      // Save pot color BEFORE resetting so the result screen shows what the player had
+      const prevPot = { r: Math.round(pot.r), g: Math.round(pot.g), b: Math.round(pot.b) };
       pot = { r: 0, g: 0, b: 0 };
-      showResult(0, customer.order, { r: pot.r, g: pot.g, b: pot.b }, 999);
+      showResult(0, customer.order, prevPot, deltaE(customer.order, prevPot));
+      return; // don't overwrite 'angry' expression below
     }
 
     if (customer.patience / customer.maxPatience < 0.3) customer.expression = 'impatient';
@@ -492,6 +521,11 @@ function handleInteract() {
 
   // Serve at window
   if (isNear(player, ST.servingWindow)) {
+    if (player.carrying) {
+      hint.text = '⚠️ Drop the bottle first before serving! Press Q to put it down.';
+      hint.timer = 3;
+      return;
+    }
     serveCustomer();
     return;
   }
@@ -527,12 +561,78 @@ function doPour(dt) {
   if (player.carrying === 'blue')  pot.b = Math.min(255, pot.b + amount);
   potFill = (pot.r + pot.g + pot.b) / (255 * 3);
 
-  // Pour stream particles
-  const bottleX = player.carrying === 'red' ? ST.redBottle.x + 32 :
-                  player.carrying === 'green' ? ST.greenBottle.x + 32 : ST.blueBottle.x + 32;
+  // Pour stream particles — arc from player (bottle above head) to pot center
   const clr = player.carrying === 'red' ? '#ff4444' :
               player.carrying === 'green' ? '#44ff44' : '#4444ff';
   spawnPourDrop(player.x + player.w / 2, player.y, ST.pot.x + 60, ST.pot.y + 60, clr);
+}
+
+// ============================================================
+// GAME SLIDER PRIMARY CONSTRAINT
+// ============================================================
+
+// Auto-detect the two dominant channels from current pot to select as primaries
+function detectPrimariesFromPot() {
+  const vals = [
+    { p: 'r', v: Math.round(pot.r) },
+    { p: 'g', v: Math.round(pot.g) },
+    { p: 'b', v: Math.round(pot.b) },
+  ];
+  vals.sort((a, b) => b.v - a.v); // descending
+  // If all zero, default to r+g
+  if (vals[0].v === 0) return ['r', 'g'];
+  return [vals[0].p, vals[1].p];
+}
+
+function toggleGamePrimary(which) {
+  if (gameSelectedPrimaries.includes(which)) return; // already selected, no-op
+  const all = ['r', 'g', 'b'];
+  // Keep the one that's currently selected AND is not 'which', drop the other
+  gameSelectedPrimaries = [which, all.find(p => p !== which && gameSelectedPrimaries.includes(p))];
+  updateGamePrimaryUI();
+  applyGameSliderConstraints();
+  updatePotFromSlider();
+}
+
+function updateGamePrimaryUI() {
+  for (const p of ['r', 'g', 'b']) {
+    const btn = document.getElementById('gPBtn-' + p);
+    if (!btn) continue;
+    const sel = gameSelectedPrimaries.includes(p);
+    btn.classList.toggle('selected', sel);
+    btn.classList.toggle('locked', !sel);
+  }
+}
+
+function applyGameSliderConstraints() {
+  const locked = ['r', 'g', 'b'].find(p => !gameSelectedPrimaries.includes(p));
+  const sliderIds  = { r: 'rSlider', g: 'gSlider', b: 'bSlider' };
+  const valIds     = { r: 'rVal',    g: 'gVal',    b: 'bVal'    };
+  const lockIds    = { r: 'rLock',   g: 'gLock',   b: 'bLock'   };
+
+  for (const p of ['r', 'g', 'b']) {
+    const slider  = document.getElementById(sliderIds[p]);
+    const lockEl  = document.getElementById(lockIds[p]);
+    if (!slider) continue;
+
+    if (p === locked) {
+      const [o1, o2] = gameSelectedPrimaries;
+      const v1 = +document.getElementById(sliderIds[o1]).value;
+      const v2 = +document.getElementById(sliderIds[o2]).value;
+      const maxVal = Math.min(v1, v2);
+      slider.max = maxVal;
+      if (+slider.value > maxVal) {
+        slider.value = maxVal;
+        document.getElementById(valIds[p]).textContent = maxVal;
+      }
+      slider.style.opacity = '0.55';
+      if (lockEl) lockEl.textContent = `🔒 max: ${maxVal}`;
+    } else {
+      slider.max = 255;
+      slider.style.opacity = '1';
+      if (lockEl) lockEl.textContent = '';
+    }
+  }
 }
 
 // ============================================================
@@ -545,12 +645,18 @@ function openSlider() {
   document.getElementById('rVal').textContent = Math.round(pot.r);
   document.getElementById('gVal').textContent = Math.round(pot.g);
   document.getElementById('bVal').textContent = Math.round(pot.b);
+  // Auto-detect which two channels dominate, use them as the primaries
+  gameSelectedPrimaries = detectPrimariesFromPot();
+  updateGamePrimaryUI();
+  applyGameSliderConstraints();
   updateSliderPreview();
   document.getElementById('sliderOverlay').classList.remove('hidden');
   gameState = 'paused';
 }
 
 function updatePotFromSlider() {
+  // Apply constraint first (clamp locked channel to max = min of the two primaries)
+  applyGameSliderConstraints();
   pot.r = +document.getElementById('rSlider').value;
   pot.g = +document.getElementById('gSlider').value;
   pot.b = +document.getElementById('bSlider').value;

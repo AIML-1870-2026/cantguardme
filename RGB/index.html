@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RGB Chef's Kitchen</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ========== MAIN MENU ========== -->
+  <div id="mainMenu">
+    <div class="menu-logo">
+      <span class="pot-icon">🍲</span>
+      <h1>RGB Chef's Kitchen</h1>
+      <p class="subtitle">Master the art of light mixing</p>
+    </div>
+    <div class="menu-buttons">
+      <button class="btn-primary" onclick="startGame()">🎮 Cooking Competition</button>
+      <button class="btn-secondary" onclick="openLearnMode()">📖 Recipe Learn</button>
+    </div>
+  </div>
+
+  <!-- ========== GAME MODE ========== -->
+  <div id="gameMode" class="hidden">
+
+    <!-- Controls Overlay -->
+    <div id="controlsOverlay">
+      <div class="controls-content">
+        <h2>Welcome to Chef RGB's Kitchen!</h2>
+        <div class="chef-wave">🧑‍🍳</div>
+        <div class="controls-grid">
+          <div class="control-section">
+            <h3>🎮 Movement</h3>
+            <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &nbsp;or&nbsp; <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></p>
+            <p>Move your chef around the kitchen</p>
+          </div>
+          <div class="control-section">
+            <h3>🔧 Actions</h3>
+            <p><kbd>SPACE</kbd> or <kbd>E</kbd> — Pick up / Pour / Interact</p>
+            <p><kbd>Q</kbd> — Drop held item</p>
+            <p><kbd>ESC</kbd> — Pause menu</p>
+          </div>
+          <div class="control-section">
+            <h3>📍 Kitchen Stations</h3>
+            <p>🔴🟢🔵 <strong>Ingredient Bottles</strong> — Walk up and grab one!</p>
+            <p>🍳 <strong>Stove &amp; Pot</strong> — Pour to mix colors</p>
+            <p>🪟 <strong>Serving Window</strong> — Deliver your dish</p>
+            <p>📖 <strong>Recipe Book</strong> — Check color tips</p>
+            <p>🗑️ <strong>Trash Can</strong> — Dump the pot &amp; start over</p>
+          </div>
+          <div class="control-section">
+            <h3>💡 Pro Tips</h3>
+            <p>• Carry only <strong>ONE</strong> bottle at a time!</p>
+            <p>• <strong>Hold SPACE</strong> at the pot for a continuous pour</p>
+            <p>• Interact with the pot <strong>empty-handed</strong> to fine-tune</p>
+            <p>• Watch the customer's <strong>patience meter</strong> above their head!</p>
+            <p>• 3-star dishes earn <strong>bonus tips!</strong></p>
+          </div>
+        </div>
+        <button class="btn-primary start-btn" onclick="startPlaying()">START COOKING! 🍳</button>
+        <p class="or-press">or press SPACE</p>
+      </div>
+    </div>
+
+    <!-- Game Canvas -->
+    <canvas id="gameCanvas" width="780" height="580"></canvas>
+
+    <!-- Score / HUD (DOM overlay) -->
+    <div id="scoreDisplay">
+      <span id="livesDisplay">👨‍🍳👨‍🍳👨‍🍳</span>
+      <span id="scoreText">Score: 0</span>
+      <span id="actLevel">Act 1 - Level 1</span>
+    </div>
+
+    <!-- Precision Slider Overlay -->
+    <div id="sliderOverlay" class="hidden">
+      <div class="slider-panel">
+        <h3>🥄 Fine-tune your mix</h3>
+        <!-- Primary selector — third slider locked to max = min(other two) -->
+        <div class="game-primary-selector">
+          <p class="constraint-rule">Pick 2 primaries — the 3rd is locked to max = min of the others</p>
+          <div class="primary-buttons">
+            <button class="primary-btn red selected" id="gPBtn-r" onclick="toggleGamePrimary('r')">R</button>
+            <button class="primary-btn green selected" id="gPBtn-g" onclick="toggleGamePrimary('g')">G</button>
+            <button class="primary-btn blue locked" id="gPBtn-b" onclick="toggleGamePrimary('b')">B</button>
+          </div>
+        </div>
+        <div class="slider-row">
+          <label style="color:#ff8888">R <span id="rVal">0</span></label>
+          <input type="range" id="rSlider" min="0" max="255" value="0" oninput="updatePotFromSlider()">
+          <span id="rLock" class="lock-indicator"></span>
+        </div>
+        <div class="slider-row">
+          <label style="color:#88ff88">G <span id="gVal">0</span></label>
+          <input type="range" id="gSlider" min="0" max="255" value="0" oninput="updatePotFromSlider()">
+          <span id="gLock" class="lock-indicator"></span>
+        </div>
+        <div class="slider-row">
+          <label style="color:#8888ff">B <span id="bVal">0</span></label>
+          <input type="range" id="bSlider" min="0" max="255" value="0" oninput="updatePotFromSlider()">
+          <span id="bLock" class="lock-indicator"></span>
+        </div>
+        <div id="sliderPreview" class="color-preview" style="background:#000"></div>
+        <button class="btn-primary" onclick="closeSlider()">Done Stirring! ✅</button>
+      </div>
+    </div>
+
+    <!-- Pause Menu -->
+    <div id="pauseMenu" class="hidden overlay-dark">
+      <div class="pause-content">
+        <h2>⏸ Paused</h2>
+        <button class="btn-primary" onclick="resumeGame()">▶ Resume</button>
+        <button class="btn-secondary" onclick="showControls()">🎮 Controls</button>
+        <button class="btn-secondary" onclick="goToMainMenu()">🏠 Main Menu</button>
+      </div>
+    </div>
+
+    <!-- Serving Result -->
+    <div id="servingResult" class="hidden">
+      <div class="result-panel">
+        <div class="color-compare">
+          <div>
+            <div class="color-box" id="targetColorBox"></div>
+            <p>Target</p>
+          </div>
+          <div>
+            <div class="color-box" id="yourColorBox"></div>
+            <p>Your Mix</p>
+          </div>
+        </div>
+        <div id="starDisplay" class="stars"></div>
+        <p id="deltaEDisplay"></p>
+        <p id="resultMessage"></p>
+      </div>
+    </div>
+
+    <!-- Game Over -->
+    <div id="gameOverScreen" class="hidden overlay-dark">
+      <div class="gameover-content">
+        <h2>👨‍🍳 Kitchen Closed!</h2>
+        <p>Final Score: <span id="finalScore">0</span></p>
+        <p>Stars Earned: <span id="finalStars">0</span> ⭐</p>
+        <button class="btn-primary" onclick="restartGame()">🔄 Try Again</button>
+        <button class="btn-secondary" onclick="goToMainMenu()">🏠 Main Menu</button>
+      </div>
+    </div>
+
+    <!-- Back button -->
+    <button class="back-btn" onclick="goToMainMenu()">← Menu</button>
+    <!-- Music toggle -->
+    <button class="music-toggle-btn" onclick="AudioManager.toggle()" title="Mute music">🎵</button>
+  </div>
+
+  <!-- ========== RECIPE LEARN MODE ========== -->
+  <div id="learnMode" class="hidden">
+    <div class="book-wrapper">
+
+      <!-- Book Cover -->
+      <div id="bookCover" class="book-cover">
+        <div class="cover-text">The RGB Chef's Handbook</div>
+        <div class="cover-wheel">🎨</div>
+      </div>
+
+      <!-- Book Content -->
+      <div id="bookContent" class="book-content hidden">
+        <div class="book-spine"></div>
+        <div class="book-page">
+
+          <!-- Tab Navigation -->
+          <div class="page-tabs">
+            <button class="tab-btn active" onclick="switchTab('wheel')">🌸 Color Wheel</button>
+            <button class="tab-btn" onclick="switchTab('palette')">🎨 Palette</button>
+            <button class="tab-btn" onclick="switchTab('contrast')">⚖️ Contrast</button>
+            <button class="tab-btn" onclick="switchTab('cvd')">👁️ Color Vision</button>
+            <button class="tab-btn" onclick="switchTab('accessible')">♿ Accessible</button>
+          </div>
+
+          <!-- SECTION 1: Petal Color Wheel -->
+          <div id="tab-wheel" class="tab-content active">
+            <h2 class="page-title">The Petal Color Wheel</h2>
+            <div class="wheel-layout">
+              <div class="wheel-left">
+                <canvas id="petalWheel" width="300" height="300"></canvas>
+              </div>
+              <div class="wheel-right">
+                <div class="primary-selector">
+                  <p>Click two primaries to constrain mixing:</p>
+                  <div class="primary-buttons">
+                    <button class="primary-btn red selected" onclick="togglePrimary('r')" id="pBtn-r">R</button>
+                    <button class="primary-btn green selected" onclick="togglePrimary('g')" id="pBtn-g">G</button>
+                    <button class="primary-btn blue" onclick="togglePrimary('b')" id="pBtn-b">B</button>
+                  </div>
+                </div>
+                <div class="rgb-sliders">
+                  <div class="slider-row">
+                    <label style="color:#cc2222">R <span id="wRVal">200</span></label>
+                    <input type="range" id="wR" min="0" max="255" value="200" oninput="updateWheelColor()">
+                    <span id="wRLock" class="lock-indicator learn-lock"></span>
+                  </div>
+                  <div class="slider-row">
+                    <label style="color:#22aa22">G <span id="wGVal">80</span></label>
+                    <input type="range" id="wG" min="0" max="255" value="80" oninput="updateWheelColor()">
+                    <span id="wGLock" class="lock-indicator learn-lock"></span>
+                  </div>
+                  <div class="slider-row">
+                    <label style="color:#2244cc">B <span id="wBVal">20</span></label>
+                    <input type="range" id="wB" min="0" max="255" value="20" oninput="updateWheelColor()">
+                    <span id="wBLock" class="lock-indicator learn-lock"></span>
+                  </div>
+                </div>
+                <div class="color-preview-large" id="wheelPreview" style="background:#c85014"></div>
+                <div class="color-info-box">
+                  <div class="hex-display" id="wheelHex">#C85014</div>
+                  <div class="rgb-display" id="wheelRgb">R: 200  G: 80  B: 20</div>
+                  <div class="name-display" id="wheelName">Sriracha Glaze</div>
+                </div>
+                <div class="recipe-card">
+                  <h4>🍳 Recipe Notes</h4>
+                  <p id="recipeText">Red dominates, Green secondary → Orange-red zone. Blue minimal → pure saturated hue.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION 2: Palette Generator -->
+          <div id="tab-palette" class="tab-content">
+            <h2 class="page-title">Palette Generator</h2>
+            <div class="palette-layout">
+              <div class="palette-controls">
+                <div class="slider-row">
+                  <label>Base Hue: <span id="baseHueVal">200</span>°</label>
+                  <input type="range" id="baseHue" min="0" max="360" value="200" oninput="updatePalette()" style="width:100%">
+                </div>
+                <div class="slider-row">
+                  <label>Saturation: <span id="baseSatVal">70</span>%</label>
+                  <input type="range" id="baseSat" min="10" max="100" value="70" oninput="updatePalette()" style="width:100%">
+                </div>
+                <div class="slider-row">
+                  <label>Lightness: <span id="baseLitVal">50</span>%</label>
+                  <input type="range" id="baseLit" min="15" max="85" value="50" oninput="updatePalette()" style="width:100%">
+                </div>
+                <div class="harmony-select">
+                  <label>Harmony Type:</label>
+                  <select id="harmonyType" onchange="updatePalette()">
+                    <option value="complementary">Complementary (2)</option>
+                    <option value="analogous">Analogous (5)</option>
+                    <option value="triadic">Triadic (3)</option>
+                    <option value="split-complementary">Split-Complementary (3)</option>
+                    <option value="tetradic">Tetradic (4)</option>
+                  </select>
+                </div>
+                <button class="btn-fun" onclick="surpriseMe()">🎲 Surprise Me!</button>
+              </div>
+              <div class="palette-display">
+                <div id="paletteSwatches" class="swatches-row"></div>
+                <canvas id="miniWheel" width="160" height="160"></canvas>
+                <div class="sample-menu" id="sampleMenu"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION 3: Contrast Checker -->
+          <div id="tab-contrast" class="tab-content">
+            <h2 class="page-title">🔍 Health Inspector's Clipboard</h2>
+            <div class="contrast-layout">
+              <div class="contrast-controls">
+                <div class="color-picker-group">
+                  <label>Text Color:</label>
+                  <input type="color" id="fgColor" value="#000000" oninput="updateContrast()">
+                  <input type="text" id="fgHex" value="#000000" oninput="updateContrastHex('fg')" maxlength="7">
+                </div>
+                <div class="color-picker-group">
+                  <label>Background:</label>
+                  <input type="color" id="bgColor" value="#FFFFFF" oninput="updateContrast()">
+                  <input type="text" id="bgHex" value="#FFFFFF" oninput="updateContrastHex('bg')" maxlength="7">
+                </div>
+                <div class="contrast-ratio-display">
+                  <span id="contrastRatio">21.00</span>
+                  <small>:1 Contrast Ratio</small>
+                </div>
+              </div>
+              <div class="contrast-preview">
+                <div id="textPreview" class="text-preview" style="background:#fff;color:#000">
+                  <h3>Large Heading Text</h3>
+                  <p>Regular body text looks like this paragraph of sample content from the RGB Chef's Kitchen menu.</p>
+                  <small>Small fine print, like ingredient labels and legal disclaimers.</small>
+                </div>
+                <div class="wcag-badges" id="wcagBadges"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION 4: CVD Simulator -->
+          <div id="tab-cvd" class="tab-content">
+            <h2 class="page-title">👓 Color Vision Simulator</h2>
+            <div class="cvd-layout">
+              <div class="cvd-controls">
+                <p>See the color wheel as others see it:</p>
+                <div class="cvd-buttons">
+                  <button class="cvd-btn active" onclick="setCVD('normal')" id="cvd-normal">Normal Vision</button>
+                  <button class="cvd-btn" onclick="setCVD('protanopia')" id="cvd-protanopia">Protanopia (red-blind)</button>
+                  <button class="cvd-btn" onclick="setCVD('deuteranopia')" id="cvd-deuteranopia">Deuteranopia (green-blind)</button>
+                  <button class="cvd-btn" onclick="setCVD('tritanopia')" id="cvd-tritanopia">Tritanopia (blue-blind)</button>
+                </div>
+                <div class="cvd-info" id="cvdInfo">
+                  <p><strong>Normal Vision</strong> — Standard trichromatic color perception.</p>
+                  <p>Approximately 8% of men and 0.5% of women have some form of color blindness.</p>
+                  <p><em>Tip: Designs that work for color-blind users work better for everyone.</em></p>
+                </div>
+              </div>
+              <div class="cvd-display">
+                <canvas id="cvdWheelNormal" width="230" height="230"></canvas>
+                <canvas id="cvdWheelSimulated" width="230" height="230"></canvas>
+                <div class="cvd-labels">
+                  <span>Normal Vision</span>
+                  <span id="cvdLabel">Simulated View</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION 5: Accessible Palette -->
+          <div id="tab-accessible" class="tab-content">
+            <h2 class="page-title">♿ Accessible Palette Planner</h2>
+            <p style="font-size:0.85rem;color:#6a4a20;margin-bottom:0.8rem;font-style:italic">Generate palettes that pass WCAG contrast against your chosen background color.</p>
+            <div class="accessible-layout">
+              <div class="accessible-controls">
+                <div class="color-picker-group">
+                  <label>Background ("Tablecloth"):</label>
+                  <input type="color" id="accessBgColor" value="#FFFFFF" oninput="updateAccessiblePalette()">
+                </div>
+                <div class="slider-row" style="flex-direction:column;align-items:flex-start;gap:0.2rem">
+                  <label>Base Hue: <span id="accessHueVal">180</span>°</label>
+                  <input type="range" id="accessHue" min="0" max="360" value="180" oninput="updateAccessiblePalette()" style="width:100%">
+                </div>
+                <div class="harmony-select">
+                  <label>Harmony:</label>
+                  <select id="accessHarmony" onchange="updateAccessiblePalette()">
+                    <option value="triadic">Triadic</option>
+                    <option value="complementary">Complementary</option>
+                    <option value="analogous">Analogous</option>
+                    <option value="split-complementary">Split-Comp</option>
+                  </select>
+                </div>
+                <div class="toggle-row">
+                  <input type="checkbox" id="enforceA11y" checked onchange="updateAccessiblePalette()">
+                  <label for="enforceA11y">Enforce WCAG AA (4.5:1)</label>
+                </div>
+              </div>
+              <div class="accessible-display">
+                <div id="accessibleSwatches" class="swatches-row"></div>
+                <div id="contrastMatrix" class="contrast-matrix"></div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- .book-page -->
+      </div><!-- .book-content -->
+    </div><!-- .book-wrapper -->
+
+    <button class="back-btn close-book-btn" onclick="closeLearnMode()">✕ Close Book</button>
+    <button class="music-toggle-btn" onclick="AudioManager.toggle()" title="Mute music">🎵</button>
+  </div><!-- #learnMode -->
+
+  <!-- ========== SCRIPTS ========== -->
+  <script src="colors.js"></script>
+  <script src="audio.js"></script>
+  <script src="game.js"></script>
+  <script src="learn.js"></script>
+
+  <script>
+    // Start controls overlay keypress handler
+    document.addEventListener('keydown', function(e) {
+      if (e.code === 'Space' && document.getElementById('controlsOverlay') &&
+          !document.getElementById('controlsOverlay').classList.contains('hidden') &&
+          document.getElementById('gameMode') &&
+          !document.getElementById('gameMode').classList.contains('hidden')) {
+        e.preventDefault();
+        startPlaying();
+      }
+    });
+  </script>
+</body>
+</html>
