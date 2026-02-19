@@ -1580,11 +1580,6 @@ function drawOrderPanel() {
   ctx.textAlign = 'left';
   ctx.fillText(hex, px + 74, swY + 16);
 
-  // RGB values
-  ctx.font = '11px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#90c878';
-  ctx.fillText(`R:${tc.r}  G:${tc.g}  B:${tc.b}`, px + 74, swY + 30);
-
   // Food-themed colour name (centred below swatch row)
   ctx.fillStyle = '#ffeebb';
   ctx.font = '11px "Caveat", cursive';
