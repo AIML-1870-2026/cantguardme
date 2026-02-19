@@ -1048,7 +1048,7 @@ function drawBottle(st, colorDark, colorLight, label, isOnTable) {
   // Glow
   const grd = ctx.createRadialGradient(cx, by + bottleH / 2, 0, cx, by + bottleH / 2, 50);
   grd.addColorStop(0, colorDark + '33');
-  grd.addColorStop(1, 'transparent');
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = grd;
   ctx.fillRect(cx - 50, by - 10, 100, 100);
 
@@ -1148,7 +1148,7 @@ function drawStove() {
   const burnColor = `rgba(${Math.round(potAnim.r)},${Math.round(potAnim.g * 0.5 + 80)},0,0.67)`;
   const bgrd = ctx.createRadialGradient(st.x + st.w / 2, st.y + st.h + 8, 0, st.x + st.w / 2, st.y + st.h + 8, 60);
   bgrd.addColorStop(0, burnColor);
-  bgrd.addColorStop(1, 'transparent');
+  bgrd.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = bgrd;
   ctx.fillRect(st.x - 20, st.y + st.h - 10, st.w + 40, 60);
 }
@@ -1165,7 +1165,7 @@ function drawPot() {
   const pulse = 0.7 + 0.3 * Math.sin(potGlowPulse * 2.2);
   const grd = ctx.createRadialGradient(cx, cy + 10, 10, cx, cy + 10, 80 + pulse * 20);
   grd.addColorStop(0, `rgba(${r},${g},${b},${0.35 * pulse})`);
-  grd.addColorStop(1, 'transparent');
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = grd;
   ctx.fillRect(cx - 100, cy - 60, 200, 200);
 
@@ -1266,7 +1266,7 @@ function drawPot() {
 
 // ---- Order Board / Customer Dialogue (top-right) ----
 function drawOrderPanel() {
-  const px = 412, py = 84, pw = 362, ph = 272;
+  const px = 502, py = 84, pw = 270, ph = 240;
 
   // ── Chalkboard panel ──────────────────────────────────
   ctx.fillStyle = '#182616';
