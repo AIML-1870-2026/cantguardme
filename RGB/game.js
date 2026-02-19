@@ -26,14 +26,20 @@ let orderBetweenTimer = 0;
 let resultTimer = 0;
 
 // ---- Stations ----
+// Layout (top-down, per spec):
+//  y=0-68:   Dining area strip (visible through serving window)
+//  y=68-84:  Kitchen wall / counter divider
+//  y=84-380: Kitchen floor — serving window (top-left), order board (top-right), pot (center)
+//  y=380-490: Bottom counter — R/G/B bottles (left), trash can (right)
+//  y=490-570: Below counter — recipe book stand (bottom-right)
 const ST = {
-  redBottle:     { x: 60,  y: 455, w: 64, h: 90, type: 'bottle', color: 'red'   },
-  greenBottle:   { x: 175, y: 455, w: 64, h: 90, type: 'bottle', color: 'green' },
-  blueBottle:    { x: 290, y: 455, w: 64, h: 90, type: 'bottle', color: 'blue'  },
-  pot:           { x: 300, y: 250, w: 120, h: 100, type: 'pot'  },
-  servingWindow: { x: 70,  y: 110, w: 150, h: 70,  type: 'serve' },
-  trashCan:      { x: 620, y: 455, w: 68,  h: 90,  type: 'trash' },
-  recipeBook:    { x: 615, y: 340, w: 80,  h: 80,  type: 'recipe' },
+  redBottle:     { x: 22,  y: 388, w: 62, h: 88, type: 'bottle', color: 'red'   },
+  greenBottle:   { x: 132, y: 388, w: 62, h: 88, type: 'bottle', color: 'green' },
+  blueBottle:    { x: 242, y: 388, w: 62, h: 88, type: 'bottle', color: 'blue'  },
+  pot:           { x: 280, y: 190, w: 220, h: 130, type: 'pot'  },
+  servingWindow: { x: 14,  y: 46,  w: 175, h: 118, type: 'serve' },
+  trashCan:      { x: 648, y: 388, w: 68,  h: 88,  type: 'trash' },
+  recipeBook:    { x: 638, y: 488, w: 100, h: 72,  type: 'recipe' },
 };
 
 // ---- Particles ----
@@ -56,22 +62,68 @@ let gameListenersAdded = false;
 let gameLoopRunning = false;
 let lastTime = 0;
 
+// ---- Chef (Player Character) ----
+let chef = { x: 390, y: 350, dir: 'down', animTimer: 0, heldBottle: null };
+
+// ---- Bottle Table State ----
+let bottleState = { red: true, green: true, blue: true };
+
+// ---- Keyboard Input ----
+const keys = {};
+
 // ---- Levels ----
 const LEVELS = [
-  // Act 1: Tutorial
-  { act:1, num:1, target:{r:255,g:0,b:0},   hint:'💡 Pure Red — click the Red bottle to fill the pot!',       patience:65, dE:[10,20,40] },
-  { act:1, num:2, target:{r:0,g:255,b:0},   hint:'💡 Pure Green — click the Green bottle!',                   patience:65, dE:[10,20,40] },
-  { act:1, num:3, target:{r:0,g:0,b:255},   hint:'💡 Pure Blue — click the Blue bottle!',                     patience:65, dE:[10,20,40] },
-  { act:1, num:4, target:{r:255,g:255,b:0}, hint:'💡 Yellow = Red + Green! Light mixing surprises!',          patience:60, dE:[10,20,40] },
-  { act:1, num:5, target:{r:0,g:255,b:255}, hint:'💡 Cyan = Green + Blue!',                                   patience:60, dE:[10,20,40] },
-  { act:1, num:6, target:{r:255,g:0,b:255}, hint:'💡 Magenta = Red + Blue!',                                  patience:55, dE:[10,20,40] },
-  // Act 2: Line Cook
-  { act:2, num:1, target:{r:255,g:255,b:255}, hint:null, patience:45, dE:[5,15,30] },
-  { act:2, num:2, target:{r:255,g:128,b:0},   hint:null, patience:40, dE:[5,15,30] },
-  { act:2, num:3, target:{r:128,g:0,b:255},   hint:null, patience:38, dE:[5,15,30] },
-  { act:2, num:4, target:{r:0,g:200,b:150},   hint:null, patience:35, dE:[5,15,30] },
-  { act:2, num:5, target:{r:255,g:50,b:100},  hint:null, patience:33, dE:[5,15,30] },
-  { act:2, num:6, target:{r:200,g:200,b:50},  hint:null, patience:32, dE:[5,15,30] },
+  // === ACT 1: CULINARY SCHOOL (Tutorial) ===
+  { act:1, num:1, target:{r:255,g:0,b:0},   name:'Chef Instructor Marco', dialogue:'Welcome, new chef! Let\'s start simple — can you whip me up some pure Red? Just click that red bottle!',                                    hint:'💡 Pure Red — click the Red bottle to fill the pot!',  patience:65, dE:[10,20,40] },
+  { act:1, num:2, target:{r:0,g:255,b:0},   name:'Chef Instructor Marco', dialogue:'Well done! Now I\'d love some pure Green — crisp and bright, like fresh herbs straight from the garden.',                                    hint:'💡 Pure Green — click the Green bottle!',              patience:65, dE:[10,20,40] },
+  { act:1, num:3, target:{r:0,g:0,b:255},   name:'Chef Instructor Marco', dialogue:'Excellent technique! Complete the three primaries — pure Blue, please. Like a clear midnight sky over the kitchen.',                        hint:'💡 Pure Blue — click the Blue bottle!',                patience:65, dE:[10,20,40] },
+  { act:1, num:4, target:{r:255,g:255,b:0}, name:'Chef Instructor Marco', dialogue:'Here\'s your first puzzle: I want Yellow... but there\'s no yellow bottle! Hint: mixing light is nothing like mixing paint. Surprise!',    hint:'💡 Yellow = Red + Green! Light mixing surprises!',     patience:60, dE:[10,20,40] },
+  { act:1, num:5, target:{r:0,g:255,b:255}, name:'Chef Instructor Marco', dialogue:'Nicely done! Now try Cyan — that electric turquoise colour. It\'s made from exactly two primaries. Which two, do you think?',              hint:'💡 Cyan = Green + Blue!',                              patience:60, dE:[10,20,40] },
+  { act:1, num:6, target:{r:255,g:0,b:255}, name:'Chef Instructor Marco', dialogue:'Final lesson! Red and Blue together make... Magenta? In light mixing, yes! You\'re graduating — this is your diploma dish!',               hint:'💡 Magenta = Red + Blue!',                             patience:55, dE:[10,20,40] },
+
+  // === ACT 2: LINE COOK (Precision) ===
+  { act:2, num:1,  target:{r:255,g:255,b:255}, name:'Brigitte S.',     dialogue:'I\'m craving something pure and bright — pure White, like fresh cream on a clean plate. All three lights combined!',                                    hint:null, patience:45, dE:[5,15,30] },
+  { act:2, num:2,  target:{r:255,g:128,b:0},   name:'Tomás Rivera',    dialogue:'I\'m hosting brunch and I need something warm, energetic — a deep Orange. Like sunrise over the horizon. Not too yellow!',                            hint:null, patience:40, dE:[5,15,30] },
+  { act:2, num:3,  target:{r:128,g:0,b:255},   name:'Yuki Tanaka',     dialogue:'I want a rich, mysterious Violet — deep purple like eggplant skin. Very precise! Too much Red and the whole dish is ruined.',                         hint:null, patience:38, dE:[5,15,30] },
+  { act:2, num:4,  target:{r:0,g:200,b:150},   name:'Fatima Al-Rashid',dialogue:'I\'m craving something specific today... a warm Sea Green. Think tropical lagoon — cool but vibrant, not too blue!',                                hint:null, patience:35, dE:[5,15,30] },
+  { act:2, num:5,  target:{r:255,g:50,b:100},  name:'Diego Flores',    dialogue:'I need a fierce Hot Pink — bold, punchy, like neon strawberry. Not too red, not too purple. Salon-level precision!',                                 hint:null, patience:33, dE:[5,15,30] },
+  { act:2, num:6,  target:{r:200,g:200,b:50},  name:'Amara Nwosu',     dialogue:'Something earthy and warm — an Olive Gold, like saffron-infused butter sauce. Tricky balance between yellow and grey. Think carefully!',             hint:null, patience:32, dE:[5,15,30] },
+  { act:2, num:7,  target:{r:30,g:144,b:255},  name:'Sophie Laurent',  dialogue:'The exact color of a clear afternoon sky — Dodger Blue, soft and airy. I\'ll know instantly if it\'s wrong. I grew up under that sky.',              hint:null, patience:30, dE:[5,15,30] },
+  { act:2, num:8,  target:{r:255,g:120,b:70},  name:'Carlos Méndez',   dialogue:'Coral, please — that warm peachy-orange of tropical fish in bright sunlight. Not too red, not too orange. Coastal precision!',                       hint:null, patience:28, dE:[5,15,30] },
+  { act:2, num:9,  target:{r:148,g:87,b:235},  name:'Aiko Suzuki',     dialogue:'A dreamy Lavender — soft purple-blue, like lavender fields at dusk. Very specific! It\'s a delicate balance that most chefs get wrong.',             hint:null, patience:26, dE:[5,15,30] },
+  { act:2, num:10, target:{r:180,g:30,b:60},   name:'Priya Sharma',    dialogue:'A deep, dark Crimson — aged wine red, rich and complex. A whisper of blue, absolutely zero green. Sommelier-level colour precision!',               hint:null, patience:24, dE:[5,15,30] },
+
+  // === ACT 3: SOUS CHEF (Palette Challenges) ===
+  { act:3, num:1, target:{r:0,g:120,b:220},   name:'Event Planner Renée',    dialogue:'I\'m hosting a dinner party tonight! I need a Triadic colour scheme starting from Azure Blue. Three courses, three colours — nail the first!',          hint:null, patience:32, dE:[5,12,25] },
+  { act:3, num:2, target:{r:220,g:60,b:0},    name:'Event Planner Renée',    dialogue:'Complementary second course! My starter was Azure — now I need its colour wheel opposite: a vivid Red-Orange. The guests are watching every plate!',    hint:null, patience:30, dE:[5,12,25] },
+  { act:3, num:3, target:{r:0,g:180,b:180},   name:'Banquet Host Victor',    dialogue:'Analogous plating challenge! My amuse-bouche was Sea Green — now I need this precise Teal. Same cool family, a step different. Continuity matters!',     hint:null, patience:30, dE:[5,12,25] },
+  { act:3, num:4, target:{r:255,g:90,b:50},   name:'Banquet Host Victor',    dialogue:'Split-complementary trio! Teal was course one, now I need a vivid Coral-Orange to complete the split. The geometric balance must be perfect!',          hint:null, patience:28, dE:[5,12,25] },
+  { act:3, num:5, target:{r:120,g:0,b:200},   name:'Gallery Owner Miriam',   dialogue:'Triadic dessert platter — three colours 120° apart! Blue and Orange are plated — now I need the perfect Violet to close the triangle. No shortcuts!',   hint:null, patience:27, dE:[5,12,25] },
+  { act:3, num:6, target:{r:220,g:40,b:110},  name:'Gallery Owner Miriam',   dialogue:'Tetradic banquet — four courses, four harmonious colours! This Rose Red is third in my rectangle palette. Geometric flavour theory at its finest!',     hint:null, patience:25, dE:[5,12,25] },
+  { act:3, num:7, target:{r:255,g:165,b:0},   name:'Wedding Planner Celeste',dialogue:'Five-colour analogous spread for the reception! This warm Amber is the heart of the sequence. Every shade must flow seamlessly into the next!',         hint:null, patience:24, dE:[5,12,25] },
+  { act:3, num:8, target:{r:15,g:15,b:130},   name:'Wedding Planner Celeste',dialogue:'The anchor colour for my entire palette collection! Deep Midnight Blue — the foundation everything else builds from. Grand finale. No pressure!',        hint:null, patience:22, dE:[5,12,25] },
+
+  // === ACT 4: HEAD CHEF — THE ACCESSIBLE KITCHEN ===
+  { act:4, num:1, target:{r:0,g:160,b:60},   name:'Alex (protanopia)',        dialogue:'Hey chef, I should mention — I have protanopia, so reds and greens look the same to me. I want a dish that looks THIS green to my eyes. Figure out what I actually need!',   hint:null, patience:35, dE:[5,12,25] },
+  { act:4, num:2, target:{r:0,g:100,b:200},  name:'Morgan (deuteranopia)',    dialogue:'I have deuteranopia — my red-green perception is shifted. What I described as "vivid blue" may look different to you. Trust the hex code, not my words!',                      hint:null, patience:33, dE:[5,12,25] },
+  { act:4, num:3, target:{r:90,g:40,b:180},  name:'Riley (tritanopia)',       dialogue:'Tritanopia here — blues and yellows trip me up. What I see as "cool purple" may look different in full vision. Trust the hex completely. Don\'t trust my description!',         hint:null, patience:33, dE:[5,12,25] },
+  { act:4, num:4, target:{r:30,g:100,b:180}, name:'Inspector Valdez',         dialogue:'Inspection time! This background colour needs to achieve 4.5:1 contrast against white text to pass WCAG AA. Mix it precisely — or the restaurant fails its audit!',              hint:null, patience:30, dE:[5,12,25] },
+  { act:4, num:5, target:{r:15,g:60,b:120},  name:'Inspector Valdez',         dialogue:'Harder this time — AAA standard! The background must achieve 7:1 contrast against white. No shortcuts. Accessible design is non-negotiable in this kitchen!',                    hint:null, patience:28, dE:[5,12,25] },
+  { act:4, num:6, target:{r:20,g:20,b:160},  name:'Event Planner Chen',       dialogue:'Five-colour accessible banquet palette! Every colour must pass 4.5:1 contrast against white for WCAG AA. This Deep Blue is course one. Precision and inclusion!',               hint:null, patience:27, dE:[5,12,25] },
+  { act:4, num:7, target:{r:160,g:90,b:0},   name:'Event Planner Chen',       dialogue:'Accessible palette course two — dark background theme! This Rich Amber must pass contrast against near-black. Luminance maths on a plate!',                                      hint:null, patience:25, dE:[5,12,25] },
+  { act:4, num:8, target:{r:80,g:0,b:130},   name:'Mixed Special Guests',     dialogue:'Ultimate accessibility round! Colour-blind guests AND an inspector. This Deep Purple must pass WCAG, look distinct through CVD filters, and still be beautiful. Perfection!',    hint:null, patience:22, dE:[5,12,25] },
+
+  // === ACT 5: IRON CHEF CHAMPIONSHIP ===
+  { act:5, num:1,  target:{r:139,g:47,b:199},  name:'Critic Dominique',    dialogue:'You have 12 seconds. The colour is #8B2FC7. I saw it once at a restaurant in Paris and I\'ve been chasing it ever since. Don\'t disappoint me.',                patience:15, dE:[3,8,18] },
+  { act:5, num:2,  target:{r:255,g:87,b:34},   name:'Critic Dominique',    dialogue:'Deep Vermillion — #FF5722. My grandmother made a dish exactly this colour. I\'ve eaten at three Michelin-starred restaurants since. None matched it. Can you?',    patience:15, dE:[3,8,18] },
+  { act:5, num:3,  target:{r:0,g:188,b:212},   name:'Judge Keiko Hara',    dialogue:'Mystery ingredient! Red channel is BROKEN today — max 30 units! Now give me Cyan #00BCD4. A true iron chef adapts to any broken kitchen.',                       patience:15, dE:[3,8,18] },
+  { act:5, num:4,  target:{r:233,g:30,b:99},   name:'Judge Keiko Hara',    dialogue:'Memory round! You saw Hot Pink #E91E63 for exactly 3 seconds. It\'s gone now. Mix purely from memory. A true chef never forgets a colour they\'ve seen.',          patience:12, dE:[3,8,18] },
+  { act:5, num:5,  target:{r:103,g:58,b:183},  name:'Rush Hour Manager',   dialogue:'Rush hour — the queue is three deep! Deep Purple #673AB7. The critics are watching every plate. Go, go, GO!',                                                       patience:12, dE:[3,8,18] },
+  { act:5, num:6,  target:{r:0,g:150,b:136},   name:'Rush Hour Manager',   dialogue:'Teal #009688. Then its complement. Then a split-complementary. Three dishes in sequence — 12 seconds each. The championship record is on the line!',                patience:12, dE:[3,8,18] },
+  { act:5, num:7,  target:{r:255,g:193,b:7},   name:'Critic Søren Berg',   dialogue:'Amber #FFC107. Looks simple — scores are not. ΔE threshold is tighter than anything you\'ve seen today. One unit off and your career ends here.',                   patience:15, dE:[2,5,12] },
+  { act:5, num:8,  target:{r:76,g:175,b:80},   name:'Critic Søren Berg',   dialogue:'#4CAF50 — but the Green channel is capped at 140 today. Mystery constraint! Figure out another path to this exact colour. Think before you pour.',                   patience:12, dE:[3,8,18] },
+  { act:5, num:9,  target:{r:244,g:67,b:54},   name:'Legend Chef Auguste', dialogue:'The boss round. Deep Red #F44336. A legendary critic — 40 years of refined taste. Tolerance: ΔE under 3. This is for everything. Make it count.',                   patience:20, dE:[2,5,12] },
+  { act:5, num:10, target:{r:33,g:33,b:33},    name:'Legend Chef Auguste', dialogue:'Final dish. Near-Black #212121. The most deceptively simple order of your life. Mix it exactly. Your entire culinary career ends — or begins — right here.',         patience:18, dE:[2,5,12] },
 ];
 
 // ============================================================
@@ -110,13 +162,15 @@ function initGame() {
       canvas.style.cursor = 'default';
     });
 
-    // ESC for pause
+    // Keyboard controls
     document.addEventListener('keydown', (e) => {
-      if (e.code === 'Escape') handleEscape();
-      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) {
-        e.preventDefault();
-      }
+      if (e.code === 'Escape') { handleEscape(); return; }
+      const movKeys = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD'];
+      if (movKeys.includes(e.code)) { e.preventDefault(); keys[e.code] = true; }
+      if (e.code === 'KeyE') { e.preventDefault(); if (gameState === 'playing') handleInteract(); }
+      if (e.code === 'KeyQ') { e.preventDefault(); if (gameState === 'playing') handleDrop(); }
     });
+    document.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
     gameListenersAdded = true;
   }
@@ -149,14 +203,16 @@ function handleCanvasClick(x, y) {
 
 function activateStation(_key, st) {
   if (st.type === 'bottle') {
-    const amount = 25; // units per click
-    const clr = st.color === 'red' ? '#ff4444' : st.color === 'green' ? '#44ff44' : '#4444ff';
-    if (st.color === 'red')   pot.r = Math.min(255, pot.r + amount);
-    if (st.color === 'green') pot.g = Math.min(255, pot.g + amount);
-    if (st.color === 'blue')  pot.b = Math.min(255, pot.b + amount);
-    potFill = (pot.r + pot.g + pot.b) / (255 * 3);
-    // Arc pour stream from bottle to pot
-    spawnPourDrop(st.x + st.w / 2, st.y + 15, ST.pot.x + 60, ST.pot.y + 60, clr);
+    // Bottles are picked up by walking close — click on canvas is secondary
+    if (!chef.heldBottle && bottleState[st.color]) {
+      chef.heldBottle = st.color;
+      bottleState[st.color] = false;
+      hint.text = `Picked up ${st.color} bottle! Walk to pot and press E to pour.`;
+      hint.timer = 3;
+    } else if (chef.heldBottle) {
+      hint.text = 'Already holding a bottle! Press Q to put it back first.';
+      hint.timer = 2;
+    }
     return;
   }
   if (st.type === 'pot') {
@@ -200,9 +256,11 @@ function startPlaying() {
   potFill = 0;
   order = null;
   orderBetweenTimer = 0;
+  chef = { x: 390, y: 350, dir: 'down', animTimer: 0, heldBottle: null };
+  bottleState = { red: true, green: true, blue: true };
 
-  hint.text = 'Click the colored bottles to pour! Click the Serving Window to serve.';
-  hint.timer = 7;
+  hint.text = 'Move with WASD! Walk to a bottle to pick it up, then carry it to the pot and press E to pour.';
+  hint.timer = 8;
 
   updateScoreDisplay();
   spawnOrder();
@@ -256,6 +314,8 @@ function restartGame() {
   potFill = 0;
   order = null;
   orderBetweenTimer = 0;
+  chef = { x: 390, y: 350, dir: 'down', animTimer: 0, heldBottle: null };
+  bottleState = { red: true, green: true, blue: true };
   particles = []; pourStreams = []; celebrationParticles = [];
   updateScoreDisplay();
   spawnOrder();
@@ -272,7 +332,9 @@ function restartGame() {
 // ============================================================
 function spawnOrder() {
   if (currentLevelIdx >= LEVELS.length) {
-    currentLevelIdx = 6; // cycle from Act 2
+    // Cycle through Act 5 endlessly after completing all acts
+    const act5Start = LEVELS.findIndex(l => l.act === 5);
+    currentLevelIdx = act5Start >= 0 ? act5Start : LEVELS.length - 10;
   }
   const level = LEVELS[currentLevelIdx];
   order = {
@@ -299,6 +361,114 @@ function updateOrder(dt) {
     potFill = 0;
     order = null;
   }
+}
+
+// ============================================================
+// CHEF MOVEMENT & INTERACTION
+// ============================================================
+function updateChef(dt) {
+  if (gameState !== 'playing') return;
+
+  const isUp    = keys['KeyW'] || keys['ArrowUp'];
+  const isDown  = keys['KeyS'] || keys['ArrowDown'];
+  const isLeft  = keys['KeyA'] || keys['ArrowLeft'];
+  const isRight = keys['KeyD'] || keys['ArrowRight'];
+
+  let dx = 0, dy = 0;
+  if (isLeft)  dx -= 1;
+  if (isRight) dx += 1;
+  if (isUp)    dy -= 1;
+  if (isDown)  dy += 1;
+
+  // Normalize diagonal
+  if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+
+  const speed = keys['Space'] ? 210 : 130;
+  chef.x += dx * speed * dt;
+  chef.y += dy * speed * dt;
+
+  // Clamp to kitchen floor
+  chef.x = Math.max(14, Math.min(CW - 14, chef.x));
+  chef.y = Math.max(92, Math.min(CH - 26, chef.y));
+
+  // Update facing direction
+  if (Math.abs(dx) > Math.abs(dy)) {
+    chef.dir = dx > 0 ? 'right' : 'left';
+  } else if (dy !== 0) {
+    chef.dir = dy > 0 ? 'down' : 'up';
+  }
+
+  // Advance walk animation
+  if (dx !== 0 || dy !== 0) chef.animTimer += dt * 5;
+
+  // Auto-pickup: walk close to a bottle that is on the table
+  if (!chef.heldBottle) {
+    for (const key of ['redBottle', 'greenBottle', 'blueBottle']) {
+      const st = ST[key];
+      if (!bottleState[st.color]) continue;
+      const dist = Math.hypot(chef.x - (st.x + st.w / 2), chef.y - (st.y + st.h / 2));
+      if (dist < 56) {
+        chef.heldBottle = st.color;
+        bottleState[st.color] = false;
+        hint.text = `Picked up ${st.color} bottle! Walk to pot, press E to pour, Q to put back.`;
+        hint.timer = 3.5;
+        break;
+      }
+    }
+  }
+}
+
+function handleInteract() {
+  // Near pot?
+  const potCx = ST.pot.x + ST.pot.w / 2;
+  const potCy = ST.pot.y + ST.pot.h / 2;
+  if (Math.hypot(chef.x - potCx, chef.y - potCy) < 115) {
+    if (chef.heldBottle) {
+      const clr = chef.heldBottle === 'red' ? '#ff4444' : chef.heldBottle === 'green' ? '#44ff44' : '#4466ff';
+      if (chef.heldBottle === 'red')   pot.r = Math.min(255, pot.r + 25);
+      if (chef.heldBottle === 'green') pot.g = Math.min(255, pot.g + 25);
+      if (chef.heldBottle === 'blue')  pot.b = Math.min(255, pot.b + 25);
+      potFill = (pot.r + pot.g + pot.b) / (255 * 3);
+      spawnPourDrop(chef.x, chef.y - 10, potCx, ST.pot.y + ST.pot.h * 0.65, clr);
+      hint.text = `Poured ${chef.heldBottle.toUpperCase()}! Press E again to add more.`;
+      hint.timer = 2;
+    } else {
+      openSlider();
+    }
+    return;
+  }
+
+  // Near serving window (kitchen side)?
+  const swCx = ST.servingWindow.x + ST.servingWindow.w / 2;
+  const swCy = ST.servingWindow.y + ST.servingWindow.h;
+  if (Math.hypot(chef.x - swCx, chef.y - swCy) < 110) {
+    serveOrder();
+    return;
+  }
+
+  // Near trash can?
+  const trCx = ST.trashCan.x + ST.trashCan.w / 2;
+  const trCy = ST.trashCan.y + ST.trashCan.h / 2;
+  if (Math.hypot(chef.x - trCx, chef.y - trCy) < 85) {
+    if (chef.heldBottle) { bottleState[chef.heldBottle] = true; chef.heldBottle = null; }
+    pot = { r: 0, g: 0, b: 0 };
+    potFill = 0;
+    spawnSplash(ST.trashCan.x + 34, ST.trashCan.y + 30, '#555');
+    hint.text = 'Pot dumped! Start fresh.';
+    hint.timer = 3;
+    return;
+  }
+
+  hint.text = 'Walk closer to a station, then press E.';
+  hint.timer = 2;
+}
+
+function handleDrop() {
+  if (!chef.heldBottle) { hint.text = 'Not holding anything!'; hint.timer = 1.5; return; }
+  bottleState[chef.heldBottle] = true;
+  hint.text = `Placed ${chef.heldBottle} bottle back on the table.`;
+  hint.timer = 2;
+  chef.heldBottle = null;
 }
 
 function serveOrder() {
@@ -604,6 +774,7 @@ function gameLoop(timestamp) {
   if (gameState === 'playing') {
     updateParticles(dt);
     updateOrder(dt);
+    updateChef(dt);
 
     if (!order && orderBetweenTimer > 0) {
       orderBetweenTimer -= dt;
@@ -638,52 +809,110 @@ function draw() {
   drawPot();
   drawOrderPanel();
   drawParticles();
+  drawChef();
   drawHoverHighlight();
   drawHint();
+  drawHeldBottleHUD();
 }
 
 // ---- Kitchen Background ----
 function drawKitchen() {
-  // Floor
-  const floorGrad = ctx.createLinearGradient(0, 100, 0, CH);
-  floorGrad.addColorStop(0, '#241810');
-  floorGrad.addColorStop(1, '#1a1008');
-  ctx.fillStyle = floorGrad;
-  ctx.fillRect(0, 100, CW, CH - 100);
+  // ====================================================
+  // 1. DINING AREA — top strip (y=0 to 68)
+  // ====================================================
+  const diningGrad = ctx.createLinearGradient(0, 0, 0, 68);
+  diningGrad.addColorStop(0, '#1c1008');
+  diningGrad.addColorStop(1, '#2c1a0e');
+  ctx.fillStyle = diningGrad;
+  ctx.fillRect(0, 0, CW, 68);
 
-  // Tile grid
+  // Warm pendant lights in dining area
+  for (const lx of [170, 420, 640]) {
+    const lg = ctx.createRadialGradient(lx, 10, 0, lx, 20, 90);
+    lg.addColorStop(0, 'rgba(255,200,100,0.20)');
+    lg.addColorStop(1, 'rgba(255,200,100,0)');
+    ctx.fillStyle = lg;
+    ctx.fillRect(lx - 90, 0, 180, 68);
+  }
+
+  // Table silhouettes
+  for (const [tx] of [[210], [430], [640]]) {
+    ctx.fillStyle = 'rgba(65,38,14,0.65)';
+    ctx.beginPath();
+    ctx.ellipse(tx, 54, 44, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Plate on table
+    ctx.fillStyle = 'rgba(210,190,150,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(tx, 54, 11, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Patron silhouettes (heads above tables)
+  for (const px of [230, 390, 460, 620, 655]) {
+    ctx.fillStyle = 'rgba(45,25,10,0.60)';
+    ctx.beginPath();
+    ctx.arc(px, 36, 7, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Subtle "DINING AREA" label
+  ctx.fillStyle = 'rgba(255,200,100,0.18)';
+  ctx.font = '9px Nunito, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('— DINING AREA —', CW / 2, 14);
+
+  // ====================================================
+  // 2. KITCHEN WALL — horizontal divider (y=68 to 84)
+  // ====================================================
+  ctx.fillStyle = '#3d2510';
+  ctx.fillRect(0, 68, CW, 16);
+  ctx.fillStyle = '#5c3a1c';
+  ctx.fillRect(0, 68, CW, 3);   // top edge highlight
+  ctx.fillStyle = '#261508';
+  ctx.fillRect(0, 81, CW, 3);   // bottom edge shadow
+
+  // Serving window cuts THROUGH the wall — re-draw dining background inside it
+  const sw = ST.servingWindow;
+  const dBgCut = ctx.createLinearGradient(sw.x, 68, sw.x, 84);
+  dBgCut.addColorStop(0, '#2c1a0e');
+  dBgCut.addColorStop(1, '#1e1208');
+  ctx.fillStyle = dBgCut;
+  ctx.fillRect(sw.x, 68, sw.w, 16);
+
+  // ====================================================
+  // 3. KITCHEN FLOOR — tiles (y=84 to CH)
+  // ====================================================
+  const floorGrad = ctx.createLinearGradient(0, 84, 0, CH);
+  floorGrad.addColorStop(0, '#221410');
+  floorGrad.addColorStop(1, '#150e07');
+  ctx.fillStyle = floorGrad;
+  ctx.fillRect(0, 84, CW, CH - 84);
+
+  // Dark tile grid
   ctx.strokeStyle = 'rgba(255,200,100,0.04)';
   ctx.lineWidth = 1;
   for (let x = 0; x < CW; x += 48) {
-    ctx.beginPath(); ctx.moveTo(x, 100); ctx.lineTo(x, CH); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, 84); ctx.lineTo(x, CH); ctx.stroke();
   }
-  for (let y = 100; y < CH; y += 48) {
+  for (let y = 84; y < CH; y += 48) {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CW, y); ctx.stroke();
   }
 
-  // Top bar (behind serving window area)
-  const topGrad = ctx.createLinearGradient(0, 0, 0, 100);
-  topGrad.addColorStop(0, '#1e1208');
-  topGrad.addColorStop(1, '#2a1c0e');
-  ctx.fillStyle = topGrad;
-  ctx.fillRect(0, 0, CW, 100);
-
-  // Counter divider
-  ctx.fillStyle = '#4a3220';
-  ctx.fillRect(0, 95, CW, 18);
-  ctx.fillStyle = '#5a4030';
-  ctx.fillRect(0, 95, CW, 4);
-
-  // Overhead lights
-  for (const lx of [160, 380, 600]) {
-    const lg = ctx.createRadialGradient(lx, 110, 0, lx, 140, 120);
-    lg.addColorStop(0, 'rgba(255,220,140,0.12)');
+  // ====================================================
+  // 4. OVERHEAD KITCHEN LIGHTS
+  // ====================================================
+  for (const lx of [100, 390, 680]) {
+    const lg = ctx.createRadialGradient(lx, 110, 0, lx, 140, 130);
+    lg.addColorStop(0, 'rgba(255,220,140,0.10)');
     lg.addColorStop(1, 'rgba(255,220,140,0)');
     ctx.fillStyle = lg;
-    ctx.fillRect(lx - 120, 100, 240, 200);
+    ctx.fillRect(lx - 130, 84, 260, 220);
   }
 
-  // Bottle glow on floor
+  // ====================================================
+  // 5. BOTTLE GLOW ON FLOOR
+  // ====================================================
   drawBottleGlow(ST.redBottle,   'rgba(255,0,0,0.1)');
   drawBottleGlow(ST.greenBottle, 'rgba(0,255,0,0.1)');
   drawBottleGlow(ST.blueBottle,  'rgba(0,0,255,0.1)');
@@ -704,53 +933,107 @@ function drawStations() {
   drawServingWindowArea();
   drawStove();
 
-  // Counter tops
+  // Counter top for R/G/B bottles (left section, bottom row)
   ctx.fillStyle = '#3a2a18';
-  ctx.fillRect(40, 448, 340, 14);
+  ctx.fillRect(10, 381, 308, 14);
   ctx.fillStyle = '#4a3a28';
-  ctx.fillRect(40, 448, 340, 4);
+  ctx.fillRect(10, 381, 308, 4);
 
+  // Counter top for trash + recipe book stand (right section, bottom row)
   ctx.fillStyle = '#3a2a18';
-  ctx.fillRect(598, 448, 120, 14);
+  ctx.fillRect(630, 381, 102, 14);
   ctx.fillStyle = '#4a3a28';
-  ctx.fillRect(598, 448, 120, 4);
+  ctx.fillRect(630, 381, 102, 4);
 
-  drawBottle(ST.redBottle,   '#ff2222', '#ff6666', 'R');
-  drawBottle(ST.greenBottle, '#22cc22', '#66ff66', 'G');
-  drawBottle(ST.blueBottle,  '#2244ff', '#6688ff', 'B');
+  drawBottle(ST.redBottle,   '#ff2222', '#ff6666', 'R', bottleState.red);
+  drawBottle(ST.greenBottle, '#22cc22', '#66ff66', 'G', bottleState.green);
+  drawBottle(ST.blueBottle,  '#2244ff', '#6688ff', 'B', bottleState.blue);
 
   drawTrashCan();
   drawRecipeBookStand();
 }
 
 function drawServingWindowArea() {
-  // Window frame
-  ctx.fillStyle = '#2a1a08';
-  ctx.fillRect(ST.servingWindow.x - 8, ST.servingWindow.y - 8, ST.servingWindow.w + 16, ST.servingWindow.h + 8);
-  // Frosted glass
-  ctx.fillStyle = 'rgba(180,210,240,0.15)';
-  ctx.fillRect(ST.servingWindow.x, ST.servingWindow.y, ST.servingWindow.w, ST.servingWindow.h);
-  ctx.strokeStyle = 'rgba(200,230,255,0.5)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(ST.servingWindow.x, ST.servingWindow.y, ST.servingWindow.w, ST.servingWindow.h);
+  const st = ST.servingWindow;
+  const cx = st.x + st.w / 2;
 
-  // "SERVE HERE" pulsing label
+  // Outer wooden frame embedded in the wall
+  ctx.fillStyle = '#2a1808';
+  roundRect(st.x - 9, st.y - 9, st.w + 18, st.h + 6, 7);
+  ctx.fill();
+
+  // Dining area visible through the window — gradient matching dining bg
+  const dBg = ctx.createLinearGradient(st.x, st.y, st.x, st.y + st.h * 0.55);
+  dBg.addColorStop(0, '#2c1a0e');
+  dBg.addColorStop(1, '#1e1208');
+  ctx.fillStyle = dBg;
+  roundRect(st.x, st.y, st.w, st.h, 5);
+  ctx.fill();
+
+  // Frosted glass tint
+  ctx.fillStyle = 'rgba(180,210,240,0.13)';
+  roundRect(st.x, st.y, st.w, st.h, 5);
+  ctx.fill();
+
+  // Glass border
+  ctx.strokeStyle = 'rgba(200,230,255,0.55)';
+  ctx.lineWidth = 2;
+  roundRect(st.x, st.y, st.w, st.h, 5);
+  ctx.stroke();
+
+  // Warm glow from dining area (no customer NPCs — orders only)
+  const dineGlow = ctx.createRadialGradient(cx, st.y + 20, 0, cx, st.y + 20, 60);
+  dineGlow.addColorStop(0, 'rgba(255,200,100,0.12)');
+  dineGlow.addColorStop(1, 'rgba(255,200,100,0)');
+  ctx.fillStyle = dineGlow;
+  ctx.fillRect(st.x, st.y, st.w, st.h * 0.55);
+
+  // Horizontal sill line (wall / counter edge inside window)
+  ctx.strokeStyle = 'rgba(90,60,25,0.7)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(st.x + 4, st.y + st.h * 0.58);
+  ctx.lineTo(st.x + st.w - 4, st.y + st.h * 0.58);
+  ctx.stroke();
+
+  // "SERVE HERE" pulsing label (kitchen-side, below sill)
   const pulse = 0.7 + 0.3 * Math.sin(Date.now() / 600);
   ctx.fillStyle = `rgba(200,220,255,${pulse})`;
   ctx.font = 'bold 13px Nunito, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('▲ SERVE HERE', ST.servingWindow.x + ST.servingWindow.w / 2, ST.servingWindow.y + 40);
+  ctx.fillText('▲ SERVE HERE', cx, st.y + st.h * 0.74);
 
-  ctx.fillStyle = 'rgba(180,200,255,0.7)';
+  ctx.fillStyle = 'rgba(180,200,255,0.75)';
   ctx.font = '10px Nunito, sans-serif';
-  ctx.fillText('(click to serve)', ST.servingWindow.x + ST.servingWindow.w / 2, ST.servingWindow.y + 56);
+  ctx.fillText('(click to serve)', cx, st.y + st.h * 0.90);
 }
 
-function drawBottle(st, colorDark, colorLight, label) {
+function drawBottle(st, colorDark, colorLight, label, isOnTable) {
   const cx = st.x + st.w / 2;
   const bottleW = 32, bottleH = 70;
   const bx = cx - bottleW / 2;
   const by = st.y + 5;
+
+  // If bottle is being carried by chef, draw a faint empty outline in its place
+  if (!isOnTable) {
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    ctx.strokeStyle = colorDark;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 4]);
+    roundRect(bx + 10, by, 12, 18, 3);
+    ctx.stroke();
+    roundRect(bx, by + 16, bottleW, bottleH - 16, 8);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = colorDark;
+    ctx.font = 'bold 9px Nunito, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('(held)', cx, st.y + st.h + 14);
+    ctx.restore();
+    return;
+  }
 
   // Glow
   const grd = ctx.createRadialGradient(cx, by + bottleH / 2, 0, cx, by + bottleH / 2, 50);
@@ -971,113 +1254,172 @@ function drawPot() {
   ctx.fillText('click pot to fine-tune', cx, st.y + st.h + 26);
 }
 
-// ---- Big Order Panel (right side) ----
+// ---- Order Board / Customer Dialogue (top-right) ----
 function drawOrderPanel() {
-  const px = 460, py = 110, pw = 300, ph = 200;
+  const px = 412, py = 84, pw = 362, ph = 272;
 
-  // Chalkboard background
-  ctx.fillStyle = '#1a2a18';
+  // ── Chalkboard panel ──────────────────────────────────
+  ctx.fillStyle = '#182616';
   roundRect(px, py, pw, ph, 10);
   ctx.fill();
-  ctx.strokeStyle = '#4a7a38';
+
+  // Subtle chalk texture (horizontal scan lines)
+  ctx.fillStyle = 'rgba(255,255,255,0.012)';
+  for (let ly = py + 2; ly < py + ph; ly += 5) ctx.fillRect(px + 2, ly, pw - 4, 2);
+
+  ctx.strokeStyle = '#3d6830';
   ctx.lineWidth = 3;
   roundRect(px, py, pw, ph, 10);
   ctx.stroke();
 
-  // Title
-  ctx.font = 'bold 16px "Caveat", cursive';
-  ctx.fillStyle = '#d0e8b0';
-  ctx.textAlign = 'center';
-  ctx.fillText('CURRENT ORDER', px + pw / 2, py + 22);
-
-  // Divider
-  ctx.strokeStyle = 'rgba(100,160,80,0.4)';
+  // Inner chalk-frame edge
+  ctx.strokeStyle = 'rgba(100,160,70,0.25)';
   ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(px + 12, py + 28);
-  ctx.lineTo(px + pw - 12, py + 28);
+  roundRect(px + 5, py + 5, pw - 10, ph - 10, 7);
   ctx.stroke();
 
-  if (order) {
-    const tc = order.target;
-    const hex = rgbToHex(tc.r, tc.g, tc.b);
+  // Header: "ORDER BOARD"
+  ctx.font = 'bold 13px "Caveat", cursive';
+  ctx.fillStyle = '#b8d898';
+  ctx.textAlign = 'center';
+  ctx.fillText('— ORDER BOARD —', px + pw / 2, py + 17);
 
-    // Big color swatch
-    ctx.fillStyle = hex;
-    roundRect(px + 12, py + 34, 80, 60, 8);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-    ctx.lineWidth = 2;
-    roundRect(px + 12, py + 34, 80, 60, 8);
-    ctx.stroke();
+  // Header divider
+  ctx.strokeStyle = 'rgba(100,160,70,0.45)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(px + 14, py + 22); ctx.lineTo(px + pw - 14, py + 22); ctx.stroke();
 
-    // Hex and RGB
-    ctx.fillStyle = '#e8ffd8';
-    ctx.font = 'bold 18px "JetBrains Mono", monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(hex, px + 104, py + 60);
-
-    ctx.font = '13px "JetBrains Mono", monospace';
-    ctx.fillStyle = '#b0d8a0';
-    ctx.fillText(`R: ${tc.r}`, px + 104, py + 78);
-    ctx.fillText(`G: ${tc.g}`, px + 104, py + 94);
-    ctx.fillText(`B: ${tc.b}`, px + 104, py + 110);
-
-    // Color name
-    ctx.fillStyle = '#ffeeaa';
-    ctx.font = '12px "Caveat", cursive';
-    ctx.textAlign = 'center';
-    ctx.fillText(getColorName(tc.r, tc.g, tc.b), px + pw / 2, py + 108);
-
-    // Patience bar
-    const pct = Math.max(0, order.patience / order.maxPatience);
-    const barX = px + 12, barY = py + 118, barW = pw - 24, barH = 18;
-
-    ctx.fillStyle = '#2a3a22';
-    ctx.fillRect(barX, barY, barW, barH);
-
-    const barColor = pct > 0.6 ? '#44dd44' : pct > 0.3 ? '#ddcc22' : '#dd2222';
-    ctx.fillStyle = barColor;
-    ctx.fillRect(barX, barY, barW * pct, barH);
-
-    ctx.strokeStyle = '#4a6a38';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(barX, barY, barW, barH);
-
-    ctx.fillStyle = '#d0e8b0';
-    ctx.font = 'bold 10px Nunito, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('PATIENCE', px + pw / 2, barY + 13);
-
-    // Time warning
-    if (pct < 0.3) {
-      const flash = Math.sin(Date.now() / 150) > 0;
-      if (flash) {
-        ctx.fillStyle = '#ff4444';
-        ctx.font = 'bold 12px Nunito, sans-serif';
-        ctx.fillText('⚠ HURRY!', px + pw / 2, py + 154);
-      }
-    }
-
-    // Instruction
-    ctx.fillStyle = 'rgba(180,220,140,0.6)';
-    ctx.font = '10px Nunito, sans-serif';
-    ctx.fillText('Mix the color above, then click SERVE HERE', px + pw / 2, py + 168);
-
-    // Score on panel
-    ctx.fillStyle = '#aaddaa';
-    ctx.font = '11px "Caveat", cursive';
-    ctx.textAlign = 'right';
-    ctx.fillText(`Score: ${score}  ⭐ ${starsTotal}`, px + pw - 10, py + ph - 8);
-
-  } else {
-    // Waiting for next order
+  if (!order) {
+    // ── Waiting state ────────────────────────────────────
     const dots = '.'.repeat(Math.floor(Date.now() / 400) % 4);
-    ctx.fillStyle = 'rgba(200,220,160,0.5)';
-    ctx.font = '15px "Caveat", cursive';
+    ctx.fillStyle = 'rgba(180,220,140,0.45)';
+    ctx.font = '14px "Caveat", cursive';
     ctx.textAlign = 'center';
-    ctx.fillText(`Next order coming${dots}`, px + pw / 2, py + 90);
+    ctx.fillText(`Next customer coming${dots}`, px + pw / 2, py + ph / 2);
+    return;
   }
+
+  const tc = order.target;
+  const hex = rgbToHex(tc.r, tc.g, tc.b);
+  const level = LEVELS[currentLevelIdx] || LEVELS[LEVELS.length - 1];
+  const custName = level.name || 'Customer';
+  const dialogue = level.dialogue || 'Match the color shown below!';
+
+  // ── Speech bubble area ────────────────────────────────
+  const sbX = px + 10, sbY = py + 27, sbW = pw - 20, sbH = 108;
+  ctx.fillStyle = 'rgba(230,255,200,0.07)';
+  roundRect(sbX, sbY, sbW, sbH, 7);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(100,180,70,0.30)';
+  ctx.lineWidth = 1;
+  roundRect(sbX, sbY, sbW, sbH, 7);
+  ctx.stroke();
+
+  // Speech-mark opening quote
+  ctx.fillStyle = 'rgba(150,220,100,0.35)';
+  ctx.font = 'bold 22px "Caveat", cursive';
+  ctx.textAlign = 'left';
+  ctx.fillText('"', sbX + 6, sbY + 20);
+
+  // Dialogue text (word-wrapped, max 4 lines)
+  ctx.fillStyle = '#ddffc0';
+  ctx.font = '11px "Nunito", sans-serif';
+  ctx.textAlign = 'left';
+  const dialogueLines = getWrappedLines(ctx, dialogue, sbW - 26);
+  let lineY = sbY + 20;
+  const lineH = 16;
+  for (const ln of dialogueLines.slice(0, 5)) {
+    ctx.fillText(ln, sbX + 18, lineY);
+    lineY += lineH;
+  }
+
+  // Closing quote + customer name attribution
+  const nameY = sbY + sbH - 10;
+  ctx.fillStyle = 'rgba(150,220,100,0.35)';
+  ctx.font = 'bold 14px "Caveat", cursive';
+  ctx.textAlign = 'right';
+  ctx.fillText('"', sbX + sbW - 6, nameY);
+
+  ctx.fillStyle = '#88cc70';
+  ctx.font = 'italic 10px "Nunito", sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(`— ${custName}`, sbX + sbW - 14, nameY);
+
+  // ── Section divider ───────────────────────────────────
+  const divY = py + 141;
+  ctx.strokeStyle = 'rgba(80,140,55,0.45)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(px + 14, divY); ctx.lineTo(px + pw - 14, divY); ctx.stroke();
+
+  // ── Colour swatch + info ──────────────────────────────
+  const swY = divY + 6;
+  const swW = 52, swH = 42;
+
+  // Swatch
+  ctx.fillStyle = hex;
+  roundRect(px + 12, swY, swW, swH, 7);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 1.5;
+  roundRect(px + 12, swY, swW, swH, 7);
+  ctx.stroke();
+
+  // Hex code (large, monospace)
+  ctx.fillStyle = '#e8ffd8';
+  ctx.font = 'bold 16px "JetBrains Mono", monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(hex, px + 74, swY + 16);
+
+  // RGB values
+  ctx.font = '11px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#90c878';
+  ctx.fillText(`R:${tc.r}  G:${tc.g}  B:${tc.b}`, px + 74, swY + 30);
+
+  // Food-themed colour name (centred below swatch row)
+  ctx.fillStyle = '#ffeebb';
+  ctx.font = '11px "Caveat", cursive';
+  ctx.textAlign = 'center';
+  ctx.fillText(getColorName(tc.r, tc.g, tc.b), px + pw / 2, swY + swH + 12);
+
+  // ── Patience bar ──────────────────────────────────────
+  const pct   = Math.max(0, order.patience / order.maxPatience);
+  const barX  = px + 12, barY = divY + 68, barW = pw - 24, barH = 14;
+
+  ctx.fillStyle = '#1e2e1a';
+  ctx.fillRect(barX, barY, barW, barH);
+
+  const barColor = pct > 0.6 ? '#44dd44' : pct > 0.3 ? '#ddcc22' : '#dd2222';
+  ctx.fillStyle = barColor;
+  ctx.fillRect(barX, barY, Math.round(barW * pct), barH);
+
+  ctx.strokeStyle = '#3a5a28';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(barX, barY, barW, barH);
+
+  ctx.fillStyle = '#c0e0a0';
+  ctx.font = 'bold 9px "Nunito", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('PATIENCE', px + pw / 2, barY + 10);
+
+  // Hurry flash
+  if (pct < 0.3) {
+    if (Math.sin(Date.now() / 140) > 0) {
+      ctx.fillStyle = '#ff4444';
+      ctx.font = 'bold 11px "Nunito", sans-serif';
+      ctx.fillText('⚠ HURRY!', px + pw / 2, barY + 26);
+    }
+  }
+
+  // ── Footer: instruction + score ───────────────────────
+  ctx.fillStyle = 'rgba(160,210,120,0.55)';
+  ctx.font = '9px "Nunito", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Mix the colour above → click SERVE HERE', px + pw / 2, py + ph - 24);
+
+  ctx.fillStyle = '#88bb78';
+  ctx.font = '10px "Caveat", cursive';
+  ctx.textAlign = 'right';
+  ctx.fillText(`Score: ${score}  ⭐ ${starsTotal}`, px + pw - 10, py + ph - 10);
 }
 
 // ---- Particles & Effects ----
@@ -1185,8 +1527,222 @@ function drawHint() {
 }
 
 // ============================================================
+// CHEF DRAWING
+// ============================================================
+function drawChef() {
+  const cx = Math.round(chef.x);
+  const cy = Math.round(chef.y);
+  // Walk cycle: legs/arms swing only while moving
+  const isMoving = keys['KeyW'] || keys['KeyS'] || keys['KeyA'] || keys['KeyD'] ||
+                   keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight'];
+  const swingAmt = isMoving ? 6 : 0;
+  const swing = Math.sin(chef.animTimer * Math.PI * 2) * swingAmt;
+
+  ctx.save();
+
+  // Ground shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 24, 15, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs
+  ctx.fillStyle = '#1e1e3a';
+  ctx.fillRect(cx - 9, cy + 9 + swing, 8, 16);
+  ctx.fillRect(cx + 1, cy + 9 - swing, 8, 16);
+
+  // Shoes
+  ctx.fillStyle = '#111128';
+  ctx.fillRect(cx - 11, cy + 23 + swing, 10, 5);
+  ctx.fillRect(cx,      cy + 23 - swing, 10, 5);
+
+  // Arms
+  ctx.fillStyle = '#f4c470';
+  ctx.fillRect(cx - 18, cy - 4 + swing, 7, 12);
+  ctx.fillRect(cx + 11, cy - 4 - swing, 7, 12);
+
+  // Body (white chef coat)
+  ctx.fillStyle = '#f4f4f4';
+  roundRect(cx - 11, cy - 12, 22, 22, 5);
+  ctx.fill();
+  ctx.strokeStyle = '#cccccc';
+  ctx.lineWidth = 1.5;
+  roundRect(cx - 11, cy - 12, 22, 22, 5);
+  ctx.stroke();
+
+  // Apron center stripe
+  ctx.fillStyle = '#e0e0e0';
+  ctx.fillRect(cx - 5, cy - 8, 10, 18);
+
+  // Coat buttons
+  ctx.fillStyle = '#aaaaaa';
+  ctx.beginPath(); ctx.arc(cx, cy - 4, 1.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy + 2, 1.5, 0, Math.PI * 2); ctx.fill();
+
+  // Head
+  ctx.fillStyle = '#f4c470';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 18, 12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#d4a450';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Eyes
+  ctx.fillStyle = '#1a0800';
+  ctx.beginPath(); ctx.arc(cx - 4, cy - 19, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + 4, cy - 19, 2, 0, Math.PI * 2); ctx.fill();
+
+  // Smile
+  ctx.strokeStyle = '#8a3800';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy - 15, 4, 0.1, Math.PI - 0.1);
+  ctx.stroke();
+
+  // Chef hat — brim
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(cx - 13, cy - 31, 26, 5);
+  ctx.strokeStyle = '#cccccc';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(cx - 13, cy - 31, 26, 5);
+
+  // Chef hat — tall part
+  ctx.fillStyle = '#ffffff';
+  roundRect(cx - 9, cy - 50, 18, 20, 3);
+  ctx.fill();
+  ctx.strokeStyle = '#cccccc';
+  ctx.lineWidth = 1;
+  roundRect(cx - 9, cy - 50, 18, 20, 3);
+  ctx.stroke();
+
+  // Hat fold stripe
+  ctx.fillStyle = '#e8e8e8';
+  ctx.fillRect(cx - 9, cy - 40, 18, 3);
+
+  // Held bottle — shown raised above chef's head
+  if (chef.heldBottle) {
+    const bCol  = { red: '#ee2222', green: '#22cc22', blue: '#2244ff' };
+    const bLit  = { red: '#ff6666', green: '#66ff66', blue: '#6688ff' };
+    const bLbl  = { red: 'R', green: 'G', blue: 'B' };
+    const dark  = bCol[chef.heldBottle];
+    const light = bLit[chef.heldBottle];
+    const lbl   = bLbl[chef.heldBottle];
+    const bx = cx - 8;
+    const topY = cy - 72;
+
+    // Glow halo
+    const gGrd = ctx.createRadialGradient(cx, topY + 16, 3, cx, topY + 16, 20);
+    gGrd.addColorStop(0, dark + 'bb');
+    gGrd.addColorStop(1, dark + '00');
+    ctx.fillStyle = gGrd;
+    ctx.fillRect(cx - 20, topY - 4, 40, 40);
+
+    // Neck
+    ctx.fillStyle = dark;
+    ctx.fillRect(cx - 3, topY, 6, 8);
+
+    // Body gradient
+    const bGrd = ctx.createLinearGradient(bx, 0, bx + 16, 0);
+    bGrd.addColorStop(0, dark);
+    bGrd.addColorStop(0.4, light);
+    bGrd.addColorStop(1, dark);
+    ctx.fillStyle = bGrd;
+    roundRect(bx, topY + 7, 16, 22, 4);
+    ctx.fill();
+
+    // Highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillRect(bx + 2, topY + 9, 4, 14);
+
+    // Label
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.fillRect(bx + 3, topY + 13, 10, 11);
+    ctx.fillStyle = '#1a0800';
+    ctx.font = 'bold 9px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(lbl, cx, topY + 22);
+  }
+
+  ctx.restore();
+}
+
+// ---- Bottom-left HUD: held bottle status ----
+function drawHeldBottleHUD() {
+  const x = 10, y = CH - 88;
+  ctx.save();
+
+  ctx.fillStyle = 'rgba(10,6,0,0.80)';
+  roundRect(x, y, 140, 52, 8);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,200,80,0.22)';
+  ctx.lineWidth = 1;
+  roundRect(x, y, 140, 52, 8);
+  ctx.stroke();
+
+  if (chef.heldBottle) {
+    const bCol = { red: '#ff4444', green: '#44ff44', blue: '#4466ff' };
+    const bc = bCol[chef.heldBottle];
+
+    // Color circle
+    ctx.fillStyle = bc;
+    ctx.beginPath();
+    ctx.arc(x + 24, y + 26, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Letter in circle
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.font = 'bold 13px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(chef.heldBottle[0].toUpperCase(), x + 24, y + 31);
+
+    // Text
+    ctx.fillStyle = '#ffcc66';
+    ctx.font = 'bold 10px Nunito, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Holding: ' + chef.heldBottle, x + 44, y + 18);
+    ctx.fillStyle = 'rgba(200,180,140,0.8)';
+    ctx.font = '9px Nunito, sans-serif';
+    ctx.fillText('E = pour into pot', x + 44, y + 30);
+    ctx.fillText('Q = put back on table', x + 44, y + 41);
+  } else {
+    ctx.fillStyle = 'rgba(160,140,100,0.75)';
+    ctx.font = '10px Nunito, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Walk to a bottle to pick up', x + 70, y + 22);
+    ctx.fillStyle = 'rgba(130,110,80,0.65)';
+    ctx.font = '9px Nunito, sans-serif';
+    ctx.fillText('WASD = move   E = interact   Q = drop', x + 70, y + 36);
+  }
+
+  ctx.restore();
+}
+
+// ============================================================
 // HELPERS
 // ============================================================
+
+// Returns an array of word-wrapped lines for canvas text rendering
+function getWrappedLines(ctx, text, maxWidth) {
+  const words = text.split(' ');
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    const test = line ? line + ' ' + word : word;
+    if (ctx.measureText(test).width > maxWidth && line !== '') {
+      lines.push(line);
+      line = word;
+    } else {
+      line = test;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
 function roundRect(x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
