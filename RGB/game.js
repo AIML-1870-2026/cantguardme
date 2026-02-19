@@ -778,9 +778,16 @@ function detectPrimariesFromPot() {
 }
 
 function toggleGamePrimary(which) {
-  if (gameSelectedPrimaries.includes(which)) return;
   const all = ['r', 'g', 'b'];
-  gameSelectedPrimaries = [which, all.find(p => p !== which && gameSelectedPrimaries.includes(p))];
+  if (gameSelectedPrimaries.includes(which)) {
+    // Deselect this one — swap it with the currently locked channel
+    const locked = all.find(p => !gameSelectedPrimaries.includes(p));
+    gameSelectedPrimaries = gameSelectedPrimaries.map(p => p === which ? locked : p);
+  } else {
+    // Select this (currently locked) channel — drop the last-in-order selected one
+    const toRemove = [...all].reverse().find(p => gameSelectedPrimaries.includes(p));
+    gameSelectedPrimaries = [which, ...gameSelectedPrimaries.filter(p => p !== toRemove)];
+  }
   updateGamePrimaryUI();
   applyGameSliderConstraints();
   updatePotFromSlider();

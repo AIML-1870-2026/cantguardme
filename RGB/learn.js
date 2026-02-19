@@ -173,16 +173,16 @@ function drawWheelMarker(canvas, r, g, b) {
 
 // Primary button selection (constrained mixing)
 function togglePrimary(which) {
-  if (selectedPrimaries.includes(which)) {
-    // Deselect only if 3rd is already unselected (maintain 2 selected)
-    if (selectedPrimaries.length > 2) {
-      selectedPrimaries = selectedPrimaries.filter(p => p !== which);
-    }
-    return;
-  }
-  // Select this one, deselect the third that's currently unselected
   const all = ['r', 'g', 'b'];
-  selectedPrimaries = [which, all.find(p => p !== which && selectedPrimaries.includes(p))];
+  if (selectedPrimaries.includes(which)) {
+    // Deselect this one — swap it with the currently locked channel
+    const locked = all.find(p => !selectedPrimaries.includes(p));
+    selectedPrimaries = selectedPrimaries.map(p => p === which ? locked : p);
+  } else {
+    // Select this (currently locked) channel — drop the last-in-order selected one
+    const toRemove = [...all].reverse().find(p => selectedPrimaries.includes(p));
+    selectedPrimaries = [which, ...selectedPrimaries.filter(p => p !== toRemove)];
+  }
   updatePrimaryUI();
   updateWheelColor();
 }
