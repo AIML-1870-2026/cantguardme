@@ -195,6 +195,16 @@ function handleCanvasClick(x, y) {
   if (gameState !== 'playing') return;
   for (const [key, st] of Object.entries(ST)) {
     if (x >= st.x && x <= st.x + st.w && y >= st.y && y <= st.y + st.h) {
+      // Require chef to be nearby — clicking from across the kitchen does nothing
+      const proxMap = { bottle: 72, pot: 130, serve: 130, trash: 100, recipe: 100 };
+      const prox = proxMap[st.type] || 100;
+      const scx = st.x + st.w / 2;
+      const scy = st.type === 'serve' ? st.y + st.h : st.y + st.h / 2;
+      if (Math.hypot(chef.x - scx, chef.y - scy) > prox) {
+        hint.text = 'Walk closer to the station first!';
+        hint.timer = 2;
+        return;
+      }
       activateStation(key, st);
       return;
     }
@@ -425,12 +435,12 @@ function handleInteract() {
   if (Math.hypot(chef.x - potCx, chef.y - potCy) < 115) {
     if (chef.heldBottle) {
       const clr = chef.heldBottle === 'red' ? '#ff4444' : chef.heldBottle === 'green' ? '#44ff44' : '#4466ff';
-      if (chef.heldBottle === 'red')   pot.r = Math.min(255, pot.r + 25);
-      if (chef.heldBottle === 'green') pot.g = Math.min(255, pot.g + 25);
-      if (chef.heldBottle === 'blue')  pot.b = Math.min(255, pot.b + 25);
+      if (chef.heldBottle === 'red')   pot.r = Math.min(255, pot.r + 51);
+      if (chef.heldBottle === 'green') pot.g = Math.min(255, pot.g + 51);
+      if (chef.heldBottle === 'blue')  pot.b = Math.min(255, pot.b + 51);
       potFill = (pot.r + pot.g + pot.b) / (255 * 3);
       spawnPourDrop(chef.x, chef.y - 10, potCx, ST.pot.y + ST.pot.h * 0.65, clr);
-      hint.text = `Poured ${chef.heldBottle.toUpperCase()}! Press E again to add more.`;
+      hint.text = `Poured ${chef.heldBottle.toUpperCase()}! Press E again to add more. Empty-handed at pot = fine-tune.`;
       hint.timer = 2;
     } else {
       openSlider();
@@ -1005,7 +1015,7 @@ function drawServingWindowArea() {
 
   ctx.fillStyle = 'rgba(180,200,255,0.75)';
   ctx.font = '10px Nunito, sans-serif';
-  ctx.fillText('(click to serve)', cx, st.y + st.h * 0.90);
+  ctx.fillText('(press E to serve)', cx, st.y + st.h * 0.90);
 }
 
 function drawBottle(st, colorDark, colorLight, label, isOnTable) {
@@ -1073,11 +1083,11 @@ function drawBottle(st, colorDark, colorLight, label, isOnTable) {
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
   ctx.fillRect(bx + 6, by + 18, 6, bottleH - 24);
 
-  // "Click to pour" label below
+  // Pickup hint label below
   ctx.fillStyle = 'rgba(200,180,140,0.75)';
   ctx.font = 'bold 10px Nunito, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('click to pour', cx, st.y + st.h + 14);
+  ctx.fillText('auto-pickup', cx, st.y + st.h + 14);
 }
 
 function drawTrashCan() {
