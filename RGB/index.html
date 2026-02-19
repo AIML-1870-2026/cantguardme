@@ -21,6 +21,33 @@
     </div>
   </div>
 
+  <!-- ========== LEVEL SELECT ========== -->
+  <div id="levelSelect" class="hidden">
+    <div class="level-select-wrap">
+      <h2 class="ls-title">🏆 Cooking Competition</h2>
+      <p class="ls-subtitle">Select an act to begin your culinary journey</p>
+
+      <!-- Acts Grid -->
+      <div id="actsGrid" class="acts-grid">
+        <!-- Populated by JS -->
+      </div>
+
+      <!-- Act Detail View -->
+      <div id="actDetail" class="act-detail hidden">
+        <button class="btn-secondary act-back-btn" onclick="showActsList()">← Back to Acts</button>
+        <div class="act-detail-header">
+          <span class="act-detail-badge" id="actDetailBadge">Act 1</span>
+          <h3 class="act-detail-title" id="actDetailTitle"></h3>
+          <p class="act-detail-sub" id="actDetailSub"></p>
+        </div>
+        <p class="act-detail-desc" id="actDetailDesc"></p>
+        <div class="level-list" id="actLevelList"></div>
+        <button class="btn-primary act-start-btn" onclick="startSelectedAct()">▶ Start Cooking!</button>
+      </div>
+    </div>
+    <button class="back-btn" onclick="backToMainMenuFromLS()">← Menu</button>
+  </div>
+
   <!-- ========== GAME MODE ========== -->
   <div id="gameMode" class="hidden">
 
@@ -39,6 +66,7 @@
             <h3>🔧 Actions</h3>
             <p><kbd>E</kbd> — Pour bottle / Serve / Interact</p>
             <p><kbd>Q</kbd> — Drop bottle (returns to table)</p>
+            <p><kbd>H</kbd> — Use hint (costs 100 pts)</p>
             <p><kbd>ESC</kbd> — Pause menu</p>
           </div>
           <div class="control-section">
@@ -71,6 +99,9 @@
       <span id="scoreText">Score: 0</span>
       <span id="actLevel">Act 1 - Level 1</span>
     </div>
+
+    <!-- Hint Button -->
+    <button id="hintBtn" class="hint-btn" onclick="useHint()" title="[H] Reveal hint — costs 100 pts">💡 Hint</button>
 
     <!-- Precision Slider Overlay -->
     <div id="sliderOverlay" class="hidden">

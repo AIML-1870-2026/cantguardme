@@ -15,6 +15,11 @@ let lives = 3;
 let starsTotal = 0;
 let currentLevelIdx = 0;
 
+// ---- Level Select ----
+let selectedActNum = 1;
+let selectedActStartIdx = 0;
+let hintUsed = false;
+
 // ---- Pot State ----
 let pot = { r: 0, g: 0, b: 0 };
 let potAnim = { r: 0, g: 0, b: 0 };
@@ -126,6 +131,188 @@ const LEVELS = [
   { act:5, num:10, target:{r:33,g:33,b:33},    name:'Legend Chef Auguste', dialogue:'Final dish. Near-Black #212121. The most deceptively simple order of your life. Mix it exactly. Your entire culinary career ends — or begins — right here.',         patience:18, dE:[2,5,12] },
 ];
 
+// ---- Fill in hints for Acts 2–5 ----
+const LEVEL_HINTS = {
+  // Act 2: Line Cook
+  '2-1':  '💡 White = all three channels at maximum. Try R:255, G:255, B:255',
+  '2-2':  '💡 Orange = max Red + half Green, no Blue. Try R:255, G:128, B:0',
+  '2-3':  '💡 Violet = medium Red + max Blue, no Green. Try R:128, G:0, B:255',
+  '2-4':  '💡 Sea Green = no Red, high Green, medium Blue. Try R:0, G:200, B:150',
+  '2-5':  '💡 Hot Pink = max Red, low Green, some Blue. Try R:255, G:50, B:100',
+  '2-6':  '💡 Olive Gold = high R+G, small Blue. Try R:200, G:200, B:50',
+  '2-7':  '💡 Dodger Blue = low Red, medium Green, max Blue. Try R:30, G:144, B:255',
+  '2-8':  '💡 Coral = max Red, medium Green, some Blue. Try R:255, G:120, B:70',
+  '2-9':  '💡 Lavender = medium Red, low Green, high Blue. Try R:148, G:87, B:235',
+  '2-10': '💡 Crimson = high Red, tiny Green, tiny Blue. Try R:180, G:30, B:60',
+  // Act 3: Sous Chef
+  '3-1':  '💡 Triadic palette — Azure Blue starter. Try R:0, G:120, B:220',
+  '3-2':  '💡 Complement of Azure Blue. Try R:220, G:60, B:0',
+  '3-3':  '💡 Teal — analogous neighbor of Sea Green. Try R:0, G:180, B:180',
+  '3-4':  '💡 Split-complement Coral-Orange. Try R:255, G:90, B:50',
+  '3-5':  '💡 Violet closes the triadic triangle. Try R:120, G:0, B:200',
+  '3-6':  '💡 Rose Red for tetradic palette. Try R:220, G:40, B:110',
+  '3-7':  '💡 Warm Amber — analogous anchor. Try R:255, G:165, B:0',
+  '3-8':  '💡 Midnight Blue — the palette foundation. Try R:15, G:15, B:130',
+  // Act 4: The Accessible Kitchen
+  '4-1':  '💡 Protanopia shifts red perception. Actual target: R:0, G:160, B:60',
+  '4-2':  '💡 Deuteranopia shifts green perception. Actual target: R:0, G:100, B:200',
+  '4-3':  '💡 Tritanopia affects blue/yellow. Actual target: R:90, G:40, B:180',
+  '4-4':  '💡 WCAG AA (4.5:1 vs white) = go dark. Try R:30, G:100, B:180',
+  '4-5':  '💡 WCAG AAA (7:1 vs white) = go very dark. Try R:15, G:60, B:120',
+  '4-6':  '💡 Deep Blue passes AA contrast vs white. Try R:20, G:20, B:160',
+  '4-7':  '💡 Rich Amber passes AA contrast vs dark bg. Try R:160, G:90, B:0',
+  '4-8':  '💡 Deep Purple — accessible & CVD-distinct. Try R:80, G:0, B:130',
+  // Act 5: Iron Chef Championship
+  '5-1':  '💡 #8B2FC7 = R:139, G:47, B:199. Move fast!',
+  '5-2':  '💡 #FF5722 = R:255, G:87, B:34. Speed is everything!',
+  '5-3':  '💡 Red is capped at 30! Cyan = R:0, G:188, B:212. Skip red!',
+  '5-4':  '💡 Hot Pink #E91E63 = R:233, G:30, B:99. Trust your memory!',
+  '5-5':  '💡 Deep Purple #673AB7 = R:103, G:58, B:183. Rush!',
+  '5-6':  '💡 Teal #009688 = R:0, G:150, B:136. Plan the sequence!',
+  '5-7':  '💡 Amber #FFC107 = R:255, G:193, B:7. Ultra-tight tolerance!',
+  '5-8':  '💡 Green capped at 140! Target ≈ R:76, G:140, B:80',
+  '5-9':  '💡 Deep Red #F44336 = R:244, G:67, B:54. Boss round!',
+  '5-10': '💡 Near-Black #212121 = R:33, G:33, B:33. Tiny amounts!',
+};
+LEVELS.forEach(l => {
+  if (l.hint === null) l.hint = LEVEL_HINTS[`${l.act}-${l.num}`] || null;
+});
+
+// ---- Act Data for Level Select ----
+const ACT_DATA = [
+  {
+    act: 1, name: 'Culinary School', subtitle: 'Tutorial', emoji: '🎓', difficulty: 1,
+    description: 'Your first day in the kitchen! Learn the basics of RGB light mixing. Generous patience timers and on-screen hints guide your way. Master the three primary colors and discover how mixing light creates secondary colors.',
+    color: '#4CAF50',
+  },
+  {
+    act: 2, name: 'Line Cook', subtitle: 'Precision', emoji: '🍳', difficulty: 2,
+    description: 'The real kitchen begins. Customers order specific colors — shown as swatches, hex codes, and named hues. Tighter tolerances and standard patience timers. Can you nail Crimson, Lavender, Coral, and Dodger Blue?',
+    color: '#FF9800',
+  },
+  {
+    act: 3, name: 'Sous Chef', subtitle: 'Palette Challenges', emoji: '🎨', difficulty: 3,
+    description: 'Customers now want entire palettes — complementary pairs, triadic sets, analogous spreads. Use the Recipe Book stand to plan your color harmony. Geometry and color theory are your tools.',
+    color: '#9C27B0',
+  },
+  {
+    act: 4, name: 'The Accessible Kitchen', subtitle: 'Head Chef', emoji: '♿', difficulty: 4,
+    description: 'Special guests arrive. Color-blind customers, health inspectors with clipboards, and event planners demand dishes accessible to everyone. Dive into CVD simulation and WCAG contrast ratios.',
+    color: '#2196F3',
+  },
+  {
+    act: 5, name: 'Iron Chef Championship', subtitle: 'Endgame', emoji: '🏆', difficulty: 5,
+    description: 'The championship stage. Speed rounds, mystery constraints, memory challenges, and legendary food critics. Every skill you\'ve developed gets tested under maximum pressure. Only the best survive.',
+    color: '#F44336',
+  },
+];
+
+// ============================================================
+// LEVEL SELECT
+// ============================================================
+function showLevelSelect() {
+  document.getElementById('mainMenu').classList.add('hidden');
+  document.getElementById('levelSelect').classList.remove('hidden');
+  renderActsGrid();
+}
+
+function backToMainMenuFromLS() {
+  document.getElementById('levelSelect').classList.add('hidden');
+  document.getElementById('mainMenu').classList.remove('hidden');
+}
+
+function renderActsGrid() {
+  const grid = document.getElementById('actsGrid');
+  grid.innerHTML = '';
+  grid.classList.remove('hidden');
+  document.getElementById('actDetail').classList.add('hidden');
+
+  ACT_DATA.forEach(act => {
+    const levels = LEVELS.filter(l => l.act === act.act);
+    const diffStr = '⭐'.repeat(act.difficulty) + '☆'.repeat(5 - act.difficulty);
+    const card = document.createElement('div');
+    card.className = 'act-card';
+    card.style.setProperty('--act-color', act.color);
+    card.onclick = () => showActDetail(act.act);
+    card.innerHTML = `
+      <div class="act-card-emoji">${act.emoji}</div>
+      <div class="act-card-num">Act ${act.act}</div>
+      <div class="act-card-name">${act.name}</div>
+      <div class="act-card-sub">${act.subtitle}</div>
+      <div class="act-card-meta">${levels.length} levels &nbsp;·&nbsp; ${diffStr}</div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function showActDetail(actNum) {
+  selectedActNum = actNum;
+  const act = ACT_DATA.find(a => a.act === actNum);
+  const levels = LEVELS.filter(l => l.act === actNum);
+
+  document.getElementById('actsGrid').classList.add('hidden');
+  const detail = document.getElementById('actDetail');
+  detail.classList.remove('hidden');
+  detail.style.setProperty('--act-color', act.color);
+
+  const badge = document.getElementById('actDetailBadge');
+  badge.textContent = `Act ${act.act}`;
+  badge.style.borderColor = act.color + '88';
+  badge.style.color = act.color;
+  document.getElementById('actDetailTitle').textContent = `${act.emoji} ${act.name}`;
+  document.getElementById('actDetailSub').textContent = act.subtitle;
+  document.getElementById('actDetailDesc').textContent = act.description;
+
+  const listEl = document.getElementById('actLevelList');
+  listEl.innerHTML = levels.map(l => {
+    const hex = rgbToHex(l.target.r, l.target.g, l.target.b);
+    const preview = l.dialogue.length > 68 ? l.dialogue.slice(0, 68) + '…' : l.dialogue;
+    const hasHint = !!l.hint;
+    return `<div class="level-list-item">
+      <span class="level-list-num">${l.act}-${l.num}</span>
+      <span class="level-list-swatch" style="background:${hex}" title="${hex}"></span>
+      <div class="level-list-info">
+        <span class="level-list-name">${l.name}</span>
+        <span class="level-list-desc">"${preview}"</span>
+      </div>
+      ${hasHint ? '<span class="level-list-hint-dot" title="Hint available">💡</span>' : ''}
+    </div>`;
+  }).join('');
+}
+
+function showActsList() {
+  document.getElementById('actDetail').classList.add('hidden');
+  document.getElementById('actsGrid').classList.remove('hidden');
+}
+
+function startSelectedAct() {
+  const idx = LEVELS.findIndex(l => l.act === selectedActNum);
+  selectedActStartIdx = idx >= 0 ? idx : 0;
+  document.getElementById('levelSelect').classList.add('hidden');
+  document.getElementById('gameMode').classList.remove('hidden');
+  initGame();
+  AudioManager.start();
+}
+
+// ============================================================
+// HINT SYSTEM
+// ============================================================
+function useHint() {
+  if (!order) { hint.text = 'Wait for an active order first!'; hint.timer = 2; return; }
+  if (hintUsed) { hint.text = 'Hint already used for this order!'; hint.timer = 2; return; }
+  const level = LEVELS[currentLevelIdx] || LEVELS[LEVELS.length - 1];
+  if (!level.hint) { hint.text = 'No hint available for this level.'; hint.timer = 2; return; }
+
+  hintUsed = true;
+  const isTutorial = level.act === 1;
+  const costText = isTutorial ? ' (free — tutorial!)' : ' (−100 pts)';
+  hint.text = level.hint + costText;
+  hint.timer = 9;
+
+  const btn = document.getElementById('hintBtn');
+  if (btn) { btn.textContent = '💡 Used'; btn.disabled = true; }
+}
+
 // ============================================================
 // INIT
 // ============================================================
@@ -169,6 +356,7 @@ function initGame() {
       if (movKeys.includes(e.code)) { e.preventDefault(); keys[e.code] = true; }
       if (e.code === 'KeyE') { e.preventDefault(); if (gameState === 'playing') handleInteract(); }
       if (e.code === 'KeyQ') { e.preventDefault(); if (gameState === 'playing') handleDrop(); }
+      if (e.code === 'KeyH') { e.preventDefault(); if (gameState === 'playing') useHint(); }
     });
     document.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
@@ -251,23 +439,23 @@ function activateStation(_key, st) {
 // GAME FLOW
 // ============================================================
 function startGame() {
-  document.getElementById('mainMenu').classList.add('hidden');
-  document.getElementById('gameMode').classList.remove('hidden');
-  initGame();
-  AudioManager.start();
+  showLevelSelect();
 }
 
 function startPlaying() {
   document.getElementById('controlsOverlay').classList.add('hidden');
   gameState = 'playing';
-  score = 0; lives = 3; starsTotal = 0; currentLevelIdx = 0;
+  score = 0; lives = 3; starsTotal = 0; currentLevelIdx = selectedActStartIdx;
   pot = { r: 0, g: 0, b: 0 };
   potAnim = { r: 0, g: 0, b: 0 };
   potFill = 0;
   order = null;
   orderBetweenTimer = 0;
+  hintUsed = false;
   chef = { x: 390, y: 350, dir: 'down', animTimer: 0, heldBottle: null };
   bottleState = { red: true, green: true, blue: true };
+  const hBtnInit = document.getElementById('hintBtn');
+  if (hBtnInit) { hBtnInit.textContent = '💡 Hint'; hBtnInit.disabled = false; }
 
   hint.text = 'Move with WASD! Walk to a bottle to pick it up, then carry it to the pot and press E to pour.';
   hint.timer = 8;
@@ -308,6 +496,7 @@ function goToMainMenu() {
   AudioManager.stop();
   document.getElementById('gameMode').classList.add('hidden');
   document.getElementById('learnMode').classList.add('hidden');
+  document.getElementById('levelSelect').classList.add('hidden');
   document.getElementById('mainMenu').classList.remove('hidden');
   document.getElementById('pauseMenu').classList.add('hidden');
   document.getElementById('gameOverScreen').classList.add('hidden');
@@ -318,15 +507,18 @@ function goToMainMenu() {
 function restartGame() {
   document.getElementById('gameOverScreen').classList.add('hidden');
   document.getElementById('servingResult').classList.add('hidden');
-  score = 0; lives = 3; starsTotal = 0; currentLevelIdx = 0;
+  score = 0; lives = 3; starsTotal = 0; currentLevelIdx = selectedActStartIdx;
   pot = { r: 0, g: 0, b: 0 };
   potAnim = { r: 0, g: 0, b: 0 };
   potFill = 0;
   order = null;
   orderBetweenTimer = 0;
+  hintUsed = false;
   chef = { x: 390, y: 350, dir: 'down', animTimer: 0, heldBottle: null };
   bottleState = { red: true, green: true, blue: true };
   particles = []; pourStreams = []; celebrationParticles = [];
+  const hBtnR = document.getElementById('hintBtn');
+  if (hBtnR) { hBtnR.textContent = '💡 Hint'; hBtnR.disabled = false; }
   updateScoreDisplay();
   spawnOrder();
   gameState = 'playing';
@@ -347,12 +539,16 @@ function spawnOrder() {
     currentLevelIdx = act5Start >= 0 ? act5Start : LEVELS.length - 10;
   }
   const level = LEVELS[currentLevelIdx];
+  hintUsed = false;
+  const hBtn = document.getElementById('hintBtn');
+  if (hBtn) { hBtn.textContent = '💡 Hint'; hBtn.disabled = false; }
   order = {
     target: { ...level.target },
     patience: level.patience,
     maxPatience: level.patience,
   };
-  if (level.hint) {
+  // Auto-show hints only in Act 1 (tutorial) — later acts require the player to request them
+  if (level.act === 1 && level.hint) {
     hint.text = level.hint;
     hint.timer = 6;
   }
@@ -507,6 +703,8 @@ function serveOrder() {
     pts += speedBonus + 200;
     spawnCelebration(CW / 2, CH / 2);
   }
+  // Hint penalty: –100 pts for using a hint in non-tutorial acts
+  if (hintUsed && level.act !== 1 && pts > 0) pts = Math.max(0, pts - 100);
   if (stars === 0) lives--;
 
   score += pts;
@@ -532,7 +730,9 @@ function showResult(stars, target, mixed, de) {
   document.getElementById('targetColorBox').style.background = rgbToHex(target.r, target.g, target.b);
   document.getElementById('yourColorBox').style.background   = rgbToHex(mixed.r,  mixed.g,  mixed.b);
   document.getElementById('starDisplay').textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
-  document.getElementById('deltaEDisplay').textContent = `Color distance ΔE: ${de.toFixed(1)}`;
+  const lvlForResult = LEVELS[currentLevelIdx] || LEVELS[LEVELS.length - 1];
+  const hintNote = (hintUsed && lvlForResult.act !== 1 && stars > 0) ? '  |  💡 Hint (−100 pts)' : '';
+  document.getElementById('deltaEDisplay').textContent = `Color distance ΔE: ${de.toFixed(1)}${hintNote}`;
 
   const msgs = ['😢 Not quite — try again!', '😐 Almost there!', '😊 Well done!', '🎉 Perfect mix! Amazing!'];
   document.getElementById('resultMessage').textContent = msgs[stars];
