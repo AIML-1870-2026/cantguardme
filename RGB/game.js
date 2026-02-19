@@ -1145,9 +1145,9 @@ function drawStove() {
   roundRect(st.x - 10, st.y + st.h - 8, st.w + 20, 28, 6);
   ctx.stroke();
 
-  const burnColor = `rgb(${Math.round(potAnim.r)},${Math.round(potAnim.g * 0.5 + 80)},0)`;
+  const burnColor = `rgba(${Math.round(potAnim.r)},${Math.round(potAnim.g * 0.5 + 80)},0,0.67)`;
   const bgrd = ctx.createRadialGradient(st.x + st.w / 2, st.y + st.h + 8, 0, st.x + st.w / 2, st.y + st.h + 8, 60);
-  bgrd.addColorStop(0, burnColor + 'aa');
+  bgrd.addColorStop(0, burnColor);
   bgrd.addColorStop(1, 'transparent');
   ctx.fillStyle = bgrd;
   ctx.fillRect(st.x - 20, st.y + st.h - 10, st.w + 40, 60);
