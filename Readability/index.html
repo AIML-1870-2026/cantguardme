@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Operation Readable — V.I.A. Decryption Terminal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=Orbitron:wght@400;700&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ── Header ───────────────────────────────────────────── -->
+  <header class="terminal-header">
+    <div class="header-left">
+      <span class="header-logo">V.I.A.</span>
+      <span class="header-title">OPERATION READABLE — DECRYPTION TERMINAL</span>
+    </div>
+    <div class="header-right">
+      <span class="header-tag">AGENT: LUX</span>
+      <span class="header-tag">MISSION: #RCQ-2026</span>
+      <span class="header-tag classified">&#9632; CLASSIFIED</span>
+    </div>
+  </header>
+
+  <!-- ── Main Layout ──────────────────────────────────────── -->
+  <main class="main-grid">
+
+    <!-- ── Left Column ─────────────────────────────────────── -->
+    <section class="left-panel" aria-label="Terminal preview and analysis">
+
+      <!-- Terminal Preview -->
+      <div class="terminal-frame">
+        <div class="panel-label">INTERCEPTED TRANSMISSION</div>
+        <div class="terminal-screen" id="terminalScreen" role="img" aria-label="Terminal preview showing intercepted message text">
+          <p class="intercepted-text" id="interceptedText">
+            The asset will arrive at checkpoint BRAVO at 0300 hours. Confirm receipt of package ECHO-7. Do not reply on unsecured channels.
+          </p>
+        </div>
+        <button class="rotate-btn" id="rotateMsg">[ ROTATE TRANSMISSION ]</button>
+      </div>
+
+      <!-- Visibility Meter -->
+      <div class="panel-box">
+        <div class="panel-label">VISIBILITY METER</div>
+        <div class="contrast-display">
+          <span class="contrast-ratio" id="contrastRatio" aria-live="polite" aria-label="Contrast ratio">—:1</span>
+        </div>
+        <div class="gauge-track" role="progressbar" aria-label="Contrast gauge" aria-valuemin="1" aria-valuemax="21" aria-valuenow="1" id="gaugeTrack">
+          <div class="gauge-fill" id="gaugeFill"></div>
+        </div>
+        <div class="gauge-markers" aria-hidden="true">
+          <span class="marker" style="left:0%">1</span>
+          <span class="marker" style="left:10%">3</span>
+          <span class="marker" style="left:17.5%">4.5</span>
+          <span class="marker" style="left:100%">21</span>
+        </div>
+      </div>
+
+      <!-- Luminance Intel -->
+      <div class="panel-box">
+        <div class="panel-label">LUMINANCE INTEL</div>
+        <div class="luminance-grid">
+          <div class="luminance-item">
+            <span class="lum-label">BG SIGNAL</span>
+            <span class="lum-value" id="bgLuminance" aria-live="polite">0.0000</span>
+          </div>
+          <div class="luminance-item">
+            <span class="lum-label">TX SIGNAL</span>
+            <span class="lum-value" id="txLuminance" aria-live="polite">0.0000</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Field Readability Protocol -->
+      <div class="panel-box">
+        <div class="panel-label">FIELD READABILITY PROTOCOL</div>
+        <div class="compliance-grid">
+          <div class="compliance-badge fail" id="badge-standard">
+            <span class="blink-dot" aria-hidden="true"></span>
+            <div class="badge-info">
+              <span class="badge-name">STANDARD TRANSMISSION</span>
+              <span class="badge-thresh">Normal text &mdash; requires &ge; 4.5:1</span>
+            </div>
+            <span class="badge-status" id="status-standard" aria-live="polite">&#x2717; BLOCKED</span>
+          </div>
+          <div class="compliance-badge fail" id="badge-priority">
+            <span class="blink-dot" aria-hidden="true"></span>
+            <div class="badge-info">
+              <span class="badge-name">PRIORITY BROADCAST</span>
+              <span class="badge-thresh">Large text &mdash; requires &ge; 3.0:1</span>
+            </div>
+            <span class="badge-status" id="status-priority" aria-live="polite">&#x2717; BLOCKED</span>
+          </div>
+        </div>
+        <div class="approved-banner" id="approvedBanner" aria-live="polite" role="status">
+          &#9733; TRANSMISSION APPROVED &mdash; FORWARD TO COMMAND &#9733;
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ── Right Column ─────────────────────────────────────── -->
+    <section class="right-panel" aria-label="Decryption controls">
+
+      <!-- Background Frequency Tuner -->
+      <div class="control-group bg-group" id="bgGroup">
+        <div class="control-group-label">
+          <span>&#9655; BACKGROUND FREQUENCY</span>
+          <span class="color-preview" id="bgPreview" aria-hidden="true"></span>
+        </div>
+        <div class="slider-row">
+          <label class="channel-label r" for="bgR">R</label>
+          <input type="range" id="bgR" min="0" max="255" value="26"
+            aria-label="Background red channel" aria-valuemin="0" aria-valuemax="255" aria-valuenow="26">
+          <input type="number" id="bgRNum" min="0" max="255" value="26"
+            aria-label="Background red value">
+        </div>
+        <div class="slider-row">
+          <label class="channel-label g" for="bgG">G</label>
+          <input type="range" id="bgG" min="0" max="255" value="26"
+            aria-label="Background green channel" aria-valuemin="0" aria-valuemax="255" aria-valuenow="26">
+          <input type="number" id="bgGNum" min="0" max="255" value="26"
+            aria-label="Background green value">
+        </div>
+        <div class="slider-row">
+          <label class="channel-label b" for="bgB">B</label>
+          <input type="range" id="bgB" min="0" max="255" value="46"
+            aria-label="Background blue channel" aria-valuemin="0" aria-valuemax="255" aria-valuenow="46">
+          <input type="number" id="bgBNum" min="0" max="255" value="46"
+            aria-label="Background blue value">
+        </div>
+      </div>
+
+      <!-- Text Signal Amplifier -->
+      <div class="control-group tx-group" id="txGroup">
+        <div class="control-group-label">
+          <span>&#9655; TEXT SIGNAL AMPLIFIER</span>
+          <span class="color-preview" id="txPreview" aria-hidden="true"></span>
+        </div>
+        <div class="slider-row">
+          <label class="channel-label r" for="txR">R</label>
+          <input type="range" id="txR" min="0" max="255" value="224"
+            aria-label="Text red channel" aria-valuemin="0" aria-valuemax="255" aria-valuenow="224">
+          <input type="number" id="txRNum" min="0" max="255" value="224"
+            aria-label="Text red value">
+        </div>
+        <div class="slider-row">
+          <label class="channel-label g" for="txG">G</label>
+          <input type="range" id="txG" min="0" max="255" value="224"
+            aria-label="Text green channel" aria-valuemin="0" aria-valuemax="255" aria-valuenow="224">
+          <input type="number" id="txGNum" min="0" max="255" value="224"
+            aria-label="Text green value">
+        </div>
+        <div class="slider-row">
+          <label class="channel-label b" for="txB">B</label>
+          <input type="range" id="txB" min="0" max="255" value="224"
+            aria-label="Text blue channel" aria-valuemin="0" aria-valuemax="255" aria-valuenow="224">
+          <input type="number" id="txBNum" min="0" max="255" value="224"
+            aria-label="Text blue value">
+        </div>
+      </div>
+
+      <!-- Magnification Level -->
+      <div class="control-group mag-group">
+        <div class="control-group-label">&#9655; MAGNIFICATION LEVEL</div>
+        <div class="slider-row">
+          <label class="channel-label mag" for="fontSize">Sz</label>
+          <input type="range" id="fontSize" min="8" max="72" value="16"
+            aria-label="Font size" aria-valuemin="8" aria-valuemax="72" aria-valuenow="16">
+          <input type="number" id="fontSizeNum" min="8" max="72" value="16"
+            aria-label="Font size in pixels">
+          <span class="unit-label" aria-hidden="true">px</span>
+        </div>
+      </div>
+
+      <!-- Enemy Cipher Filters -->
+      <div class="control-group cipher-group">
+        <div class="control-group-label">&#9655; ENEMY CIPHER FILTERS</div>
+        <div class="cipher-lock-msg" id="cipherLockMsg" role="alert">
+          &#9632; CONTROLS LOCKED &mdash; CIPHER ACTIVE
+        </div>
+        <fieldset class="cipher-options" id="cipherFieldset">
+          <legend class="sr-only">Vision simulation cipher filter</legend>
+
+          <label class="cipher-option">
+            <input type="radio" name="cipher" value="normal" checked>
+            <span class="cipher-label">Cleartext</span>
+            <span class="cipher-info-wrap">
+              <span class="cipher-info" tabindex="0" aria-label="Info: Normal vision">&#9432;</span>
+              <span class="cipher-tooltip" role="tooltip">Normal vision &mdash; no color transformation applied</span>
+            </span>
+          </label>
+
+          <label class="cipher-option">
+            <input type="radio" name="cipher" value="protanopia">
+            <span class="cipher-label">Red Phoenix Cipher</span>
+            <span class="cipher-info-wrap">
+              <span class="cipher-info" tabindex="0" aria-label="Info: Protanopia simulation">&#9432;</span>
+              <span class="cipher-tooltip" role="tooltip">Simulates protanopia &mdash; red cone cells are non-functional</span>
+            </span>
+          </label>
+
+          <label class="cipher-option">
+            <input type="radio" name="cipher" value="deuteranopia">
+            <span class="cipher-label">Green Viper Cipher</span>
+            <span class="cipher-info-wrap">
+              <span class="cipher-info" tabindex="0" aria-label="Info: Deuteranopia simulation">&#9432;</span>
+              <span class="cipher-tooltip" role="tooltip">Simulates deuteranopia &mdash; green cone cells are non-functional</span>
+            </span>
+          </label>
+
+          <label class="cipher-option">
+            <input type="radio" name="cipher" value="tritanopia">
+            <span class="cipher-label">Blue Phantom Cipher</span>
+            <span class="cipher-info-wrap">
+              <span class="cipher-info" tabindex="0" aria-label="Info: Tritanopia simulation">&#9432;</span>
+              <span class="cipher-tooltip" role="tooltip">Simulates tritanopia &mdash; blue cone cells are non-functional</span>
+            </span>
+          </label>
+
+          <label class="cipher-option">
+            <input type="radio" name="cipher" value="monochromacy">
+            <span class="cipher-label">Total Blackout Protocol</span>
+            <span class="cipher-info-wrap">
+              <span class="cipher-info" tabindex="0" aria-label="Info: Monochromacy simulation">&#9432;</span>
+              <span class="cipher-tooltip" role="tooltip">Simulates monochromacy &mdash; complete color blindness, grayscale only</span>
+            </span>
+          </label>
+
+        </fieldset>
+      </div>
+
+      <!-- Known Transmission Profiles -->
+      <div class="control-group preset-group">
+        <div class="control-group-label">&#9655; KNOWN TRANSMISSION PROFILES</div>
+        <label class="sr-only" for="presetSelect">Load a preset color scheme</label>
+        <select id="presetSelect">
+          <option value="">&mdash; SELECT DOSSIER &mdash;</option>
+          <option value="high-security">HIGH SECURITY &nbsp;&nbsp;&nbsp;&#x2588;&#x2588; #FFF / #000 &mdash; 21:1</option>
+          <option value="foggy-intercept">FOGGY INTERCEPT &nbsp;&#x2588;&#x2588; #777 / #999 &mdash; fails WCAG</option>
+          <option value="agency-standard">AGENCY STANDARD &nbsp;&#x2588;&#x2588; #1a1a2e / #e0e0e0</option>
+          <option value="compromised-channel">COMPROMISED CHANNEL &#x2588;&#x2588; #FFFDE7 / #FFF9C4 &mdash; fails WCAG</option>
+          <option value="dark-ops">DARK OPS &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#x2588;&#x2588; #0d0d0d / #00ff41</option>
+          <option value="embassy-cable">EMBASSY CABLE &nbsp;&nbsp;&nbsp;&#x2588;&#x2588; #F5F5DC / #333333</option>
+        </select>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- ── Footer ───────────────────────────────────────────── -->
+  <footer class="terminal-footer">
+    V.I.A. &mdash; Visibility Intelligence Agency &nbsp;|&nbsp;
+    Field Readability Protocol v2.0 &nbsp;|&nbsp;
+    WCAG 2.1 AA/AAA Standards
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
