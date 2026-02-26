@@ -652,6 +652,7 @@ function applyLevelTheme(lvl) {
 
   renderChips();
   startAmbient(lvl);
+  updateLevelProgress();
 
   // Penthouse particles
   if (lvl === 3) startParticles();
@@ -1367,6 +1368,37 @@ function updateBankrollDisplay() {
     '$' + state.bankroll.toLocaleString();
   if (state.bankroll > state.stats.peakBankroll) {
     state.stats.peakBankroll = state.bankroll;
+  }
+  updateLevelProgress();
+}
+
+function updateLevelProgress() {
+  const lvl     = state.level;
+  const current = LEVELS[lvl];
+  const game    = document.getElementById('game');
+
+  if (lvl >= LEVELS.length - 1) {
+    // Max level — hide the bar
+    game.classList.add('at-max-level');
+    return;
+  }
+  game.classList.remove('at-max-level');
+
+  const next      = LEVELS[lvl + 1];
+  const rangeSize = next.min - current.min;
+  const progress  = Math.min(1, (state.bankroll - current.min) / rangeSize);
+  const pct       = Math.max(0, Math.round(progress * 100));
+
+  document.getElementById('level-fill').style.width = pct + '%';
+
+  const needed = next.min - state.bankroll;
+  const label  = document.getElementById('level-progress-amt');
+  if (needed <= 0) {
+    label.textContent = '✓';
+  } else {
+    label.textContent = needed >= 1000
+      ? '$' + (needed / 1000).toFixed(0) + 'K needed'
+      : '$' + needed + ' needed';
   }
 }
 

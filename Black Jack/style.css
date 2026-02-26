@@ -314,6 +314,35 @@ body {
   text-align: right;
 }
 
+.level-progress-divider {
+  width: 1px;
+  height: 12px;
+  background: var(--ui-border);
+  flex-shrink: 0;
+  margin: 0 4px;
+}
+
+.level-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent-color);
+  border-radius: 2px;
+  transition: width 0.6s ease;
+  opacity: 0.75;
+}
+
+.level-progress-amt {
+  min-width: 52px;
+  color: var(--accent-color);
+  opacity: 0.85;
+}
+
+/* Hide next-level bar on max level */
+.at-max-level .level-progress-divider,
+.at-max-level #level-progress-label,
+.at-max-level .shoe-bar-track:last-of-type,
+.at-max-level .level-progress-amt { display: none; }
+
 /* ═══════════════════════════════════════════════════════════════
    DEALER AREA
    ═══════════════════════════════════════════════════════════════ */
