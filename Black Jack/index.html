@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RISE — Blackjack</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Raleway:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- TITLE SCREEN                                   -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="title-screen" class="overlay active">
+  <div class="title-content">
+    <div class="title-suit">♠</div>
+    <h1 class="title-logo">RISE</h1>
+    <p class="title-tagline">The table is waiting.</p>
+    <button id="btn-sit-down" class="btn-primary">Sit Down</button>
+    <p class="title-audio-note">Sound will begin on interaction</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- LEVEL TRANSITION OVERLAY                       -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="transition-overlay" class="overlay">
+  <div class="transition-content">
+    <div id="transition-direction-label" class="transition-direction-label"></div>
+    <p id="transition-text" class="transition-text"></p>
+    <div class="transition-divider">— — —</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- GAME OVER OVERLAY                              -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="game-over-overlay" class="overlay">
+  <div class="gameover-content">
+    <h2 class="gameover-logo">RISE</h2>
+    <p class="gameover-text">The table is empty.<br>The house always wins…<br>unless you try again.</p>
+    <p id="gameover-best-run" class="gameover-best-run"></p>
+    <button id="btn-start-over" class="btn-primary">Start Over</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- INSURANCE PROMPT OVERLAY                       -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="insurance-overlay" class="overlay">
+  <div class="insurance-content">
+    <h3 class="insurance-title">Insurance?</h3>
+    <p id="insurance-desc" class="insurance-desc">Dealer shows an Ace. Buy insurance for up to half your bet.</p>
+    <div class="insurance-bet-row">
+      <span class="insurance-bet-label">Insurance bet:</span>
+      <span id="insurance-amount-display" class="insurance-amount">$0</span>
+    </div>
+    <div id="insurance-chip-row" class="insurance-chip-row"></div>
+    <div class="insurance-actions">
+      <button id="btn-insurance-accept" class="btn-action btn-accept">Accept</button>
+      <button id="btn-insurance-decline" class="btn-action btn-decline">Decline <kbd>Esc</kbd></button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SHUFFLE NOTIFICATION                           -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="shuffle-notif" class="shuffle-notif">Shuffling the shoe…</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- MAIN GAME                                      -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="game" class="game-container level-0 phase-betting">
+
+  <!-- Atmospheric overlays -->
+  <div id="flicker-overlay" class="flicker-overlay"></div>
+  <div id="particles-container" class="particles-container"></div>
+
+  <!-- ── HEADER ── -->
+  <header class="header">
+    <div class="header-left">
+      <span class="logo">RISE</span>
+    </div>
+    <div class="header-center">
+      <span id="level-display" class="level-display">The Backroom</span>
+      <span class="header-sep">·</span>
+      <span id="bet-limits-display" class="bet-limits-display">$5 – $50</span>
+    </div>
+    <div class="header-right">
+      <div class="bankroll-block">
+        <span class="bankroll-label">Bankroll</span>
+        <span id="bankroll-display" class="bankroll-display">$100</span>
+        <span id="bankroll-delta" class="bankroll-delta"></span>
+      </div>
+      <button id="mute-btn" class="mute-btn" title="Toggle Mute (M)" aria-label="Toggle mute">
+        <span id="mute-icon">🔊</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ── SHOE INDICATOR ── -->
+  <div class="shoe-row">
+    <span class="shoe-label">Shoe</span>
+    <div class="shoe-bar-track">
+      <div id="shoe-fill" class="shoe-fill"></div>
+    </div>
+    <span id="shoe-pct" class="shoe-pct">100%</span>
+  </div>
+
+  <!-- ── DEALER AREA ── -->
+  <section class="dealer-area">
+    <div class="area-label">Dealer</div>
+    <div id="dealer-cards" class="cards-row"></div>
+    <div id="dealer-value" class="hand-value"></div>
+  </section>
+
+  <!-- ── RESULT DISPLAY ── -->
+  <div id="result-display" class="result-display"></div>
+
+  <!-- ── PLAYER AREA ── -->
+  <section class="player-area">
+    <div id="player-hands-container" class="player-hands-container">
+      <!-- Hands injected by JS -->
+    </div>
+  </section>
+
+  <!-- ── ACTION BUTTONS ── -->
+  <div id="action-buttons" class="action-buttons">
+    <button id="btn-hit"    class="btn-action">Hit <kbd>H</kbd></button>
+    <button id="btn-stand"  class="btn-action">Stand <kbd>S</kbd></button>
+    <button id="btn-double" class="btn-action">Double <kbd>D</kbd></button>
+    <button id="btn-split"  class="btn-action">Split</button>
+  </div>
+
+  <!-- ── BETTING AREA ── -->
+  <div class="betting-area">
+    <div class="betting-circle-wrapper">
+      <div id="betting-circle" class="betting-circle">
+        <div id="bet-stack-visual" class="bet-stack-visual"></div>
+        <div id="bet-amount" class="bet-amount">$0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CHIP SELECTOR ── -->
+  <div class="chip-row">
+    <div id="chip-selector" class="chip-selector">
+      <!-- Chips injected by JS -->
+    </div>
+    <div class="deal-controls">
+      <button id="btn-clear"   class="btn-secondary">Clear <kbd>C</kbd></button>
+      <button id="btn-all-in"  class="btn-all-in">All In</button>
+      <button id="btn-deal"    class="btn-primary deal-btn" disabled>Deal <kbd>D</kbd></button>
+    </div>
+  </div>
+
+  <!-- ── STATS BAR ── -->
+  <footer class="stats-bar">
+    <span id="stat-wlp">W:0 L:0 P:0</span>
+    <span class="stat-sep">·</span>
+    <span id="stat-winpct">Win 0%</span>
+    <span class="stat-sep">·</span>
+    <span id="stat-streak">Streak: —</span>
+    <span class="stat-sep">·</span>
+    <span id="stat-bigwin">Best: $0</span>
+    <span class="stat-sep">·</span>
+    <span id="stat-peak">Peak: $100</span>
+  </footer>
+
+</div><!-- /#game -->
+
+<script src="game.js"></script>
+</body>
+</html>
