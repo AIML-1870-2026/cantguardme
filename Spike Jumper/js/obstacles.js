@@ -237,15 +237,15 @@
   // DRAW PRIMITIVES
   // ─────────────────────────────────────────────────────────────
 
-  /** Dark wall panel — flat solid fill, fast */
+  /** Dark wall panel — distinct purple fill so it reads against the tunnel */
   function panel(ctx, x1, y1, x2, y2) {
     var pw = x2 - x1, ph = y2 - y1;
     if (pw <= 0 || ph <= 0) return;
-    ctx.fillStyle = 'rgba(5,5,15,0.86)';
+    ctx.fillStyle = 'rgba(30,8,55,0.92)';
     ctx.fillRect(x1, y1, pw, ph);
-    // Subtle inner edge
-    ctx.strokeStyle = 'rgba(60,60,100,0.3)';
-    ctx.lineWidth   = 0.6;
+    // Subtle inner edge highlight
+    ctx.strokeStyle = 'rgba(120,60,180,0.25)';
+    ctx.lineWidth   = 0.8;
     ctx.strokeRect(x1 + 0.5, y1 + 0.5, pw - 1, ph - 1);
   }
 
@@ -313,12 +313,13 @@
       var t = depthFactor(o.z);
       if (t <= 0.015) continue;
 
-      // Fade in near spawn point; fade out after passing
+      // Depth-proportional opacity: far = 25%, near = 100%, fade out after passing
       var fade;
       if (o.z > 0) {
-        fade = Math.min(1, (Z_FAR - o.z) / 180);
+        fade = 0.25 + t * 0.75;          // grows from 0.25 at spawn to 1.0 at player
+        fade = Math.min(fade, Math.min(1, (Z_FAR - o.z) / 180));  // fade-in at very start
       } else {
-        fade = Math.max(0, 1 + o.z / 100);
+        fade = Math.max(0, 1 + o.z / 100);  // quick fade-out after passing
       }
       if (fade <= 0) continue;
 
@@ -341,7 +342,7 @@
   function drawVGate(ctx, o, t) {
     var c  = getAccent(o);
     var f  = screenFrame(t);
-    var lw = Math.max(1.5, 3 * t);
+    var lw = Math.max(1.5, 6 * t);
 
     var gapT = lerp(SJ.vanishY, o.gapCenterY - o.gapHalf, t);
     var gapB = lerp(SJ.vanishY, o.gapCenterY + o.gapHalf, t);
@@ -360,13 +361,14 @@
     if (gapT > f.T) spikeRow(ctx, f.L, f.R, gapT, 1,  c.b, t);
     if (gapB < f.B) spikeRow(ctx, f.L, f.R, gapB, -1, c.b, t);
 
-    // Danger zone tint inside gap when close
-    if (t > 0.65) {
-      var warn = (t - 0.65) / 0.35 * 0.08;
-      ctx.fillStyle = c.a + '22';
-      ctx.globalAlpha *= warn / 0.08;
+    // Safe-zone haze — soft green glow inside gap guides player
+    if (t > 0.2) {
+      var hazeFade = Math.min(1, (t - 0.2) / 0.4) * 0.10;
+      ctx.save();
+      ctx.globalAlpha *= hazeFade;
+      ctx.fillStyle = 'rgba(0,255,120,1)';
       ctx.fillRect(f.L, gapT, f.R - f.L, gapB - gapT);
-      ctx.globalAlpha = 1;
+      ctx.restore();
     }
   }
 
@@ -376,7 +378,7 @@
   function drawHGate(ctx, o, t) {
     var c  = getAccent(o);
     var f  = screenFrame(t);
-    var lw = Math.max(1.5, 3 * t);
+    var lw = Math.max(1.5, 6 * t);
 
     var gapL = lerp(SJ.vanishX, o.gapCenterX - o.gapHalfX, t);
     var gapR = lerp(SJ.vanishX, o.gapCenterX + o.gapHalfX, t);
@@ -391,6 +393,16 @@
 
     if (gapL > f.L) spikeCol(ctx, gapL, f.T, f.B, 1,  c.b, t);
     if (gapR < f.R) spikeCol(ctx, gapR, f.T, f.B, -1, c.b, t);
+
+    // Safe-zone haze inside horizontal gap
+    if (t > 0.2) {
+      var hazeFade = Math.min(1, (t - 0.2) / 0.4) * 0.10;
+      ctx.save();
+      ctx.globalAlpha *= hazeFade;
+      ctx.fillStyle = 'rgba(0,255,120,1)';
+      ctx.fillRect(gapL, f.T, gapR - gapL, f.B - f.T);
+      ctx.restore();
+    }
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -399,7 +411,7 @@
   function drawVHGate(ctx, o, t) {
     var c  = getAccent(o);
     var f  = screenFrame(t);
-    var lw = Math.max(1.5, 3 * t);
+    var lw = Math.max(1.5, 6 * t);
 
     var gapL = lerp(SJ.vanishX, o.gapCenterX - o.gapHalfX, t);
     var gapR = lerp(SJ.vanishX, o.gapCenterX + o.gapHalfX, t);
@@ -428,6 +440,16 @@
     if (gapB < f.B) spikeRow(ctx, gapL, gapR, gapB, -1, c.b, t);
     if (gapL > f.L) spikeCol(ctx, gapL, gapT, gapB, 1,  c.b, t);
     if (gapR < f.R) spikeCol(ctx, gapR, gapT, gapB, -1, c.b, t);
+
+    // Safe-zone haze inside the open quadrant
+    if (t > 0.2) {
+      var hazeFade = Math.min(1, (t - 0.2) / 0.4) * 0.10;
+      ctx.save();
+      ctx.globalAlpha *= hazeFade;
+      ctx.fillStyle = 'rgba(0,255,120,1)';
+      ctx.fillRect(gapL, gapT, gapR - gapL, gapB - gapT);
+      ctx.restore();
+    }
   }
 
 })();
