@@ -606,8 +606,8 @@
     for (var k = 1; k <= 3; k++) {
       var wf = k / 3;
       var ly = ceilY + (floorY - ceilY) * wf;
-      ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(vL, vy); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(w, ly); ctx.lineTo(vR, vy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(vx, vy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(w, ly); ctx.lineTo(vx, vy); ctx.stroke();
     }
 
     // ── Inner frame glow (one shadowBlur pass for all 4 edges) ──
