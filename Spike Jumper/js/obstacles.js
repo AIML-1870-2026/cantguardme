@@ -1,13 +1,11 @@
 /**
- * Spike Jumper — obstacles.js (2D Redesign)
- * Side-scrolling gate/spike obstacles that approach from the right.
- * Tap timing is the core mechanic — obstacles have clear gaps to navigate.
+ * Spike Jumper — obstacles.js (3rd-Person Z-Depth)
+ * Obstacles approach from a vanishing point (z-depth), growing from tiny to
+ * full-screen as they reach the player. Three types:
  *
- * Obstacle types:
- *   gate          — top bar + bottom bar with a vertical gap (main type)
- *   floor_spike   — single tall bar rising from the floor
- *   ceiling_spike — single bar hanging from ceiling
- *   double_narrow — tighter gate for later zones
+ *   v_gate  — full-width barrier with a vertical Y gap (classic Flappy Bird)
+ *   h_gate  — full-height barrier with a horizontal X gap (barrel-roll mechanic)
+ *   vh_gate — barrier with both X and Y gaps (hardest — requires correct lane & height)
  *
  * Extends window.SJ (initialized by engine.js).
  */
@@ -15,27 +13,37 @@
 (function () {
   'use strict';
 
+  var Z_FAR  = 1200;   // depth at which obstacles spawn (far away)
+  var Z_NEAR = 0;      // player plane depth
+
   // ─────────────────────────────────────────────────────────────
   // POOL SETUP
   // ─────────────────────────────────────────────────────────────
-
   SJ.initObstacles = function () {
     SJ.obstaclePool = [];
     SJ.obstacles    = [];
     for (var i = 0; i < 30; i++) {
       SJ.obstaclePool.push({
         active: false,
-        x: 0, gapCenterY: 0, gapHalf: 110,
-        w: 70, type: 'gate', zoneIdx: 0, color: '#888',
-        // For single-bar variants
-        y: 0, h: 0,
+        z: Z_FAR,
+        type: 'v_gate',
+        // v_gate / vh_gate vertical gap (in player-plane screen coords)
+        gapCenterY: 0,
+        gapHalf:    110,
+        // h_gate / vh_gate horizontal gap
+        gapCenterX: 0,
+        gapHalfX:   0,
+        // for legacy compat
+        x: 0, w: 70, y: 0, h: 0,
+        gapCenterY_world: 0,
+        zoneIdx: 0,
+        passed: false,
       });
     }
-    SJ._spawnTimer    = -1200; // negative → delay first obstacle
-    SJ._spawnInterval = 2200;  // ms between spawns
-    // Keep these stubs so the old pattern-chunk calls from engine don't crash
-    SJ._obstacleQueue    = [];
-    SJ._lastSpawnTime    = 0;
+    SJ._spawnTimer    = -1500;
+    SJ._spawnInterval = 2400;
+    SJ._obstacleQueue = [];
+    SJ._lastSpawnTime = 0;
     SJ._beatsSinceChunkStart = 0;
   };
 
@@ -44,17 +52,15 @@
       SJ.obstaclePool[i].active = false;
     }
     SJ.obstacles = [];
-    SJ._spawnTimer = -1200;
+    SJ._spawnTimer = -1500;
     SJ._obstacleQueue = [];
   };
 
-  // No-op stub kept for engine.js compatibility
   SJ.startPatternChunk = function () {};
 
   // ─────────────────────────────────────────────────────────────
   // HELPERS
   // ─────────────────────────────────────────────────────────────
-
   function rand(min, max) { return min + Math.random() * (max - min); }
 
   function getFree() {
@@ -64,112 +70,151 @@
     return null;
   }
 
-  function spawnGate(gapCenterY, gapHalf, w) {
+  /**
+   * depthFactor(z): 0 when at Z_FAR (just spawned), 1 when at player (z=0).
+   * Returns negative values when z < 0 (passed player) — used for post-pass rendering.
+   */
+  function depthFactor(z) {
+    return (Z_FAR - z) / Z_FAR;
+  }
+
+  /**
+   * frameAt(t): Returns the screen rectangle the obstacle occupies at depth t.
+   * t=0 → tiny dot at vanishing point; t=1 → full playfield.
+   */
+  function frameAt(t) {
+    var vx = SJ.vanishX, vy = SJ.vanishY;
+    return {
+      L: vx + (0          - vx) * t,
+      R: vx + (SJ.width   - vx) * t,
+      T: vy + (SJ.ceilY   - vy) * t,
+      B: vy + (SJ.floorY  - vy) * t,
+    };
+  }
+
+  /** Lerp helper */
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  // ─────────────────────────────────────────────────────────────
+  // SPAWN HELPERS
+  // ─────────────────────────────────────────────────────────────
+  function spawnVGate(gapCenterY, gapHalf) {
     var o = getFree(); if (!o) return;
     o.active      = true;
-    o.type        = 'gate';
-    o.x           = SJ.width + 60;
+    o.type        = 'v_gate';
+    o.z           = Z_FAR;
     o.gapCenterY  = gapCenterY;
     o.gapHalf     = gapHalf;
-    o.w           = w || 68;
     o.zoneIdx     = SJ.currentZoneIdx;
+    o.passed      = false;
     if (SJ.obstacles.indexOf(o) === -1) SJ.obstacles.push(o);
   }
 
-  function spawnFloorSpike(h, w) {
+  function spawnHGate(gapCenterX, gapHalfX) {
     var o = getFree(); if (!o) return;
-    o.active  = true;
-    o.type    = 'floor_spike';
-    o.x       = SJ.width + 60;
-    o.y       = SJ.floorY - h;
-    o.h       = h;
-    o.w       = w || 65;
-    o.zoneIdx = SJ.currentZoneIdx;
+    o.active      = true;
+    o.type        = 'h_gate';
+    o.z           = Z_FAR;
+    o.gapCenterX  = gapCenterX;
+    o.gapHalfX    = gapHalfX;
+    o.zoneIdx     = SJ.currentZoneIdx;
+    o.passed      = false;
     if (SJ.obstacles.indexOf(o) === -1) SJ.obstacles.push(o);
   }
 
-  function spawnCeilingSpike(h, w) {
+  function spawnVHGate(gapCenterY, gapHalf, gapCenterX, gapHalfX) {
     var o = getFree(); if (!o) return;
-    o.active  = true;
-    o.type    = 'ceiling_spike';
-    o.x       = SJ.width + 60;
-    o.y       = SJ.ceilY;
-    o.h       = h;
-    o.w       = w || 65;
-    o.zoneIdx = SJ.currentZoneIdx;
+    o.active      = true;
+    o.type        = 'vh_gate';
+    o.z           = Z_FAR;
+    o.gapCenterY  = gapCenterY;
+    o.gapHalf     = gapHalf;
+    o.gapCenterX  = gapCenterX;
+    o.gapHalfX    = gapHalfX;
+    o.zoneIdx     = SJ.currentZoneIdx;
+    o.passed      = false;
     if (SJ.obstacles.indexOf(o) === -1) SJ.obstacles.push(o);
   }
 
   // ─────────────────────────────────────────────────────────────
-  // SPAWN LOGIC — pick pattern based on zone & distance
+  // SPAWN LOGIC
   // ─────────────────────────────────────────────────────────────
-
   function spawnNext() {
-    var playH     = SJ.floorY - SJ.ceilY; // usable height
-    var gapHalf   = Math.max(75, 120 - SJ.cycleCount * 8 - SJ.currentZoneIdx * 4);
-    var minCenter = SJ.ceilY  + gapHalf + 30;
-    var maxCenter = SJ.floorY - gapHalf - 30;
-    var center    = rand(minCenter, maxCenter);
+    var playH   = SJ.floorY - SJ.ceilY;
+    var playW   = SJ.width;
+    var gapHalf = Math.max(72, 125 - SJ.cycleCount * 8 - SJ.currentZoneIdx * 5);
+    var gapHalfX = Math.max(playW * 0.18, playW * 0.34 - SJ.cycleCount * 0.015 * playW - SJ.currentZoneIdx * 0.01 * playW);
 
-    // Roll for obstacle variety
+    var minCY = SJ.ceilY  + gapHalf + 28;
+    var maxCY = SJ.floorY - gapHalf - 28;
+    var centerY = rand(minCY, maxCY);
+
+    var minCX = gapHalfX + 18;
+    var maxCX = playW - gapHalfX - 18;
+    var centerX = rand(minCX, maxCX);
+
+    var difficulty = SJ.currentZoneIdx + SJ.cycleCount * 2;
     var roll = Math.random();
 
-    // Higher zones / cycles → trickier patterns
-    var difficulty = SJ.currentZoneIdx + SJ.cycleCount * 2;
+    if (difficulty < 1) {
+      // Zone 0 intro: only v_gate, generous gaps
+      spawnVGate(centerY, gapHalf + 25);
 
-    if (difficulty < 2) {
-      // Early game: mostly gates, large gap
-      spawnGate(center, gapHalf + 20);
+    } else if (difficulty < 3) {
+      // Mostly v_gate, occasional h_gate
+      if (roll < 0.70) {
+        spawnVGate(centerY, gapHalf);
+      } else {
+        spawnHGate(centerX, gapHalfX + playW * 0.06);
+      }
 
-    } else if (roll < 0.55) {
-      // Standard gate
-      spawnGate(center, gapHalf);
-
-    } else if (roll < 0.72) {
-      // Floor spike only — jump over it
-      var spikeH = rand(playH * 0.28, playH * 0.44);
-      spawnFloorSpike(spikeH, 60);
-
-    } else if (roll < 0.86) {
-      // Ceiling spike only — duck under it
-      var spikeH2 = rand(playH * 0.28, playH * 0.44);
-      spawnCeilingSpike(spikeH2, 60);
+    } else if (difficulty < 6) {
+      // More h_gate, first vh_gate
+      if (roll < 0.45) {
+        spawnVGate(centerY, gapHalf);
+      } else if (roll < 0.82) {
+        spawnHGate(centerX, gapHalfX);
+      } else {
+        spawnVHGate(centerY, gapHalf + 15, centerX, gapHalfX + playW * 0.04);
+      }
 
     } else {
-      // Double: floor + ceiling with gap in middle
-      var narrowHalf = gapHalf - 10;
-      var midCenter  = (SJ.ceilY + SJ.floorY) / 2;
-      spawnGate(midCenter + rand(-20, 20), narrowHalf, 72);
+      // Late game: balanced + frequent vh_gate
+      if (roll < 0.30) {
+        spawnVGate(centerY, gapHalf);
+      } else if (roll < 0.58) {
+        spawnHGate(centerX, gapHalfX);
+      } else {
+        spawnVHGate(centerY, gapHalf, centerX, gapHalfX);
+      }
     }
   }
 
   // ─────────────────────────────────────────────────────────────
-  // SJ.updateObstacles(dt)
+  // UPDATE
   // ─────────────────────────────────────────────────────────────
-
   SJ.updateObstacles = function (dt) {
-    var speed = SJ.scrollSpeed || 220; // px/s
+    var speed  = SJ.scrollSpeed || 220;
+    var dtSec  = dt / 1000;
 
-    // Update spawn timer
-    SJ._spawnTimer += dt;
-    // Recalculate spawn interval (faster at higher speeds)
-    SJ._spawnInterval = Math.max(1100, 2200 - (speed - 220) * 2.2);
+    // Spawn timer
+    SJ._spawnTimer    += dt;
+    SJ._spawnInterval  = Math.max(1200, 2400 - (speed - 220) * 2.5);
 
     if (SJ._spawnTimer >= SJ._spawnInterval) {
       SJ._spawnTimer -= SJ._spawnInterval;
       spawnNext();
     }
 
-    // Move obstacles leftward
-    var dtSec = dt / 1000;
+    // Move obstacles toward player (decrease z)
     for (var i = SJ.obstacles.length - 1; i >= 0; i--) {
       var o = SJ.obstacles[i];
       if (!o.active) { SJ.obstacles.splice(i, 1); continue; }
 
-      o.x -= speed * dtSec;
+      o.z -= speed * dtSec;
 
-      // Deactivate when fully off-screen left
-      if (o.x + o.w < -20) {
+      // Deactivate well behind player
+      if (o.z < -350) {
         o.active = false;
         SJ.obstacles.splice(i, 1);
       }
@@ -177,9 +222,94 @@
   };
 
   // ─────────────────────────────────────────────────────────────
-  // SJ.renderObstacles
+  // COLLISION DETECTION — triggered when z crosses 0
   // ─────────────────────────────────────────────────────────────
+  SJ.checkCollisions = function () {
+    if (!SJ.player.alive) return;
+    var p = SJ.player;
 
+    for (var i = 0; i < SJ.obstacles.length; i++) {
+      var o = SJ.obstacles[i];
+      if (!o.active || o.passed) continue;
+      if (o.z > 0) continue;   // not yet at player
+
+      o.passed = true;
+
+      var hit = false;
+      var nearMiss = false;
+
+      if (o.type === 'v_gate') {
+        var gapTop = o.gapCenterY - o.gapHalf;
+        var gapBot = o.gapCenterY + o.gapHalf;
+        if (p.y < gapTop || p.y > gapBot) {
+          hit = true;
+        } else {
+          // Near-miss: within 18px of gap edge
+          nearMiss = (p.y - gapTop < 22 || gapBot - p.y < 22);
+        }
+
+      } else if (o.type === 'h_gate') {
+        var gapLeft  = o.gapCenterX - o.gapHalfX;
+        var gapRight = o.gapCenterX + o.gapHalfX;
+        if (p.x < gapLeft || p.x > gapRight) {
+          hit = true;
+        } else {
+          nearMiss = (p.x - gapLeft < 22 || gapRight - p.x < 22);
+        }
+
+      } else if (o.type === 'vh_gate') {
+        var vgTop   = o.gapCenterY - o.gapHalf;
+        var vgBot   = o.gapCenterY + o.gapHalf;
+        var hgLeft  = o.gapCenterX - o.gapHalfX;
+        var hgRight = o.gapCenterX + o.gapHalfX;
+
+        var inY = (p.y >= vgTop && p.y <= vgBot);
+        var inX = (p.x >= hgLeft && p.x <= hgRight);
+
+        if (!inY || !inX) {
+          hit = true;
+        } else {
+          nearMiss = (
+            p.y - vgTop  < 22 || vgBot   - p.y < 22 ||
+            p.x - hgLeft < 22 || hgRight - p.x < 22
+          );
+        }
+      }
+
+      if (hit) {
+        SJ.triggerDeath();
+        return;
+      }
+
+      if (nearMiss && SJ.checkNearMiss) {
+        SJ.checkNearMiss(o, 0);
+      } else if (!hit) {
+        // Clean pass — score
+        SJ.score += 10 * SJ.combo;
+        if (SJ.spawnParticle) {
+          // Quick green spark at vanishing point
+          for (var s = 0; s < 5; s++) {
+            SJ.spawnParticle({
+              x: SJ.vanishX + (Math.random()-0.5)*30,
+              y: SJ.vanishY + (Math.random()-0.5)*20,
+              vx: (Math.random()-0.5)*3,
+              vy: (Math.random()-0.5)*3 - 1,
+              maxLife: 20,
+              size: 2 + Math.random()*2,
+              color: '#44ffaa',
+              alpha: 0.8,
+              type: 'circle',
+              gravity: 0,
+            });
+          }
+        }
+      }
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // RENDERING — perspective projection from vanishing point
+  // ─────────────────────────────────────────────────────────────
   SJ.renderObstacles = function () {
     var ctx  = SJ.ctx;
     var zone = SJ.zones[SJ.currentZoneIdx] || {};
@@ -188,19 +318,29 @@
       var o = SJ.obstacles[i];
       if (!o.active) continue;
 
-      // Fade in when coming from the right edge
-      var fadeAlpha = Math.min(1, (SJ.width + 60 - o.x) / 120);
+      var t = depthFactor(o.z);   // 0 = far away, 1 = at player
+      if (t <= 0.01) continue;    // not yet visible
+
+      // Fade in as it approaches from far; fade out after passing
+      var fadeAlpha;
+      if (o.z > 0) {
+        // Approaching: fade in over first 200 depth units
+        fadeAlpha = Math.min(1, (Z_FAR - o.z) / 200);
+      } else {
+        // Passed: fade out quickly
+        fadeAlpha = Math.max(0, 1 + o.z / 120);
+      }
       if (fadeAlpha <= 0) continue;
 
       ctx.save();
       ctx.globalAlpha = fadeAlpha;
 
-      if (o.type === 'gate') {
-        drawGate(ctx, o, zone);
-      } else if (o.type === 'floor_spike') {
-        drawFloorSpike(ctx, o, zone);
-      } else if (o.type === 'ceiling_spike') {
-        drawCeilingSpike(ctx, o, zone);
+      if (o.type === 'v_gate') {
+        drawVGate(ctx, o, t, zone);
+      } else if (o.type === 'h_gate') {
+        drawHGate(ctx, o, t, zone);
+      } else if (o.type === 'vh_gate') {
+        drawVHGate(ctx, o, t, zone);
       }
 
       ctx.restore();
@@ -208,179 +348,240 @@
   };
 
   // ─────────────────────────────────────────────────────────────
-  // RENDERERS
+  // BLOCK DRAW HELPERS
   // ─────────────────────────────────────────────────────────────
-
   function getZoneColors(zone) {
-    var accent  = (zone.accentColors && zone.accentColors[0]) || '#cc2200';
-    var accent2 = (zone.accentColors && zone.accentColors[1]) || '#992200';
-    var fill    = (zone.accentColors && zone.accentColors[2]) || '#441100';
-    return { accent: accent, accent2: accent2, fill: fill };
+    var a0 = (zone.accentColors && zone.accentColors[0]) || '#cc2200';
+    var a1 = (zone.accentColors && zone.accentColors[1]) || '#992200';
+    var a2 = (zone.accentColors && zone.accentColors[2]) || '#441100';
+    return { accent: a0, accent2: a1, fill: a2 };
   }
 
-  function drawGate(ctx, o, zone) {
-    var c       = getZoneColors(zone);
-    var topH    = o.gapCenterY - o.gapHalf;            // top block height
-    var botY    = o.gapCenterY + o.gapHalf;             // bottom block top
-    var botH    = SJ.floorY - botY;                     // bottom block height
-    var x       = o.x;
-    var w       = o.w;
+  /**
+   * drawPerspBlock — draws a single solid block within the perspective frame.
+   * (x1,y1) top-left and (x2,y2) bottom-right in screen coords at depth t.
+   */
+  function drawPerspBlock(ctx, x1, y1, x2, y2, c, t) {
+    var w = x2 - x1, h = y2 - y1;
+    if (w <= 0 || h <= 0) return;
 
-    // Top block
-    if (topH > 0) {
-      drawBlock(ctx, x, SJ.ceilY, w, topH - SJ.ceilY, c);
-      // Spike tip on bottom edge of top block
-      drawSpikeTip(ctx, x, topH, w, false, c.accent);
-    }
-
-    // Bottom block
-    if (botH > 0) {
-      drawBlock(ctx, x, botY, w, botH, c);
-      // Spike tip on top edge of bottom block
-      drawSpikeTip(ctx, x, botY, w, true, c.accent);
-    }
-
-    // Gap indicator — glowing line on each face
-    ctx.strokeStyle = c.accent;
-    ctx.lineWidth   = 2;
-    ctx.shadowBlur  = 8;
-    ctx.shadowColor = c.accent;
-    if (topH > 0) {
-      ctx.beginPath();
-      ctx.moveTo(x, topH - 1);
-      ctx.lineTo(x + w, topH - 1);
-      ctx.stroke();
-    }
-    if (botH > 0) {
-      ctx.beginPath();
-      ctx.moveTo(x, botY + 1);
-      ctx.lineTo(x + w, botY + 1);
-      ctx.stroke();
-    }
-    ctx.shadowBlur = 0;
-  }
-
-  function drawFloorSpike(ctx, o, zone) {
-    var c = getZoneColors(zone);
-    drawBlock(ctx, o.x, o.y, o.w, o.h, c);
-    drawSpikeTip(ctx, o.x, o.y, o.w, true, c.accent);
-
-    ctx.strokeStyle = c.accent;
-    ctx.lineWidth   = 2;
-    ctx.shadowBlur  = 8;
-    ctx.shadowColor = c.accent;
-    ctx.beginPath();
-    ctx.moveTo(o.x, o.y + 1);
-    ctx.lineTo(o.x + o.w, o.y + 1);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-  }
-
-  function drawCeilingSpike(ctx, o, zone) {
-    var c   = getZoneColors(zone);
-    var bot = o.y + o.h;
-    drawBlock(ctx, o.x, o.y, o.w, o.h, c);
-    drawSpikeTip(ctx, o.x, bot, o.w, false, c.accent);
-
-    ctx.strokeStyle = c.accent;
-    ctx.lineWidth   = 2;
-    ctx.shadowBlur  = 8;
-    ctx.shadowColor = c.accent;
-    ctx.beginPath();
-    ctx.moveTo(o.x, bot - 1);
-    ctx.lineTo(o.x + o.w, bot - 1);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-  }
-
-  // Solid colored block with subtle gradient
-  function drawBlock(ctx, x, y, w, h, c) {
-    if (h <= 0 || w <= 0) return;
-    var grad = ctx.createLinearGradient(x, y, x + w, y);
+    // Gradient across width (left edge darker, right edge darker)
+    var grad = ctx.createLinearGradient(x1, y1, x2, y1);
     grad.addColorStop(0,   c.fill);
-    grad.addColorStop(0.4, c.accent2);
+    grad.addColorStop(0.35, c.accent2);
+    grad.addColorStop(0.65, c.accent2);
     grad.addColorStop(1,   c.fill);
     ctx.fillStyle = grad;
-    ctx.fillRect(x, y, w, h);
+    ctx.fillRect(x1, y1, w, h);
 
-    // Dark edge lines
-    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+    // Subtle inner gloss
+    var gloss = ctx.createLinearGradient(x1, y1, x1, y2);
+    gloss.addColorStop(0,   'rgba(255,255,255,0.06)');
+    gloss.addColorStop(0.5, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gloss;
+    ctx.fillRect(x1, y1, w, h);
+
+    // Dark edge border
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth   = 0.8;
+    ctx.strokeRect(x1 + 0.5, y1 + 0.5, w - 1, h - 1);
+
+    // Scale-dependent detail: horizontal scan lines when large enough
+    if (w > 40 && h > 20) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+      ctx.lineWidth   = 0.5;
+      var lineStep = Math.max(6, 10 * t);
+      for (var ly = y1 + lineStep; ly < y2; ly += lineStep) {
+        ctx.beginPath();
+        ctx.moveTo(x1, ly);
+        ctx.lineTo(x2, ly);
+        ctx.stroke();
+      }
+    }
   }
 
-  // Spike triangle drawn on a face edge
-  // pointsUp=true  → spike points upward  (top of bottom block)
-  // pointsUp=false → spike points downward (bottom of top block)
-  function drawSpikeTip(ctx, x, edgeY, w, pointsUp, color) {
-    var tipH = 16;
-    var tipY = pointsUp ? edgeY - tipH : edgeY + tipH;
-
+  /**
+   * drawSpike — glowing spike pointing INTO the gap from a block edge.
+   * dir: 'up' | 'down' | 'left' | 'right'
+   */
+  function drawSpike(ctx, cx, cy, size, dir, color) {
+    var hs = size / 2;
     ctx.fillStyle   = color;
-    ctx.shadowBlur  = 6;
+    ctx.shadowBlur  = 8 * Math.min(1, size / 14);
     ctx.shadowColor = color;
     ctx.beginPath();
-    ctx.moveTo(x,         edgeY);
-    ctx.lineTo(x + w / 2, tipY);
-    ctx.lineTo(x + w,     edgeY);
+    if (dir === 'up') {
+      ctx.moveTo(cx - hs, cy); ctx.lineTo(cx, cy - size); ctx.lineTo(cx + hs, cy);
+    } else if (dir === 'down') {
+      ctx.moveTo(cx - hs, cy); ctx.lineTo(cx, cy + size); ctx.lineTo(cx + hs, cy);
+    } else if (dir === 'left') {
+      ctx.moveTo(cx, cy - hs); ctx.lineTo(cx - size, cy); ctx.lineTo(cx, cy + hs);
+    } else {
+      ctx.moveTo(cx, cy - hs); ctx.lineTo(cx + size, cy); ctx.lineTo(cx, cy + hs);
+    }
     ctx.closePath();
     ctx.fill();
     ctx.shadowBlur = 0;
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // SJ.checkCollisions — 2D AABB player rect vs obstacle rects
-  // ─────────────────────────────────────────────────────────────
+  /**
+   * drawEdgeSpikes — row of spikes along a horizontal or vertical edge.
+   */
+  function drawEdgeSpikes(ctx, x1, y1, x2, y2, dir, color, t) {
+    var spikeSize = Math.max(4, 18 * t);
+    var spacing   = Math.max(8, 32 * t);
+    ctx.fillStyle   = color;
+    ctx.shadowBlur  = 6;
+    ctx.shadowColor = color;
 
-  SJ.checkCollisions = function () {
-    if (!SJ.player.alive) return;
-
-    // Player hitbox — slightly smaller than visual for fairness
-    var pw   = 38;
-    var ph   = 14;
-    var pl   = SJ.player.x - pw / 2;
-    var pr   = SJ.player.x + pw / 2;
-    var pt   = SJ.player.y - ph / 2;
-    var pb   = SJ.player.y + ph / 2;
-
-    for (var i = 0; i < SJ.obstacles.length; i++) {
-      var o = SJ.obstacles[i];
-      if (!o.active) continue;
-
-      var ol = o.x;
-      var or2 = o.x + o.w;
-
-      // No horizontal overlap → skip
-      if (pr < ol || pl > or2) continue;
-
-      if (o.type === 'gate') {
-        var topH = o.gapCenterY - o.gapHalf;
-        var botY = o.gapCenterY + o.gapHalf;
-
-        // Hit top block
-        if (pt < topH && pr > ol && pl < or2) {
-          SJ.triggerDeath(); return;
-        }
-        // Hit bottom block
-        if (pb > botY && pr > ol && pl < or2) {
-          SJ.triggerDeath(); return;
-        }
-
-        // Near-miss scoring (passed through the gap cleanly)
-        if (Math.abs(o.x + o.w / 2 - SJ.player.x) < 10) {
-          if (SJ.checkNearMiss) SJ.checkNearMiss(o, 0);
-        }
-
-      } else if (o.type === 'floor_spike') {
-        if (pb > o.y && pr > ol && pl < or2) {
-          SJ.triggerDeath(); return;
-        }
-      } else if (o.type === 'ceiling_spike') {
-        if (pt < o.y + o.h && pr > ol && pl < or2) {
-          SJ.triggerDeath(); return;
-        }
+    if (dir === 'up' || dir === 'down') {
+      for (var sx = x1 + spacing/2; sx < x2; sx += spacing) {
+        drawSpike(ctx, sx, y1, spikeSize, dir, color);
+      }
+    } else {
+      for (var sy = y1 + spacing/2; sy < y2; sy += spacing) {
+        drawSpike(ctx, x1, sy, spikeSize, dir, color);
       }
     }
-  };
+    ctx.shadowBlur = 0;
+  }
+
+  /**
+   * drawGlowEdge — glowing line along a gap edge.
+   */
+  function drawGlowEdge(ctx, x1, y1, x2, y2, color) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = 2;
+    ctx.shadowBlur  = 12;
+    ctx.shadowColor = color;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // V_GATE — top and bottom blocks, vertical gap in middle
+  // ─────────────────────────────────────────────────────────────
+  function drawVGate(ctx, o, t, zone) {
+    var c   = getZoneColors(zone);
+    var f   = frameAt(t);
+
+    // Project the gap positions to current depth
+    var gapT = lerp(SJ.vanishY, o.gapCenterY - o.gapHalf, t);
+    var gapB = lerp(SJ.vanishY, o.gapCenterY + o.gapHalf, t);
+
+    // Top block (ceiling to gap top)
+    if (gapT > f.T) {
+      drawPerspBlock(ctx, f.L, f.T, f.R, gapT, c, t);
+      drawEdgeSpikes(ctx, f.L, gapT, f.R, gapT, 'down', c.accent, t);
+      drawGlowEdge(ctx, f.L, gapT, f.R, gapT, c.accent);
+    }
+
+    // Bottom block (gap bottom to floor)
+    if (gapB < f.B) {
+      drawPerspBlock(ctx, f.L, gapB, f.R, f.B, c, t);
+      drawEdgeSpikes(ctx, f.L, gapB, f.R, gapB, 'up', c.accent, t);
+      drawGlowEdge(ctx, f.L, gapB, f.R, gapB, c.accent);
+    }
+
+    // Danger glow in gap: warn player
+    if (t > 0.6) {
+      var warnAlpha = (t - 0.6) / 0.4 * 0.12;
+      var warnGrad  = ctx.createLinearGradient(f.L, gapT, f.L, gapB);
+      warnGrad.addColorStop(0,   c.accent + '44');
+      warnGrad.addColorStop(0.5, 'transparent');
+      warnGrad.addColorStop(1,   c.accent + '44');
+      ctx.fillStyle   = warnGrad;
+      ctx.globalAlpha *= warnAlpha / 0.12;
+      ctx.fillRect(f.L, gapT, f.R - f.L, gapB - gapT);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // H_GATE — left and right blocks, horizontal gap in middle
+  // ─────────────────────────────────────────────────────────────
+  function drawHGate(ctx, o, t, zone) {
+    var c = getZoneColors(zone);
+    var f = frameAt(t);
+
+    var gapL = lerp(SJ.vanishX, o.gapCenterX - o.gapHalfX, t);
+    var gapR = lerp(SJ.vanishX, o.gapCenterX + o.gapHalfX, t);
+
+    // Left block
+    if (gapL > f.L) {
+      drawPerspBlock(ctx, f.L, f.T, gapL, f.B, c, t);
+      drawEdgeSpikes(ctx, gapL, f.T, gapL, f.B, 'right', c.accent, t);
+      drawGlowEdge(ctx, gapL, f.T, gapL, f.B, c.accent);
+    }
+
+    // Right block
+    if (gapR < f.R) {
+      drawPerspBlock(ctx, gapR, f.T, f.R, f.B, c, t);
+      drawEdgeSpikes(ctx, gapR, f.T, gapR, f.B, 'left', c.accent, t);
+      drawGlowEdge(ctx, gapR, f.T, gapR, f.B, c.accent);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // VH_GATE — three blocks with one open quadrant
+  // ─────────────────────────────────────────────────────────────
+  function drawVHGate(ctx, o, t, zone) {
+    var c = getZoneColors(zone);
+    var f = frameAt(t);
+
+    var gapL = lerp(SJ.vanishX, o.gapCenterX - o.gapHalfX, t);
+    var gapR = lerp(SJ.vanishX, o.gapCenterX + o.gapHalfX, t);
+    var gapT = lerp(SJ.vanishY, o.gapCenterY - o.gapHalf,  t);
+    var gapB = lerp(SJ.vanishY, o.gapCenterY + o.gapHalf,  t);
+
+    // Top-left block (spans full top, left of gap X)
+    if (gapL > f.L && gapT > f.T) {
+      drawPerspBlock(ctx, f.L, f.T, gapL, gapT, c, t);
+    }
+    // Top-right block
+    if (gapR < f.R && gapT > f.T) {
+      drawPerspBlock(ctx, gapR, f.T, f.R, gapT, c, t);
+    }
+    // Full-width top strip (above vertical gap)
+    if (gapT > f.T) {
+      drawPerspBlock(ctx, gapL, f.T, gapR, gapT, c, t);
+    }
+
+    // Bottom-left block
+    if (gapL > f.L && gapB < f.B) {
+      drawPerspBlock(ctx, f.L, gapB, gapL, f.B, c, t);
+    }
+    // Bottom-right block
+    if (gapR < f.R && gapB < f.B) {
+      drawPerspBlock(ctx, gapR, gapB, f.R, f.B, c, t);
+    }
+    // Full-width bottom strip
+    if (gapB < f.B) {
+      drawPerspBlock(ctx, gapL, gapB, gapR, f.B, c, t);
+    }
+
+    // Left wall strip (full height, left of X gap)
+    if (gapL > f.L) {
+      drawPerspBlock(ctx, f.L, gapT, gapL, gapB, c, t);
+      drawEdgeSpikes(ctx, gapL, gapT, gapL, gapB, 'right', c.accent, t);
+      drawGlowEdge(ctx, gapL, gapT, gapL, gapB, c.accent);
+    }
+
+    // Right wall strip
+    if (gapR < f.R) {
+      drawPerspBlock(ctx, gapR, gapT, f.R, gapB, c, t);
+      drawEdgeSpikes(ctx, gapR, gapT, gapR, gapB, 'left', c.accent, t);
+      drawGlowEdge(ctx, gapR, gapT, gapR, gapB, c.accent);
+    }
+
+    // Glow edges on gap
+    drawGlowEdge(ctx, gapL, gapT, gapR, gapT, c.accent);   // top of gap
+    drawGlowEdge(ctx, gapL, gapB, gapR, gapB, c.accent);   // bottom of gap
+    drawEdgeSpikes(ctx, gapL, gapT, gapR, gapT, 'down', c.accent, t);
+    drawEdgeSpikes(ctx, gapL, gapB, gapR, gapB, 'up',   c.accent, t);
+  }
 
 })();

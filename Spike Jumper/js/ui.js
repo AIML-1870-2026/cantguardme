@@ -225,8 +225,14 @@
     ctx.shadowColor = '#FFD93D';
     var promptSize  = Math.min(22, w * 0.031);
     ctx.font = 'bold ' + promptSize + 'px "Oswald", sans-serif';
-    ctx.fillText('PRESS SPACE TO THROW', 0, 0);
+    ctx.fillText('PRESS SPACE TO FLY', 0, 0);
     ctx.shadowBlur = 0;
+
+    // ── Controls subtitle ────────────────────────────────────
+    var ctrlSize = Math.min(13, w * 0.018);
+    ctx.font      = ctrlSize + 'px "Share Tech Mono", monospace';
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.fillText('[W] Nose Up   \u25c4[A] Roll Left   [D] Roll Right\u25ba', 0, ctrlSize * 2.4);
     ctx.restore();
 
     // ── High score panel ────────────────────────────────────
@@ -333,6 +339,17 @@
       ctx.shadowColor = barColor;
       ctx.fillRect(0, 0, barW, barH);
       ctx.shadowBlur  = 0;
+    }
+
+    // ── Controls hint (first 8 seconds) ─────────────────────
+    if (t < 8) {
+      var hintFade = t < 1 ? t : (t > 7 ? (8 - t) : 1);
+      ctx.globalAlpha = hintFade * 0.55;
+      ctx.fillStyle   = '#fff';
+      ctx.font        = '11px "Share Tech Mono", monospace';
+      ctx.textAlign   = 'right';
+      ctx.fillText('W\u2191  A\u2190  D\u2192', w - 16, h - 16);
+      ctx.globalAlpha = 1;
     }
 
     // ── Rhythm bonus flash ───────────────────────────────────
