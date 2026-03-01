@@ -575,33 +575,14 @@
     var zone   = SJ.zones[SJ.currentZoneIdx] || {};
     var accent = (zone.accentColors && zone.accentColors[0]) || '#cc2200';
 
-    // Vanishing rectangle centre
-    var vw = 36, vh = 24;
-    var vL = vx - vw, vR = vx + vw;
-    var vT = vy - vh, vB = vy + vh;
+    var h = SJ.height;
 
-    // ── Solid dark tunnel wall faces (no gradients = fast) ──────
-    ctx.fillStyle = 'rgba(8,8,14,0.96)';
-    // Ceiling face
-    ctx.beginPath();
-    ctx.moveTo(0, ceilY); ctx.lineTo(w, ceilY);
-    ctx.lineTo(vR, vT);   ctx.lineTo(vL, vT);
-    ctx.closePath(); ctx.fill();
-    // Floor face
-    ctx.beginPath();
-    ctx.moveTo(0, floorY); ctx.lineTo(w, floorY);
-    ctx.lineTo(vR, vB);    ctx.lineTo(vL, vB);
-    ctx.closePath(); ctx.fill();
-    // Left wall
-    ctx.beginPath();
-    ctx.moveTo(0, ceilY); ctx.lineTo(0, floorY);
-    ctx.lineTo(vL, vB);   ctx.lineTo(vL, vT);
-    ctx.closePath(); ctx.fill();
-    // Right wall
-    ctx.beginPath();
-    ctx.moveTo(w, ceilY); ctx.lineTo(w, floorY);
-    ctx.lineTo(vR, vB);   ctx.lineTo(vR, vT);
-    ctx.closePath(); ctx.fill();
+    // ── Death-zone borders (above ceiling, below floor) ─────────
+    // Only these narrow strips are darkened; the playfield is left
+    // open so the zone background scenery shows through.
+    ctx.fillStyle = 'rgba(4,4,10,0.88)';
+    ctx.fillRect(0, 0, w, ceilY);
+    ctx.fillRect(0, floorY, w, h - floorY);
 
     // ── Convergence grid lines ──────────────────────────────────
     ctx.strokeStyle = 'rgba(55,55,65,0.55)';
