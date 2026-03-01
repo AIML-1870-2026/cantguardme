@@ -131,18 +131,21 @@
     var difficulty = SJ.currentZoneIdx + SJ.cycleCount * 2;
     var roll = Math.random();
 
+    // Heavily weighted toward horizontal + combined obstacles
     if (difficulty < 1) {
-      spawnVGate(centerY, gapHalf + 28);
+      if (roll < 0.38) spawnVGate(centerY, gapHalf + 28);
+      else             spawnHGate(centerX, gapHalfX + playW * 0.08);
     } else if (difficulty < 3) {
-      if (roll < 0.70) spawnVGate(centerY, gapHalf);
-      else             spawnHGate(centerX, gapHalfX + playW * 0.06);
+      if (roll < 0.22)      spawnVGate(centerY, gapHalf);
+      else if (roll < 0.60) spawnHGate(centerX, gapHalfX + playW * 0.04);
+      else                  spawnVHGate(centerY, gapHalf + 22, centerX, gapHalfX + playW * 0.06);
     } else if (difficulty < 6) {
-      if (roll < 0.44)      spawnVGate(centerY, gapHalf);
-      else if (roll < 0.80) spawnHGate(centerX, gapHalfX);
-      else                  spawnVHGate(centerY, gapHalf + 18, centerX, gapHalfX + playW * 0.04);
+      if (roll < 0.16)      spawnVGate(centerY, gapHalf);
+      else if (roll < 0.48) spawnHGate(centerX, gapHalfX);
+      else                  spawnVHGate(centerY, gapHalf + 10, centerX, gapHalfX + playW * 0.02);
     } else {
-      if (roll < 0.28)      spawnVGate(centerY, gapHalf);
-      else if (roll < 0.55) spawnHGate(centerX, gapHalfX);
+      if (roll < 0.10)      spawnVGate(centerY, gapHalf);
+      else if (roll < 0.38) spawnHGate(centerX, gapHalfX);
       else                  spawnVHGate(centerY, gapHalf, centerX, gapHalfX);
     }
   }

@@ -271,6 +271,39 @@
     ctx.fillStyle = 'rgba(255,255,200,0.7)';
     ctx.beginPath(); ctx.arc(sunX, sunY, 20, 0, Math.PI * 2); ctx.fill();
 
+    // Lens flare hexagons along opposite diagonal from sun
+    var flareDir = Math.PI * 0.82;
+    var flareDs  = [w*0.07, w*0.13, w*0.22, w*0.32, w*0.44];
+    var flareSz  = [9, 5, 20, 7, 13];
+    var flareAl  = [0.30, 0.18, 0.40, 0.14, 0.26];
+    for (var fi = 0; fi < 5; fi++) {
+      var fx = sunX + Math.cos(flareDir) * flareDs[fi];
+      var fy = sunY + Math.sin(flareDir) * flareDs[fi];
+      ctx.save(); ctx.globalAlpha = flareAl[fi];
+      ctx.fillStyle = 'rgba(255,195,70,1)';
+      ctx.beginPath(); ctx.arc(fx, fy, flareSz[fi], 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    // Volumetric golden clouds — large bezier puffs (drawn once, free!)
+    var cloudDefs = [
+      {x: w*0.13, y: h*0.08, r: w*0.082},
+      {x: w*0.58, y: h*0.065, r: w*0.11},
+      {x: w*0.87, y: h*0.12, r: w*0.075},
+    ];
+    cloudDefs.forEach(function (cl) {
+      var puffs = [[0,0,1],[-.70,-.22,.73],[.63,-.28,.68],[0,-.44,.60],[-.33,-.58,.52],[.30,-.52,.55]];
+      puffs.forEach(function (p) {
+        var pcx = cl.x + p[0]*cl.r, pcy = cl.y + p[1]*cl.r, pr = cl.r*p[2];
+        var cg = ctx.createRadialGradient(pcx, pcy, 0, pcx, pcy, pr);
+        cg.addColorStop(0,   'rgba(255,195,100,0.75)');
+        cg.addColorStop(0.45,'rgba(255,150,55,0.35)');
+        cg.addColorStop(1,   'transparent');
+        ctx.fillStyle = cg;
+        ctx.beginPath(); ctx.arc(pcx, pcy, pr, 0, Math.PI*2); ctx.fill();
+      });
+    });
+
     // Horizon haze
     var hz = ctx.createRadialGradient(vx, vy, 0, vx, vy, w * 0.42);
     hz.addColorStop(0,   'rgba(255,180,60,0.32)');
@@ -382,6 +415,20 @@
     ctx.beginPath(); ctx.moveTo(vx, vy); ctx.lineTo(vx - w * 0.12, SJ.floorY); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(vx, vy); ctx.lineTo(vx + w * 0.12, SJ.floorY); ctx.stroke();
     ctx.setLineDash([]); ctx.lineDashOffset = 0;
+
+    // Animated car headlights moving along road (4 cars)
+    for (var ci = 0; ci < 4; ci++) {
+      var cf = (t * 0.17 + ci * 0.265) % 1;
+      var side = ci < 2 ? -1 : 1;
+      var carX = lerp(vx + side * 5, vx + side * w * 0.14, cf);
+      var carY = lerp(vy + 4, SJ.floorY - 8, cf);
+      var cs   = Math.max(0.8, cf * 4.5);
+      ctx.save(); ctx.globalAlpha = cf * 0.62;
+      ctx.fillStyle = ci < 2 ? 'rgba(255,240,165,0.95)' : 'rgba(235,90,70,0.9)';
+      ctx.beginPath(); ctx.arc(carX - cs * 0.85, carY, cs * 0.58, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(carX + cs * 0.85, carY, cs * 0.58, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
 
     // Birds (6 V-shapes)
     ctx.lineWidth = 1;
@@ -500,16 +547,42 @@
       ctx.beginPath(); ctx.arc(c[0], c[1], c[2], 0, Math.PI * 2); ctx.fill();
     });
 
-    // Mountains — the centrepiece of this zone
+    // Mountains — the centrepiece of this zone (taller + more dramatic)
     // Back distant range (dark blue-grey)
-    drawMountainRange(ctx, w, h, vx, vy, floorY, 'left',  '#0d1e30', '#07111f', 0.52, 0.80);
-    drawMountainRange(ctx, w, h, vx, vy, floorY, 'right', '#0d1e30', '#07111f', 0.52, 0.80);
+    drawMountainRange(ctx, w, h, vx, vy, floorY, 'left',  '#0c1c2e', '#06101d', 0.68, 0.82);
+    drawMountainRange(ctx, w, h, vx, vy, floorY, 'right', '#0c1c2e', '#06101d', 0.68, 0.82);
     // Mid range (slightly brighter)
-    drawMountainRange(ctx, w, h, vx, vy, floorY, 'left',  '#0f2438', '#090f1c', 0.72, 0.70);
-    drawMountainRange(ctx, w, h, vx, vy, floorY, 'right', '#0f2438', '#090f1c', 0.72, 0.70);
-    // Front foreground peaks (boldest)
-    drawMountainRange(ctx, w, h, vx, vy, floorY, 'left',  '#142c44', '#0b1828', 0.92, 0.58);
-    drawMountainRange(ctx, w, h, vx, vy, floorY, 'right', '#142c44', '#0b1828', 0.92, 0.58);
+    drawMountainRange(ctx, w, h, vx, vy, floorY, 'left',  '#0f2438', '#090f1c', 0.92, 0.72);
+    drawMountainRange(ctx, w, h, vx, vy, floorY, 'right', '#0f2438', '#090f1c', 0.92, 0.72);
+    // Front foreground peaks (boldest — reach above ceilY)
+    drawMountainRange(ctx, w, h, vx, vy, floorY, 'left',  '#162e48', '#0c1c2c', 1.18, 0.60);
+    drawMountainRange(ctx, w, h, vx, vy, floorY, 'right', '#162e48', '#0c1c2c', 1.18, 0.60);
+
+    // Ice crystal formations at screen edges (dramatic angular shards)
+    var iceSides = [0, 1];
+    iceSides.forEach(function (side) {
+      var edgeX = side === 0 ? 0 : w;
+      var dir   = side === 0 ? 1 : -1;
+      for (var ic = 0; ic < 9; ic++) {
+        var icy = floorY - (floorY - vy) * (ic / 9) * 0.88;
+        var icW = w * 0.062 * (1 - ic / 9 * 0.55);
+        ctx.globalAlpha = 0.65 - ic * 0.04;
+        ctx.fillStyle = ic % 3 === 0 ? '#0b1e34' : (ic % 3 === 1 ? '#0d2640' : '#1a3a55');
+        ctx.beginPath();
+        ctx.moveTo(edgeX, icy - icW * 0.38);
+        ctx.lineTo(edgeX + dir * icW, icy);
+        ctx.lineTo(edgeX, icy + icW * 0.38);
+        ctx.closePath(); ctx.fill();
+        ctx.globalAlpha = 0.24 - ic * 0.02;
+        ctx.fillStyle = 'rgba(80,190,255,1)';
+        ctx.beginPath();
+        ctx.moveTo(edgeX, icy - icW * 0.12);
+        ctx.lineTo(edgeX + dir * icW * 0.48, icy);
+        ctx.lineTo(edgeX, icy + icW * 0.12);
+        ctx.closePath(); ctx.fill();
+      }
+    });
+    ctx.globalAlpha = 1;
 
     // Aurora reflection on ice floor
     var snowGrad = ctx.createLinearGradient(0, vy, 0, floorY);
@@ -550,11 +623,12 @@
     });
     ctx.globalAlpha = 1;
 
-    // Aurora — 3 ribbons × 6 segments
+    // Aurora — 4 vivid ribbons × 6 segments
     var aColors = [
-      [0, 255, 136, 0.55],
-      [168, 85, 247, 0.42],
-      [0, 188, 212, 0.48],
+      [0, 255, 136, 0.70],
+      [168, 85, 247, 0.55],
+      [0, 210, 235, 0.62],
+      [80, 255, 180, 0.48],
     ];
     ctx.save();
     aColors.forEach(function (col, ai) {
@@ -594,6 +668,20 @@
     ag2.addColorStop(0, 'rgba(0,255,136,0.4)'); ag2.addColorStop(1, 'transparent');
     ctx.fillStyle = ag2; ctx.fillRect(0, vy, w, (SJ.floorY - vy) * 0.25);
     ctx.restore();
+
+    // Arctic snow — 36 tiny perspective flakes (time-driven, no pre-alloc)
+    ctx.fillStyle = 'rgba(215,230,255,1)';
+    for (var ni = 0; ni < 36; ni++) {
+      var nf = (t * (0.055 + (ni % 7) * 0.011) + ni * 0.0318) % 1;
+      var na = (ni * 7 + 3) % 11 / 11;
+      var nsx = lerp(vx, vx + (na - 0.5) * w * nf * 1.1, nf);
+      var nsy = lerp(vy, SJ.ceilY + (SJ.floorY - SJ.ceilY) * (0.06 + na * 0.86), nf);
+      if (nsy > SJ.floorY || nsy < SJ.ceilY) continue;
+      var ns = Math.max(0.4, nf * 2.3);
+      ctx.globalAlpha = Math.min(1, nf * 2.6) * 0.65;
+      ctx.fillRect(nsx - ns / 2, nsy - ns / 2, ns, ns);
+    }
+    ctx.globalAlpha = 1;
   }
 
   // ═════════════════════════════════════════════════════════════
@@ -629,17 +717,49 @@
     ctx.fillStyle = mw; ctx.fillRect(0, 0, w, h);
     ctx.restore();
 
-    // Nebula — two overlapping radial glows
-    var neb1 = ctx.createRadialGradient(vx, vy * 0.88, 0, vx, vy * 0.88, w * 0.48);
-    neb1.addColorStop(0,   'hsla(280,60%,50%,0.18)');
-    neb1.addColorStop(0.45,'hsla(280,60%,50%,0.07)');
+    // Nebula — four vivid overlapping radial glows (all drawn once = free)
+    var neb1 = ctx.createRadialGradient(vx, vy * 0.88, 0, vx, vy * 0.88, w * 0.52);
+    neb1.addColorStop(0,   'hsla(280,68%,52%,0.24)');
+    neb1.addColorStop(0.45,'hsla(280,68%,52%,0.09)');
     neb1.addColorStop(1,   'transparent');
     ctx.fillStyle = neb1; ctx.fillRect(0, 0, w, h);
-    var neb2 = ctx.createRadialGradient(vx * 0.55, vy * 1.3, 0, vx * 0.55, vy * 1.3, w * 0.35);
-    neb2.addColorStop(0,   'hsla(210,70%,55%,0.15)');
-    neb2.addColorStop(0.55,'hsla(210,70%,55%,0.05)');
+    var neb2 = ctx.createRadialGradient(vx * 0.52, vy * 1.32, 0, vx * 0.52, vy * 1.32, w * 0.38);
+    neb2.addColorStop(0,   'hsla(212,75%,58%,0.20)');
+    neb2.addColorStop(0.55,'hsla(212,75%,58%,0.06)');
     neb2.addColorStop(1,   'transparent');
     ctx.fillStyle = neb2; ctx.fillRect(0, 0, w, h);
+    var neb3 = ctx.createRadialGradient(vx * 1.42, vy * 0.62, 0, vx * 1.42, vy * 0.62, w * 0.30);
+    neb3.addColorStop(0,   'hsla(28,85%,58%,0.18)');
+    neb3.addColorStop(1,   'transparent');
+    ctx.fillStyle = neb3; ctx.fillRect(0, 0, w, h);
+    var neb4 = ctx.createRadialGradient(vx * 0.26, vy * 0.48, 0, vx * 0.26, vy * 0.48, w * 0.24);
+    neb4.addColorStop(0,   'hsla(174,80%,52%,0.16)');
+    neb4.addColorStop(1,   'transparent');
+    ctx.fillStyle = neb4; ctx.fillRect(0, 0, w, h);
+
+    // Comet with icy tail
+    var cometX = w * 0.27, cometY = h * 0.11;
+    ctx.save();
+    var cg = ctx.createLinearGradient(cometX, cometY, cometX + w*0.24, cometY + h*0.11);
+    cg.addColorStop(0, 'rgba(0,0,0,0)'); cg.addColorStop(0.38,'rgba(150,210,255,0.22)'); cg.addColorStop(1,'rgba(70,150,255,0)');
+    ctx.fillStyle = cg;
+    ctx.beginPath(); ctx.moveTo(cometX, cometY);
+    ctx.lineTo(cometX + w*0.24, cometY + h*0.11 - 10);
+    ctx.lineTo(cometX + w*0.24, cometY + h*0.11 + 10);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ddf0ff';
+    ctx.beginPath(); ctx.arc(cometX, cometY, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    // Star clusters — two dense patches of brilliant stars
+    [[w*0.31, h*0.22], [w*0.73, h*0.10]].forEach(function (cl) {
+      for (var cs = 0; cs < 32; cs++) {
+        var csx = cl[0] + (Math.random() - 0.5) * w * 0.075;
+        var csy = cl[1] + (Math.random() - 0.5) * h * 0.10;
+        ctx.fillStyle = 'rgba(220,230,255,' + (0.28 + Math.random() * 0.72) + ')';
+        ctx.fillRect(csx, csy, Math.random() < 0.12 ? 1.8 : Math.random() * 1.2, Math.random() < 0.12 ? 1.8 : Math.random() * 1.2);
+      }
+    });
 
     // Ringed planet (upper right) — large and detailed
     var px = w * 0.78, py = h * 0.17;
@@ -809,6 +929,34 @@
       ctx.globalAlpha = 1;
     });
 
+    // Holographic billboard projections from taller buildings (static — no flicker)
+    SJ._neonBuildings.forEach(function (b) {
+      var df = b.depthFrac;
+      if (df < 0.46) return;
+      var nearX = b.side === 'left' ? 0 : w;
+      var sx2 = lerp(vx, nearX, df);
+      var bw2 = lerp(0, w * b.widthFrac, df);
+      if (bw2 < 3) return;
+      var sf2 = lerp(vy, floorY, df), sc2 = lerp(vy, ceilY, df);
+      var bh2 = (sf2 - sc2) * b.heightFrac;
+      var bx2 = b.side === 'left' ? sx2 - bw2 : sx2;
+      var top2 = sf2 - bh2;
+      if (bx2 + bw2 < 0 || bx2 > w) return;
+      var projDir = b.side === 'left' ? 1 : -1;
+      var projLen = bh2 * 0.60, projX2 = bx2 + bw2 * 0.5;
+      ctx.save(); ctx.globalAlpha = 0.065;
+      var pg = ctx.createLinearGradient(projX2, top2, projX2 + projDir * projLen, top2 - projLen * 0.35);
+      pg.addColorStop(0, 'hsl(' + b.neonHue + ',100%,65%)');
+      pg.addColorStop(1, 'transparent');
+      ctx.fillStyle = pg;
+      ctx.beginPath();
+      ctx.moveTo(projX2, top2);
+      ctx.lineTo(projX2 + projDir * projLen, top2 - projLen * 0.35 - bw2 * 0.85);
+      ctx.lineTo(projX2 + projDir * projLen, top2 - projLen * 0.35 + bw2 * 0.85);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    });
+
     // Wet floor base
     var wetGrad = ctx.createLinearGradient(0, vy, 0, floorY);
     wetGrad.addColorStop(0, 'rgba(10,0,20,0.88)'); wetGrad.addColorStop(1, 'rgba(5,0,12,0.95)');
@@ -888,6 +1036,19 @@
       ctx.stroke(); ctx.restore();
     }
 
+    // Puddle ripple circles on wet floor
+    for (var rp = 0; rp < 4; rp++) {
+      var rf3 = (t * 0.36 + rp * 0.275) % 1;
+      var rr3 = rf3 * 34;
+      var rx3 = vx + (rp % 2 === 0 ? -1 : 1) * w * 0.13 * (rp / 4 + 0.28);
+      var ry3 = lerp(vy, floorY, 0.28 + rf3 * 0.58);
+      ctx.save(); ctx.globalAlpha = (1 - rf3) * 0.18;
+      ctx.strokeStyle = rp % 2 === 0 ? 'rgba(255,0,255,1)' : 'rgba(0,255,255,1)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.ellipse(rx3, ry3, rr3, rr3 * 0.2, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+
     // Neon reflections on wet floor
     ctx.save(); ctx.globalAlpha = 0.12;
     var refl = ctx.createLinearGradient(0, vy, 0, floorY);
@@ -930,40 +1091,61 @@
       ctx.fillRect(sx2, sy2, ss2, ss2);
     }
 
-    // Moon (large, dramatic)
+    // Storm cloud silhouettes — dramatic dark masses framing the moon
+    ctx.save(); ctx.fillStyle = '#010810';
+    ctx.beginPath(); ctx.moveTo(0, vy);
+    ctx.bezierCurveTo(w*0.04, vy-h*0.065, w*0.10, vy-h*0.11, w*0.19, vy-h*0.058);
+    ctx.bezierCurveTo(w*0.25, vy-h*0.135, w*0.33, vy-h*0.09, w*0.39, vy-h*0.038);
+    ctx.bezierCurveTo(w*0.37, vy+h*0.005, w*0.01, vy+h*0.005, 0, vy);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(w, vy);
+    ctx.bezierCurveTo(w*0.96, vy-h*0.075, w*0.88, vy-h*0.12, w*0.79, vy-h*0.062);
+    ctx.bezierCurveTo(w*0.73, vy-h*0.145, w*0.65, vy-h*0.085, w*0.61, vy-h*0.032);
+    ctx.bezierCurveTo(w*0.63, vy+h*0.005, w*0.99, vy+h*0.005, w, vy);
+    ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 0.48; ctx.fillStyle = '#020c1a';
+    ctx.beginPath(); ctx.moveTo(0, vy-h*0.15);
+    ctx.bezierCurveTo(w*0.09, vy-h*0.20, w*0.22, vy-h*0.17, w*0.31, vy-h*0.13);
+    ctx.bezierCurveTo(w*0.33, vy-h*0.12, w*0.01, vy-h*0.12, 0, vy-h*0.15);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+
+    // Moon (LARGE and dramatic — radius 45)
     var moonX = vx + w * 0.2, moonY = vy - h * 0.22;
     // Outer corona rings
-    var moonGlow = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, 130);
-    moonGlow.addColorStop(0,   'rgba(200,220,255,0.22)');
-    moonGlow.addColorStop(0.35,'rgba(170,195,245,0.09)');
+    var moonGlow = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, 190);
+    moonGlow.addColorStop(0,   'rgba(200,220,255,0.26)');
+    moonGlow.addColorStop(0.35,'rgba(170,195,245,0.10)');
     moonGlow.addColorStop(0.65,'rgba(140,170,230,0.04)');
     moonGlow.addColorStop(1,   'transparent');
-    ctx.fillStyle = moonGlow; ctx.fillRect(moonX - 130, moonY - 130, 260, 260);
+    ctx.fillStyle = moonGlow; ctx.fillRect(moonX - 190, moonY - 190, 380, 380);
     // Moon halo ring
-    ctx.strokeStyle = 'rgba(180,200,240,0.12)'; ctx.lineWidth = 12;
-    ctx.beginPath(); ctx.arc(moonX, moonY, 55, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(180,200,240,0.14)'; ctx.lineWidth = 16;
+    ctx.beginPath(); ctx.arc(moonX, moonY, 82, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(160,185,230,0.07)'; ctx.lineWidth = 28;
+    ctx.beginPath(); ctx.arc(moonX, moonY, 105, 0, Math.PI * 2); ctx.stroke();
     // Moon disk
-    var moonDisk = ctx.createRadialGradient(moonX - 5, moonY - 5, 0, moonX, moonY, 30);
+    var moonDisk = ctx.createRadialGradient(moonX - 7, moonY - 7, 0, moonX, moonY, 45);
     moonDisk.addColorStop(0,   '#ffffff');
     moonDisk.addColorStop(0.4, '#ddeeff');
     moonDisk.addColorStop(1,   '#a8c0ee');
     ctx.fillStyle = moonDisk;
-    ctx.beginPath(); ctx.arc(moonX, moonY, 30, 0, Math.PI * 2); ctx.fill();
-    // Moon craters
+    ctx.beginPath(); ctx.arc(moonX, moonY, 45, 0, Math.PI * 2); ctx.fill();
+    // Moon craters (scaled for larger moon)
     ctx.fillStyle = 'rgba(150,170,210,0.4)';
-    [[moonX - 10, moonY + 6, 6], [moonX + 9, moonY - 9, 5], [moonX + 3, moonY + 14, 4]].forEach(function (c) {
+    [[moonX - 15, moonY + 9, 9], [moonX + 14, moonY - 13, 7], [moonX + 4, moonY + 20, 6]].forEach(function (c) {
       ctx.beginPath(); ctx.arc(c[0], c[1], c[2], 0, Math.PI * 2); ctx.fill();
     });
 
-    // Moonlight column on water
+    // Moonlight column on water (wider for larger moon)
     var moonColGrad = ctx.createLinearGradient(moonX, vy, moonX, floorY);
-    moonColGrad.addColorStop(0,   'rgba(200,220,255,0.28)');
-    moonColGrad.addColorStop(0.45,'rgba(170,195,240,0.12)');
+    moonColGrad.addColorStop(0,   'rgba(200,220,255,0.32)');
+    moonColGrad.addColorStop(0.45,'rgba(170,195,240,0.14)');
     moonColGrad.addColorStop(1,   'rgba(150,180,225,0)');
     ctx.fillStyle = moonColGrad;
     ctx.beginPath();
-    ctx.moveTo(moonX - 18, vy); ctx.lineTo(moonX + 18, vy);
-    ctx.lineTo(moonX + w * 0.18, floorY); ctx.lineTo(moonX - w * 0.18, floorY);
+    ctx.moveTo(moonX - 26, vy); ctx.lineTo(moonX + 26, vy);
+    ctx.lineTo(moonX + w * 0.22, floorY); ctx.lineTo(moonX - w * 0.22, floorY);
     ctx.closePath(); ctx.fill();
 
     // Ocean surface
@@ -1075,6 +1257,35 @@
       ctx.fillStyle = 'rgba(0,255,180,' + (1 - bf) * 0.28 + ')';
       ctx.beginPath(); ctx.arc(bx2, bY, 1.5 + bf * 2.5, 0, Math.PI * 2); ctx.fill();
     }
+
+    // Rotating lighthouse beam (pure fill, no gradient = fast)
+    var lhX = vx + w * 0.22, lhY = vy + (SJ.floorY - vy) * 0.04;
+    var lhAngle = t * 0.55;
+    var lhLen   = Math.max(w, h) * 1.6;
+    ctx.save(); ctx.globalAlpha = 0.055;
+    ctx.fillStyle = 'rgba(255,255,190,1)';
+    ctx.beginPath();
+    ctx.moveTo(lhX, lhY);
+    ctx.lineTo(lhX + Math.cos(lhAngle - 0.1) * lhLen, lhY + Math.sin(lhAngle - 0.1) * lhLen);
+    ctx.lineTo(lhX + Math.cos(lhAngle + 0.1) * lhLen, lhY + Math.sin(lhAngle + 0.1) * lhLen);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+
+    // Sea spray — 14 perspective drops rising from ocean surface
+    for (var spr = 0; spr < 14; spr++) {
+      var sf = (t * 0.22 + spr * 0.078) % 1;
+      var sa3 = Math.max(0, 1 - sf * 2.4);
+      if (sa3 < 0.02) continue;
+      var ang3 = (spr / 14) * Math.PI * 2;
+      var sx3  = lerp(vx, vx + Math.cos(ang3) * w * 0.44, sf);
+      var sy3  = lerp(vy + (SJ.floorY - vy) * 0.5, SJ.floorY, sf);
+      if (sy3 < vy) continue;
+      var sz3 = Math.max(0.5, (1 - sf) * 3.8);
+      ctx.globalAlpha = sa3 * 0.40;
+      ctx.fillStyle = 'rgba(175,228,255,1)';
+      ctx.beginPath(); ctx.arc(sx3, sy3, sz3, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 
   // ─────────────────────────────────────────────────────────────
