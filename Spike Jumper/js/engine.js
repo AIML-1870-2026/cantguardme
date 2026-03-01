@@ -568,196 +568,96 @@
   SJ.renderFloorAndCeiling = function () {
     var ctx    = SJ.ctx;
     var w      = SJ.width;
-    var h      = SJ.height;
     var vx     = SJ.vanishX;
     var vy     = SJ.vanishY;
     var ceilY  = SJ.ceilY;
     var floorY = SJ.floorY;
     var zone   = SJ.zones[SJ.currentZoneIdx] || {};
-    var accent  = (zone.accentColors && zone.accentColors[0]) || '#cc2200';
-    var accent2 = (zone.accentColors && zone.accentColors[1]) || '#992200';
+    var accent = (zone.accentColors && zone.accentColors[0]) || '#cc2200';
 
-    // Small vanishing rectangle (where tunnel converges)
-    var vw = 38, vh = 26;
+    // Vanishing rectangle centre
+    var vw = 36, vh = 24;
     var vL = vx - vw, vR = vx + vw;
     var vT = vy - vh, vB = vy + vh;
 
-    // ── Fill tunnel wall faces ──
+    // ── Solid dark tunnel wall faces (no gradients = fast) ──────
+    ctx.fillStyle = 'rgba(8,8,14,0.96)';
     // Ceiling face
-    var ceilGrad = ctx.createLinearGradient(0, ceilY, 0, vy);
-    ceilGrad.addColorStop(0,   'rgba(12,12,12,0.97)');
-    ceilGrad.addColorStop(0.6, 'rgba(18,18,18,0.92)');
-    ceilGrad.addColorStop(1,   'rgba(10,10,10,0.5)');
-    ctx.fillStyle = ceilGrad;
     ctx.beginPath();
-    ctx.moveTo(0,  ceilY); ctx.lineTo(w, ceilY);
-    ctx.lineTo(vR, vT);    ctx.lineTo(vL, vT);
-    ctx.closePath();
-    ctx.fill();
-
+    ctx.moveTo(0, ceilY); ctx.lineTo(w, ceilY);
+    ctx.lineTo(vR, vT);   ctx.lineTo(vL, vT);
+    ctx.closePath(); ctx.fill();
     // Floor face
-    var floorGrad = ctx.createLinearGradient(0, floorY, 0, vy);
-    floorGrad.addColorStop(0,   'rgba(12,12,12,0.97)');
-    floorGrad.addColorStop(0.6, 'rgba(18,18,18,0.92)');
-    floorGrad.addColorStop(1,   'rgba(10,10,10,0.5)');
-    ctx.fillStyle = floorGrad;
     ctx.beginPath();
     ctx.moveTo(0, floorY); ctx.lineTo(w, floorY);
     ctx.lineTo(vR, vB);    ctx.lineTo(vL, vB);
-    ctx.closePath();
-    ctx.fill();
-
-    // Left wall face
-    var leftGrad = ctx.createLinearGradient(0, 0, vx, 0);
-    leftGrad.addColorStop(0,   'rgba(10,10,10,0.98)');
-    leftGrad.addColorStop(0.7, 'rgba(15,15,15,0.93)');
-    leftGrad.addColorStop(1,   'rgba(10,10,10,0.5)');
-    ctx.fillStyle = leftGrad;
+    ctx.closePath(); ctx.fill();
+    // Left wall
     ctx.beginPath();
-    ctx.moveTo(0, ceilY);  ctx.lineTo(0,  floorY);
-    ctx.lineTo(vL, vB);    ctx.lineTo(vL, vT);
-    ctx.closePath();
-    ctx.fill();
-
-    // Right wall face
-    var rightGrad = ctx.createLinearGradient(w, 0, vx, 0);
-    rightGrad.addColorStop(0,   'rgba(10,10,10,0.98)');
-    rightGrad.addColorStop(0.7, 'rgba(15,15,15,0.93)');
-    rightGrad.addColorStop(1,   'rgba(10,10,10,0.5)');
-    ctx.fillStyle = rightGrad;
+    ctx.moveTo(0, ceilY); ctx.lineTo(0, floorY);
+    ctx.lineTo(vL, vB);   ctx.lineTo(vL, vT);
+    ctx.closePath(); ctx.fill();
+    // Right wall
     ctx.beginPath();
-    ctx.moveTo(w,  ceilY); ctx.lineTo(w,  floorY);
-    ctx.lineTo(vR, vB);    ctx.lineTo(vR, vT);
-    ctx.closePath();
-    ctx.fill();
+    ctx.moveTo(w, ceilY); ctx.lineTo(w, floorY);
+    ctx.lineTo(vR, vB);   ctx.lineTo(vR, vT);
+    ctx.closePath(); ctx.fill();
 
-    // ── Perspective grid lines (convergence rails) ──
-    ctx.strokeStyle = 'rgba(60,60,60,0.5)';
-    ctx.lineWidth   = 0.7;
-    var numRails = 6;
-    for (var i = 1; i < numRails; i++) {
-      var t = i / numRails;
-      // Floor rail
-      var railY = floorY + (vy - floorY) * t;
-      var railLx = 0   + (vx - 0)   * t;
-      var railRx = w   + (vx - w)   * t;
-      ctx.beginPath();
-      ctx.moveTo(railLx, railY);
-      ctx.lineTo(railRx, railY);
-      ctx.stroke();
-      // Ceiling rail
-      var crailY = ceilY + (vy - ceilY) * t;
-      ctx.beginPath();
-      ctx.moveTo(railLx, crailY);
-      ctx.lineTo(railRx, crailY);
-      ctx.stroke();
+    // ── Convergence grid lines ──────────────────────────────────
+    ctx.strokeStyle = 'rgba(55,55,65,0.55)';
+    ctx.lineWidth   = 0.6;
+    // Horizontal rails (floor + ceiling)
+    for (var i = 1; i <= 5; i++) {
+      var tf = i / 5;
+      var fy = floorY + (vy - floorY) * tf;
+      var cy = ceilY  + (vy - ceilY)  * tf;
+      var lx = vx * tf, rx = w + (vx - w) * tf;
+      ctx.beginPath(); ctx.moveTo(lx, fy); ctx.lineTo(rx, fy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(lx, cy); ctx.lineTo(rx, cy); ctx.stroke();
+    }
+    // Vertical convergence lines
+    for (var j = 0; j <= 4; j++) {
+      var nx = w * j / 4;
+      ctx.beginPath(); ctx.moveTo(nx, floorY); ctx.lineTo(vx, vy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(nx, ceilY);  ctx.lineTo(vx, vy); ctx.stroke();
+    }
+    // Side wall lines
+    for (var k = 1; k <= 3; k++) {
+      var wf = k / 3;
+      var ly = ceilY + (floorY - ceilY) * wf;
+      ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(vL, vy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(w, ly); ctx.lineTo(vR, vy); ctx.stroke();
     }
 
-    // Vertical convergence lines (floor)
-    var laneCount = 4;
-    for (var j = 0; j <= laneCount; j++) {
-      var frac = j / laneCount;
-      var nearX = frac * w;
-      ctx.beginPath();
-      ctx.moveTo(nearX, floorY);
-      ctx.lineTo(vx,    vy);
-      ctx.stroke();
-      // Ceiling mirror
-      ctx.beginPath();
-      ctx.moveTo(nearX, ceilY);
-      ctx.lineTo(vx,    vy);
-      ctx.stroke();
-    }
-
-    // Left and right wall vertical lines
-    var wallRows = 5;
-    for (var k = 1; k < wallRows; k++) {
-      var wt = k / wallRows;
-      // Left wall
-      var lwY = ceilY + (floorY - ceilY) * wt;
-      var lwLx = 0   + (vL - 0)   * (1 - wt * 0.5);
-      ctx.beginPath();
-      ctx.moveTo(0,   lwY);
-      ctx.lineTo(vL,  vy);
-      ctx.stroke();
-      // Right wall
-      ctx.beginPath();
-      ctx.moveTo(w,   lwY);
-      ctx.lineTo(vR,  vy);
-      ctx.stroke();
-    }
-
-    // ── Inner tunnel frame edge glow ──
+    // ── Inner frame glow (one shadowBlur pass for all 4 edges) ──
     ctx.strokeStyle = accent;
-    ctx.lineWidth   = 1.8;
+    ctx.lineWidth   = 2;
     ctx.shadowBlur  = 10;
     ctx.shadowColor = accent;
-
-    // Ceiling inner edge
     ctx.beginPath();
-    ctx.moveTo(0, ceilY);
-    ctx.lineTo(w, ceilY);
+    ctx.moveTo(0, ceilY);  ctx.lineTo(w, ceilY);
+    ctx.moveTo(0, floorY); ctx.lineTo(w, floorY);
+    ctx.moveTo(0, ceilY);  ctx.lineTo(0, floorY);
+    ctx.moveTo(w, ceilY);  ctx.lineTo(w, floorY);
     ctx.stroke();
-
-    // Floor inner edge
-    ctx.beginPath();
-    ctx.moveTo(0, floorY);
-    ctx.lineTo(w, floorY);
-    ctx.stroke();
-
-    // Left wall inner edge
-    ctx.beginPath();
-    ctx.moveTo(0, ceilY);
-    ctx.lineTo(0, floorY);
-    ctx.stroke();
-
-    // Right wall inner edge
-    ctx.beginPath();
-    ctx.moveTo(w, ceilY);
-    ctx.lineTo(w, floorY);
-    ctx.stroke();
-
     ctx.shadowBlur = 0;
 
-    // ── Spike decorations on inner edges ──
+    // ── Scrolling spikes — solid fill only (no shadow in loop) ──
     SJ._floorSpikeOffset = ((SJ._floorSpikeOffset || 0) + SJ.scrollSpeed / 60) % 40;
-    var spikeW = 40, spikeH = 18;
-    var count  = Math.ceil(w / spikeW) + 2;
-
-    ctx.fillStyle   = accent;
-    ctx.shadowBlur  = 6;
-    ctx.shadowColor = accent;
-
-    for (var s = 0; s < count; s++) {
-      var sx = (s * spikeW - SJ._floorSpikeOffset % spikeW + spikeW) % (w + spikeW) - spikeW;
-      // Floor spike (points up into play zone)
+    var sW = 40, sH = 16;
+    var cnt = Math.ceil(w / sW) + 2;
+    ctx.fillStyle = accent;
+    for (var s = 0; s < cnt; s++) {
+      var sx = (s * sW - SJ._floorSpikeOffset % sW + sW) % (w + sW) - sW;
+      // Floor spike (up)
       ctx.beginPath();
-      ctx.moveTo(sx,             floorY);
-      ctx.lineTo(sx + spikeW/2,  floorY - spikeH);
-      ctx.lineTo(sx + spikeW,    floorY);
+      ctx.moveTo(sx, floorY); ctx.lineTo(sx + sW / 2, floorY - sH); ctx.lineTo(sx + sW, floorY);
       ctx.fill();
-      // Ceiling spike (points down)
+      // Ceiling spike (down)
       ctx.beginPath();
-      ctx.moveTo(sx,             ceilY);
-      ctx.lineTo(sx + spikeW/2,  ceilY + spikeH);
-      ctx.lineTo(sx + spikeW,    ceilY);
+      ctx.moveTo(sx, ceilY);  ctx.lineTo(sx + sW / 2, ceilY + sH);  ctx.lineTo(sx + sW, ceilY);
       ctx.fill();
     }
-
-    ctx.shadowBlur = 0;
-
-    // ── Accent edge glow strips on side walls ──
-    var leftEdgeGrad = ctx.createLinearGradient(0, 0, 18, 0);
-    leftEdgeGrad.addColorStop(0, accent2 + 'cc');
-    leftEdgeGrad.addColorStop(1, 'transparent');
-    ctx.fillStyle = leftEdgeGrad;
-    ctx.fillRect(0, ceilY, 18, floorY - ceilY);
-
-    var rightEdgeGrad = ctx.createLinearGradient(w, 0, w - 18, 0);
-    rightEdgeGrad.addColorStop(0, accent2 + 'cc');
-    rightEdgeGrad.addColorStop(1, 'transparent');
-    ctx.fillStyle = rightEdgeGrad;
-    ctx.fillRect(w - 18, ceilY, 18, floorY - ceilY);
   };
 
   // ─────────────────────────────────────────────────────────────
