@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WeatherVision</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/weather-effects.css">
+</head>
+<body>
+
+  <canvas id="weather-canvas"></canvas>
+
+  <div class="app-container">
+
+    <!-- ── Header ──────────────────────────────────────────────────────── -->
+    <header class="app-header">
+      <div class="logo">
+        <span class="logo-icon">⛅</span>
+        <h1>WeatherVision</h1>
+      </div>
+
+      <div class="search-section">
+        <div class="search-bar glass-card">
+          <button id="locate-btn" class="icon-btn" title="Use my location">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+              <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/>
+            </svg>
+          </button>
+          <input
+            type="text"
+            id="city-input"
+            placeholder="Search for a city..."
+            autocomplete="off"
+            spellcheck="false"
+          >
+          <button id="search-btn" class="search-btn">Search</button>
+          <button id="compare-btn" class="compare-btn">Compare</button>
+        </div>
+        <div id="recent-searches" class="recent-searches"></div>
+      </div>
+    </header>
+
+    <!-- ── Error Toast ──────────────────────────────────────────────────── -->
+    <div id="error-toast" class="error-toast hidden"></div>
+
+    <!-- ── Main Content ─────────────────────────────────────────────────── -->
+    <main class="main-content">
+
+      <!-- Empty State -->
+      <div id="empty-state" class="empty-state">
+        <div class="empty-icon">🌍</div>
+        <p>Search for a city to get started</p>
+      </div>
+
+      <!-- Loading Skeleton -->
+      <div id="loading-state" class="loading-state hidden">
+        <div class="skeleton-card glass-card">
+          <div class="skeleton-header">
+            <div>
+              <div class="skeleton-line wide"></div>
+              <div class="skeleton-line medium"></div>
+            </div>
+            <div class="skeleton-circle"></div>
+          </div>
+          <div class="skeleton-temp"></div>
+          <div class="skeleton-line narrow"></div>
+        </div>
+      </div>
+
+      <!-- Weather Display -->
+      <div id="weather-display" class="weather-display hidden">
+
+        <div class="controls-bar">
+          <div class="unit-toggle">
+            <label class="toggle-option">
+              <input type="radio" name="units" value="metric" id="unit-metric" checked>
+              <span>°C</span>
+            </label>
+            <label class="toggle-option">
+              <input type="radio" name="units" value="imperial" id="unit-imperial">
+              <span>°F</span>
+            </label>
+          </div>
+        </div>
+
+        <div id="cities-container" class="cities-container single">
+
+          <!-- ── Primary City Panel ────────────────────────────────────── -->
+          <div id="primary-city" class="city-panel">
+
+            <!-- Main Weather Card -->
+            <div class="glass-card main-weather-card">
+              <div class="weather-top">
+                <div class="city-info">
+                  <h2 id="p-city-name">—</h2>
+                  <p id="p-weather-desc" class="weather-desc">—</p>
+                </div>
+                <img id="p-weather-icon" class="weather-icon" src="" alt="" style="display:none">
+              </div>
+
+              <div class="weather-mid">
+                <div class="temperature-display">
+                  <span id="p-temperature" class="temperature">—</span>
+                  <span id="p-temp-unit" class="temp-unit-label">°C</span>
+                </div>
+                <div class="feels-like">
+                  Feels like <span id="p-feels-like">—</span>
+                </div>
+              </div>
+
+              <div class="details-grid">
+
+                <!-- Humidity -->
+                <div class="detail-card humidity-card">
+                  <div class="detail-label">Humidity</div>
+                  <div class="detail-value"><span id="p-humidity">—</span>%</div>
+                  <div class="humidity-bar-track">
+                    <div class="humidity-bar-fill" id="p-humidity-bar"></div>
+                  </div>
+                </div>
+
+                <!-- Wind Compass -->
+                <div class="detail-card wind-card">
+                  <div class="detail-label">Wind</div>
+                  <div class="wind-compass-container">
+                    <svg class="compass-rose" viewBox="0 0 120 120" overflow="visible">
+                      <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+                      <text x="60" y="16" text-anchor="middle" class="compass-label">N</text>
+                      <text x="60" y="111" text-anchor="middle" class="compass-label">S</text>
+                      <text x="12" y="65" text-anchor="middle" class="compass-label">W</text>
+                      <text x="108" y="65" text-anchor="middle" class="compass-label">E</text>
+                      <line x1="60" y1="13" x2="60" y2="21" stroke="rgba(255,255,255,0.25)" stroke-width="1.5"/>
+                      <line x1="60" y1="99" x2="60" y2="107" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                      <line x1="13" y1="60" x2="21" y2="60" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                      <line x1="99" y1="60" x2="107" y2="60" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                      <g id="p-compass-needle" transform="rotate(0,60,60)">
+                        <polygon points="60,18 56,60 60,53 64,60" fill="#4fc3f7" opacity="0.95"/>
+                        <polygon points="60,102 56,60 60,67 64,60" fill="rgba(255,255,255,0.25)"/>
+                        <circle cx="60" cy="60" r="4" fill="rgba(255,255,255,0.4)"/>
+                      </g>
+                    </svg>
+                  </div>
+                  <div class="wind-speed" id="p-wind-speed">—</div>
+                </div>
+
+                <!-- Sunrise / Sunset Arc -->
+                <div class="detail-card sun-arc-card">
+                  <div class="detail-label">Sunrise / Sunset</div>
+                  <div class="sun-arc-container">
+                    <svg class="sun-arc-svg" viewBox="0 0 200 115" overflow="visible">
+                      <path d="M 10 100 A 90 90 0 0 1 190 100"
+                            fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="2"/>
+                      <path id="p-sun-arc-fill" d=""
+                            fill="none" stroke="#ffb74d" stroke-width="2.5"
+                            stroke-linecap="round" opacity="0.8"/>
+                      <circle id="p-sun-dot" cx="100" cy="10" r="7" fill="#ffb74d">
+                        <animate attributeName="r" values="7;9;7" dur="3s" repeatCount="indefinite"/>
+                        <animate attributeName="opacity" values="1;0.7;1" dur="3s" repeatCount="indefinite"/>
+                      </circle>
+                      <text id="p-sunrise-label" x="10" y="114" text-anchor="middle" class="sun-time-label">—</text>
+                      <text id="p-sunset-label" x="190" y="114" text-anchor="middle" class="sun-time-label">—</text>
+                    </svg>
+                  </div>
+                </div>
+
+                <!-- AQI -->
+                <div class="detail-card aqi-card" id="p-aqi-card" style="cursor:pointer">
+                  <div class="detail-label">Air Quality ↕</div>
+                  <div class="aqi-badge" id="p-aqi-badge">
+                    <span class="aqi-number" id="p-aqi-value">—</span>
+                    <span class="aqi-label" id="p-aqi-label">—</span>
+                  </div>
+                  <div class="aqi-details hidden" id="p-aqi-details">
+                    <div class="pollutant">
+                      <span id="p-pm25-label">PM2.5</span>
+                      <div class="pollutant-bar"><div class="pollutant-fill" id="p-pm25"></div></div>
+                    </div>
+                    <div class="pollutant">
+                      <span id="p-pm10-label">PM10</span>
+                      <div class="pollutant-bar"><div class="pollutant-fill" id="p-pm10"></div></div>
+                    </div>
+                    <div class="pollutant">
+                      <span id="p-o3-label">O₃</span>
+                      <div class="pollutant-bar"><div class="pollutant-fill" id="p-o3"></div></div>
+                    </div>
+                    <div class="pollutant">
+                      <span id="p-no2-label">NO₂</span>
+                      <div class="pollutant-bar"><div class="pollutant-fill" id="p-no2"></div></div>
+                    </div>
+                  </div>
+                </div>
+
+              </div><!-- /details-grid -->
+
+              <p class="last-updated" id="p-last-updated">—</p>
+            </div><!-- /main-weather-card -->
+
+            <!-- What To Wear -->
+            <div class="glass-card what-to-wear-card" id="p-what-to-wear">
+              <div class="what-to-wear-label">What to wear</div>
+              <div class="wear-items" id="p-wear-items"></div>
+              <p class="wear-summary" id="p-wear-summary"></p>
+            </div>
+
+            <!-- 5-Day Forecast -->
+            <div class="glass-card forecast-container" id="p-forecast-container">
+              <h3 class="forecast-title">5-Day Forecast</h3>
+              <div class="forecast-days" id="p-forecast-days"></div>
+            </div>
+
+          </div><!-- /primary-city -->
+
+          <!-- ── Compare City Panel ─────────────────────────────────────── -->
+          <div id="compare-city" class="city-panel hidden">
+
+            <div class="compare-search-bar glass-card">
+              <input type="text" id="compare-input" placeholder="Search city to compare..." autocomplete="off">
+              <button id="compare-search-btn">Search</button>
+              <button id="close-compare-btn" class="icon-btn close-btn" title="Close comparison">✕</button>
+            </div>
+
+            <!-- Compare weather content (shown after search) -->
+            <div id="compare-weather-content" class="hidden">
+
+              <div class="glass-card main-weather-card">
+                <div class="weather-top">
+                  <div class="city-info">
+                    <h2 id="c-city-name">—</h2>
+                    <p id="c-weather-desc" class="weather-desc">—</p>
+                  </div>
+                  <img id="c-weather-icon" class="weather-icon" src="" alt="" style="display:none">
+                </div>
+
+                <div class="weather-mid">
+                  <div class="temperature-display">
+                    <span id="c-temperature" class="temperature">—</span>
+                    <span id="c-temp-unit" class="temp-unit-label">°C</span>
+                  </div>
+                  <div class="feels-like">
+                    Feels like <span id="c-feels-like">—</span>
+                  </div>
+                </div>
+
+                <div class="details-grid">
+
+                  <div class="detail-card humidity-card">
+                    <div class="detail-label">Humidity</div>
+                    <div class="detail-value"><span id="c-humidity">—</span>%</div>
+                    <div class="humidity-bar-track">
+                      <div class="humidity-bar-fill" id="c-humidity-bar"></div>
+                    </div>
+                  </div>
+
+                  <div class="detail-card wind-card">
+                    <div class="detail-label">Wind</div>
+                    <div class="wind-compass-container">
+                      <svg class="compass-rose" viewBox="0 0 120 120" overflow="visible">
+                        <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+                        <text x="60" y="16" text-anchor="middle" class="compass-label">N</text>
+                        <text x="60" y="111" text-anchor="middle" class="compass-label">S</text>
+                        <text x="12" y="65" text-anchor="middle" class="compass-label">W</text>
+                        <text x="108" y="65" text-anchor="middle" class="compass-label">E</text>
+                        <line x1="60" y1="13" x2="60" y2="21" stroke="rgba(255,255,255,0.25)" stroke-width="1.5"/>
+                        <line x1="60" y1="99" x2="60" y2="107" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                        <line x1="13" y1="60" x2="21" y2="60" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                        <line x1="99" y1="60" x2="107" y2="60" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                        <g id="c-compass-needle" transform="rotate(0,60,60)">
+                          <polygon points="60,18 56,60 60,53 64,60" fill="#4fc3f7" opacity="0.95"/>
+                          <polygon points="60,102 56,60 60,67 64,60" fill="rgba(255,255,255,0.25)"/>
+                          <circle cx="60" cy="60" r="4" fill="rgba(255,255,255,0.4)"/>
+                        </g>
+                      </svg>
+                    </div>
+                    <div class="wind-speed" id="c-wind-speed">—</div>
+                  </div>
+
+                  <div class="detail-card sun-arc-card">
+                    <div class="detail-label">Sunrise / Sunset</div>
+                    <div class="sun-arc-container">
+                      <svg class="sun-arc-svg" viewBox="0 0 200 115" overflow="visible">
+                        <path d="M 10 100 A 90 90 0 0 1 190 100"
+                              fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="2"/>
+                        <path id="c-sun-arc-fill" d=""
+                              fill="none" stroke="#ffb74d" stroke-width="2.5"
+                              stroke-linecap="round" opacity="0.8"/>
+                        <circle id="c-sun-dot" cx="100" cy="10" r="7" fill="#ffb74d">
+                          <animate attributeName="r" values="7;9;7" dur="3s" repeatCount="indefinite"/>
+                          <animate attributeName="opacity" values="1;0.7;1" dur="3s" repeatCount="indefinite"/>
+                        </circle>
+                        <text id="c-sunrise-label" x="10" y="114" text-anchor="middle" class="sun-time-label">—</text>
+                        <text id="c-sunset-label" x="190" y="114" text-anchor="middle" class="sun-time-label">—</text>
+                      </svg>
+                    </div>
+                  </div>
+
+                  <div class="detail-card aqi-card" id="c-aqi-card" style="cursor:pointer">
+                    <div class="detail-label">Air Quality ↕</div>
+                    <div class="aqi-badge" id="c-aqi-badge">
+                      <span class="aqi-number" id="c-aqi-value">—</span>
+                      <span class="aqi-label" id="c-aqi-label">—</span>
+                    </div>
+                    <div class="aqi-details hidden" id="c-aqi-details">
+                      <div class="pollutant">
+                        <span id="c-pm25-label">PM2.5</span>
+                        <div class="pollutant-bar"><div class="pollutant-fill" id="c-pm25"></div></div>
+                      </div>
+                      <div class="pollutant">
+                        <span id="c-pm10-label">PM10</span>
+                        <div class="pollutant-bar"><div class="pollutant-fill" id="c-pm10"></div></div>
+                      </div>
+                      <div class="pollutant">
+                        <span id="c-o3-label">O₃</span>
+                        <div class="pollutant-bar"><div class="pollutant-fill" id="c-o3"></div></div>
+                      </div>
+                      <div class="pollutant">
+                        <span id="c-no2-label">NO₂</span>
+                        <div class="pollutant-bar"><div class="pollutant-fill" id="c-no2"></div></div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div><!-- /details-grid -->
+
+                <p class="last-updated" id="c-last-updated">—</p>
+              </div><!-- /main-weather-card -->
+
+              <div class="glass-card what-to-wear-card">
+                <div class="what-to-wear-label">What to wear</div>
+                <div class="wear-items" id="c-wear-items"></div>
+                <p class="wear-summary" id="c-wear-summary"></p>
+              </div>
+
+              <div class="glass-card forecast-container">
+                <h3 class="forecast-title">5-Day Forecast</h3>
+                <div class="forecast-days" id="c-forecast-days"></div>
+              </div>
+
+            </div><!-- /compare-weather-content -->
+
+            <!-- Compare empty state -->
+            <div id="compare-empty-state" class="compare-empty">
+              <p>Search a city above to compare</p>
+            </div>
+
+          </div><!-- /compare-city -->
+
+        </div><!-- /cities-container -->
+      </div><!-- /weather-display -->
+
+    </main>
+  </div><!-- /app-container -->
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
