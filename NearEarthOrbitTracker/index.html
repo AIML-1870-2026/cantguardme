@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEO Tracker — Planetary Defense Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Google Fonts preconnect -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+</head>
+<body>
+
+<!-- Min-width warning -->
+<div id="min-width-warn">
+  <h2>VIEWPORT TOO SMALL</h2>
+  <p>NEO Tracker requires a minimum width of 1024px.<br>Please resize your browser window or use a larger screen.</p>
+</div>
+
+<!-- Starfield -->
+<canvas id="starfield"></canvas>
+
+<div id="app">
+
+  <!-- ══════════════════════════════════════════════
+       HEADER
+  ══════════════════════════════════════════════ -->
+  <header id="header">
+
+    <div class="brand">
+      <div class="brand-title">NEO TRACKER</div>
+      <div class="brand-sub">Planetary Defense Dashboard</div>
+    </div>
+
+    <nav id="tab-nav" role="tablist">
+      <button class="tab-btn active" data-tab="tab-week" role="tab" aria-selected="true">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+        This Week
+      </button>
+      <button class="tab-btn" data-tab="tab-cad" role="tab" aria-selected="false">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><line x1="2" y1="12" x2="22" y2="12"></line></svg>
+        Close Approaches
+      </button>
+      <button class="tab-btn" data-tab="tab-sentry" role="tab" aria-selected="false">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        Sentry Watch
+      </button>
+      <button class="tab-btn" data-tab="tab-3d" role="tab" aria-selected="false">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+        3D View
+      </button>
+    </nav>
+
+    <div class="header-right">
+      <div id="countdown-wrap">
+        <div class="countdown-label" id="countdown-name">Next close approach</div>
+        <div id="countdown-timer">-- -- -- --</div>
+      </div>
+      <button id="play-game-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        Orbit Dodger
+      </button>
+    </div>
+
+  </header>
+
+  <!-- ══════════════════════════════════════════════
+       MAIN
+  ══════════════════════════════════════════════ -->
+  <main id="main">
+
+    <!-- ══ TAB 1: THIS WEEK ══ -->
+    <section id="tab-week" class="tab-panel active" role="tabpanel">
+
+      <!-- Hero Stats -->
+      <div class="stats-row" id="hero-stats">
+        <!-- Populated by JS -->
+        <div class="stat-card skeleton" style="height:100px;"></div>
+        <div class="stat-card skeleton" style="height:100px;"></div>
+        <div class="stat-card skeleton" style="height:100px;"></div>
+        <div class="stat-card skeleton" style="height:100px;"></div>
+        <div class="stat-card skeleton danger" style="height:100px;"></div>
+      </div>
+
+      <!-- Spotlight + Comparators -->
+      <div id="spotlight">
+        <div class="spotlight-main card" id="spotlight-main">
+          <div style="display:flex;align-items:center;justify-content:center;height:200px;">
+            <div class="loading-spinner"></div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="card" id="size-compare-card">
+            <div class="card-title">Size Comparator</div>
+            <div class="size-compare-svg-wrap" id="size-compare-svg-wrap">
+              <div style="height:80px;" class="skeleton"></div>
+            </div>
+          </div>
+          <div class="card" id="vel-compare-card">
+            <div class="card-title">Velocity Comparator</div>
+            <div id="vel-compare-bars">
+              <div style="height:100px;" class="skeleton"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Daily Breakdown -->
+      <div class="section-label">Daily Breakdown</div>
+      <div id="daily-breakdown">
+        <div style="display:flex;align-items:center;justify-content:center;padding:40px;">
+          <div class="loading-spinner"></div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ══ TAB 2: CLOSE APPROACHES ══ -->
+    <section id="tab-cad" class="tab-panel" role="tabpanel">
+
+      <div class="filter-bar">
+        <div class="filter-group">
+          <label>Start Date</label>
+          <input type="date" id="cad-start" class="filter-input" />
+        </div>
+        <div class="filter-group">
+          <label>End Date</label>
+          <input type="date" id="cad-end" class="filter-input" />
+        </div>
+        <div class="filter-group">
+          <label>Max Distance (LD)</label>
+          <div class="slider-wrap">
+            <input type="range" id="cad-dist-slider" min="0.5" max="75" step="0.5" value="10" />
+            <span class="slider-val" id="cad-dist-val">10 LD</span>
+          </div>
+        </div>
+        <div class="filter-group">
+          <label>Min Size (H mag)</label>
+          <select id="cad-size" class="filter-select">
+            <option value="">Any</option>
+            <option value="26">H &lt; 26 (~20m+)</option>
+            <option value="24">H &lt; 24 (~50m+)</option>
+            <option value="22">H &lt; 22 (~140m+)</option>
+            <option value="20">H &lt; 20 (~500m+)</option>
+            <option value="18">H &lt; 18 (~1km+)</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>Sort By</label>
+          <select id="cad-sort" class="filter-select">
+            <option value="dist">Closest</option>
+            <option value="h">Largest (H)</option>
+            <option value="v_rel">Fastest</option>
+            <option value="cd">Soonest</option>
+            <option value="dist_min">Smallest Uncertainty</option>
+          </select>
+        </div>
+        <button class="btn btn-cyan" id="cad-apply-btn">Apply Filters</button>
+      </div>
+
+      <div class="quick-presets">
+        <button class="preset-btn" data-preset="month">This Month</button>
+        <button class="preset-btn" data-preset="sublunar">Sub-Lunar (&lt;1 LD)</button>
+        <button class="preset-btn" data-preset="citykillers">City-Killers (&gt;140m)</button>
+        <button class="preset-btn" data-preset="365">Next 365 Days</button>
+      </div>
+
+      <div class="results-table-wrap" id="cad-table-wrap">
+        <div class="results-table-header">
+          <span data-col="fullname">Full Name</span>
+          <span data-col="cd">Date</span>
+          <span data-col="dist">Miss Dist (LD)</span>
+          <span data-col="dist_range">Uncertainty</span>
+          <span data-col="v_rel">Vel (km/s)</span>
+          <span data-col="h">H Mag</span>
+          <span data-col="diameter">Est. Diameter</span>
+          <span></span>
+        </div>
+        <div id="cad-rows">
+          <div style="display:flex;align-items:center;justify-content:center;padding:40px;">
+            <div class="loading-spinner"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-label" style="margin-bottom:12px;">Record Breakers</div>
+      <div class="record-grid" id="record-grid">
+        <div class="record-card skeleton" style="height:100px;"></div>
+        <div class="record-card skeleton" style="height:100px;"></div>
+        <div class="record-card skeleton" style="height:100px;"></div>
+      </div>
+
+    </section>
+
+    <!-- ══ TAB 3: SENTRY WATCH ══ -->
+    <section id="tab-sentry" class="tab-panel" role="tabpanel">
+
+      <div class="sentry-top">
+        <div class="gauge-card">
+          <div class="gauge-title">Palermo Scale — Cumulative Threat Level</div>
+          <canvas id="gauge-canvas" width="260" height="160"></canvas>
+          <div class="gauge-label" id="gauge-label">Loading...</div>
+          <div class="gauge-driven" id="gauge-driven"></div>
+        </div>
+        <div class="sentry-stats" id="sentry-summary-stats">
+          <div class="sentry-stat-card skeleton" style="height:60px;"></div>
+          <div class="sentry-stat-card skeleton" style="height:60px;"></div>
+          <div class="sentry-stat-card skeleton" style="height:60px;"></div>
+        </div>
+      </div>
+
+      <div class="sentry-table-wrap" id="sentry-table-wrap">
+        <div class="sentry-table-header">
+          <span data-col="des">Designation</span>
+          <span data-col="diameter">Diameter</span>
+          <span data-col="h">H</span>
+          <span data-col="ip">Impact Prob</span>
+          <span data-col="ps_cum">Palermo Cum</span>
+          <span data-col="ps_max">Palermo Max</span>
+          <span data-col="ts_max">Torino</span>
+          <span data-col="n_imp"># Solutions</span>
+          <span data-col="v_imp">Velocity</span>
+          <span data-col="range">Impact Window</span>
+          <span data-col="last_obs">Last Obs</span>
+          <span></span>
+        </div>
+        <div id="sentry-rows">
+          <div style="display:flex;align-items:center;justify-content:center;padding:40px;">
+            <div class="loading-spinner"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-label" style="margin-bottom:12px;">Impact Risk Timeline (2026–2126)</div>
+      <div class="risk-timeline-wrap">
+        <div id="risk-timeline-scroll">
+          <svg id="risk-timeline-svg" height="100"></svg>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ══ TAB 4: 3D VIEW ══ -->
+    <section id="tab-3d" class="tab-panel" role="tabpanel">
+      <div id="globe-wrap">
+        <div id="globe-container"></div>
+        <div class="globe-loading" id="globe-loading">
+          <div class="loading-spinner"></div>
+          <div class="globe-loading-text">INITIALIZING 3D VISUALIZATION</div>
+        </div>
+        <div id="globe-sidebar">
+          <div class="globe-sidebar-header">
+            <span>Asteroids</span>
+            <button id="sidebar-toggle" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:0.7rem;">▶</button>
+          </div>
+          <div id="globe-ast-list"></div>
+        </div>
+        <div id="globe-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#ff4d2a;box-shadow:0 0 4px #ff4d2a;"></div>Potentially Hazardous</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#00e59b;box-shadow:0 0 4px #00e59b;"></div>Non-Hazardous</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#888;box-shadow:0 0 4px #888;"></div>Moon (1 LD)</div>
+        </div>
+        <div id="globe-detail-panel">
+          <button class="globe-detail-close" id="globe-detail-close">✕</button>
+          <div id="globe-detail-content">
+            <div style="color:var(--text2);font-family:var(--font-data);font-size:0.7rem;">Click an asteroid to see details.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div><!-- #app -->
+
+<!-- ══════════════════════════════════════════════
+     GAME OVERLAY
+══════════════════════════════════════════════ -->
+<div id="game-overlay">
+
+  <!-- Briefing Screen -->
+  <div id="game-briefing">
+    <div class="game-title">ORBIT DODGER</div>
+    <div class="game-sub">Real asteroid data. Real stakes. Defend Earth from this week's actual NEO approaches.</div>
+
+    <div class="briefing-rules">
+      <h3>Mission Briefing</h3>
+      <div class="briefing-rule-item">
+        <span class="rule-key">A / ←</span>
+        <span>Rotate spacecraft counter-clockwise around Earth</span>
+      </div>
+      <div class="briefing-rule-item">
+        <span class="rule-key">D / →</span>
+        <span>Rotate spacecraft clockwise around Earth</span>
+      </div>
+      <div class="briefing-rule-item">
+        <span class="rule-key">Mouse</span>
+        <span>Aim targeting reticle</span>
+      </div>
+      <div class="briefing-rule-item">
+        <span class="rule-key">Space / Click</span>
+        <span>Fire laser (hold to rapid-fire)</span>
+      </div>
+      <div class="briefing-rule-item" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);">
+        <span style="color:var(--danger);font-weight:600;">RED asteroids</span>
+        <span style="margin-left:4px;">= Hazardous — DESTROY them before they hit Earth</span>
+      </div>
+      <div class="briefing-rule-item">
+        <span style="color:var(--safe);font-weight:600;">TEAL asteroids</span>
+        <span style="margin-left:4px;">= Non-hazardous — Let them pass (-150pts if shot)</span>
+      </div>
+      <div class="briefing-rule-item">
+        <span class="rule-key">ESC</span>
+        <span>Exit game</span>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-danger" id="launch-btn" style="font-size:0.75rem;padding:10px 24px;">LAUNCH MISSION</button>
+      <button class="btn btn-ghost" id="exit-briefing-btn">Return to Dashboard</button>
+    </div>
+  </div>
+
+  <!-- Game Canvas -->
+  <div id="game-canvas-wrap">
+    <canvas id="game-canvas"></canvas>
+
+    <!-- HUD -->
+    <div id="game-hud">
+      <div id="hud-top">
+        <div class="hud-stat">
+          <span class="hud-val" id="hud-score">0</span>
+          SCORE
+        </div>
+        <div class="hud-stat">
+          WAVE
+          <span class="hud-val" id="hud-wave">1/7</span>
+        </div>
+        <div class="hud-stat">
+          <span class="hud-val" id="hud-combo">x1</span>
+          COMBO
+        </div>
+        <div class="hud-stat">
+          <span class="hud-val" id="hud-accuracy">100%</span>
+          ACCURACY
+        </div>
+      </div>
+
+      <div id="hud-earth-hp">
+        <div class="hp-label">EARTH HP</div>
+        <div class="hp-bar"><div class="hp-bar-fill" id="hp-bar-fill" style="width:100%;"></div></div>
+        <div id="hp-val" class="hp-label" style="color:var(--cyan);">100</div>
+      </div>
+
+      <div id="data-flash"></div>
+      <div id="wave-banner"></div>
+      <div id="weapon-disabled-warn">⚡ WEAPON OFFLINE</div>
+      <div id="vignette"></div>
+    </div>
+
+    <!-- Game Over -->
+    <div id="game-over">
+      <div class="game-over-title" id="go-title">EARTH DEFENDED</div>
+      <div id="go-subtitle" style="font-family:var(--font-data);font-size:0.75rem;color:var(--text2);margin-bottom:16px;"></div>
+      <div class="score-breakdown" id="go-breakdown"></div>
+      <div class="real-data-summary" id="go-real-data"></div>
+      <div class="game-over-btns">
+        <button class="btn btn-danger" id="play-again-btn">PLAY AGAIN</button>
+        <button class="btn btn-ghost" id="go-dashboard-btn">Return to Dashboard</button>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="game-esc-hint">ESC — Exit Game</div>
+</div>
+
+<!-- Scripts -->
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
