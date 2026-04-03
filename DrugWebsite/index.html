@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RxRecon — Drug Safety Intelligence Dashboard</title>
+  <meta name="description" content="RxRecon: Live FDA drug safety reconnaissance. Compare drugs, explore adverse events, recalls, and co-administration signals." />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <!-- Chart.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ═══════════ HEADER ═══════════ -->
+  <header class="header" role="banner">
+    <div class="header-left">
+      <div class="logo" aria-label="RxRecon home">
+        <svg class="logo-icon" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect width="44" height="44" rx="10" fill="rgba(59,130,246,0.12)"/>
+          <rect x="0.5" y="0.5" width="43" height="43" rx="9.5" stroke="rgba(59,130,246,0.45)"/>
+          <text x="50%" y="53%" dominant-baseline="middle" text-anchor="middle"
+                fill="#60A5FA" font-family="DM Sans,sans-serif" font-size="15" font-weight="700" letter-spacing="-0.5">Rx</text>
+        </svg>
+        <div class="logo-text-group">
+          <span class="logo-name">RxRecon</span>
+          <span class="logo-tagline">Drug Safety Intelligence Dashboard</span>
+        </div>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="btn-ghost" data-modal="how-to-read" aria-label="How to read this data">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <circle cx="9" cy="9" r="8"/>
+          <path d="M9 8.5c0-1.1.9-2 2-2s2 .9 2 2c0 1.3-1.5 1.8-2 2.5V12" stroke-linecap="round"/>
+          <circle cx="9" cy="14.5" r="0.5" fill="currentColor"/>
+        </svg>
+        How to Read This Data
+      </button>
+      <button class="btn-ghost" data-modal="about" aria-label="About RxRecon">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <circle cx="9" cy="9" r="8"/>
+          <path d="M9 8v5" stroke-linecap="round"/>
+          <circle cx="9" cy="5.5" r="0.75" fill="currentColor"/>
+        </svg>
+        About
+      </button>
+    </div>
+  </header>
+
+  <!-- ═══════════ SEARCH SECTION ═══════════ -->
+  <section class="search-section" aria-label="Drug search controls">
+
+    <!-- Mode Toggle -->
+    <div class="mode-toggle" role="group" aria-label="Search mode">
+      <button class="mode-btn active" data-mode="comparison" aria-pressed="true">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <rect x="1" y="3" width="7" height="12" rx="1.5"/>
+          <rect x="10" y="3" width="7" height="12" rx="1.5"/>
+          <path d="M8 9h2" stroke-linecap="round"/>
+        </svg>
+        Drug Comparison
+      </button>
+      <button class="mode-btn" data-mode="class" aria-pressed="false">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <circle cx="9" cy="9" r="7"/>
+          <path d="M9 5v4l3 2" stroke-linecap="round"/>
+        </svg>
+        Drug Class Explorer
+      </button>
+      <div class="mode-slider" aria-hidden="true"></div>
+    </div>
+
+    <!-- Comparison Search -->
+    <div id="comparison-search" class="search-content">
+      <div class="drug-inputs">
+
+        <div class="drug-input-group">
+          <label class="input-label" for="drug-a-input">
+            <span class="drug-badge badge-a">A</span>
+            Drug A
+          </label>
+          <div class="input-wrapper" id="drug-a-wrapper">
+            <input
+              type="text" id="drug-a-input" class="drug-input"
+              placeholder="Search drug name…" autocomplete="off"
+              aria-label="Search for Drug A" aria-autocomplete="list"
+              aria-haspopup="listbox" aria-expanded="false"
+            />
+            <div class="input-spinner hidden" id="drug-a-spinner" aria-hidden="true">
+              <div class="spinner-ring"></div>
+            </div>
+            <div class="autocomplete-dropdown hidden" id="drug-a-dropdown"
+                 role="listbox" aria-label="Drug A suggestions"></div>
+          </div>
+        </div>
+
+        <div class="vs-divider" aria-hidden="true">
+          <span>VS</span>
+        </div>
+
+        <div class="drug-input-group">
+          <label class="input-label" for="drug-b-input">
+            <span class="drug-badge badge-b">B</span>
+            Drug B
+          </label>
+          <div class="input-wrapper" id="drug-b-wrapper">
+            <input
+              type="text" id="drug-b-input" class="drug-input"
+              placeholder="Search drug name…" autocomplete="off"
+              aria-label="Search for Drug B" aria-autocomplete="list"
+              aria-haspopup="listbox" aria-expanded="false"
+            />
+            <div class="input-spinner hidden" id="drug-b-spinner" aria-hidden="true">
+              <div class="spinner-ring"></div>
+            </div>
+            <div class="autocomplete-dropdown hidden" id="drug-b-dropdown"
+                 role="listbox" aria-label="Drug B suggestions"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <button class="btn-primary" id="investigate-btn">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="8.5" cy="8.5" r="5.5"/>
+          <path d="m14 14 4 4" stroke-linecap="round"/>
+          <path d="M8.5 6v5M6 8.5h5" stroke-linecap="round"/>
+        </svg>
+        Investigate
+      </button>
+    </div>
+
+    <!-- Class Explorer Search -->
+    <div id="class-search" class="search-content hidden">
+      <div class="class-selector-group">
+        <label class="input-label" for="drug-class-select">Pharmacologic Class</label>
+        <select id="drug-class-select" class="class-select" aria-label="Select a drug class">
+          <option value="">Choose a drug class to explore…</option>
+          <option value="SSRIs">SSRIs — Selective Serotonin Reuptake Inhibitors</option>
+          <option value="Statins">Statins — HMG-CoA Reductase Inhibitors</option>
+          <option value="ACE Inhibitors">ACE Inhibitors</option>
+          <option value="NSAIDs">NSAIDs — Nonsteroidal Anti-inflammatory Drugs</option>
+          <option value="Fluoroquinolones">Fluoroquinolones</option>
+          <option value="Benzodiazepines">Benzodiazepines</option>
+          <option value="Proton Pump Inhibitors">Proton Pump Inhibitors</option>
+          <option value="Beta Blockers">Beta Blockers</option>
+        </select>
+      </div>
+      <button class="btn-primary" id="explore-class-btn">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M4 10h12M12 5l5 5-5 5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Explore Class
+      </button>
+    </div>
+
+  </section>
+
+  <!-- ═══════════ TAB NAVIGATION ═══════════ -->
+  <nav class="tab-nav" id="tab-nav" role="tablist" aria-label="Data sections">
+    <button class="tab-btn active" data-tab="overview"       role="tab" aria-selected="true"  aria-controls="tab-overview">Overview</button>
+    <button class="tab-btn"        data-tab="adverse-events" role="tab" aria-selected="false" aria-controls="tab-adverse-events">Adverse Events</button>
+    <button class="tab-btn"        data-tab="drug-labels"    role="tab" aria-selected="false" aria-controls="tab-drug-labels">Drug Labels</button>
+    <button class="tab-btn"        data-tab="recalls"        role="tab" aria-selected="false" aria-controls="tab-recalls">Recalls</button>
+    <button class="tab-btn"        data-tab="co-admin"       role="tab" aria-selected="false" aria-controls="tab-co-admin" id="co-admin-tab">
+      Co-Administration
+    </button>
+    <div class="tab-indicator" id="tab-indicator" aria-hidden="true"></div>
+  </nav>
+
+  <!-- ═══════════ MAIN CONTENT ═══════════ -->
+  <main class="main-content" id="main-content">
+
+    <div id="tab-overview"       class="tab-panel active"  role="tabpanel"></div>
+    <div id="tab-adverse-events" class="tab-panel"         role="tabpanel" hidden></div>
+    <div id="tab-drug-labels"    class="tab-panel"         role="tabpanel" hidden></div>
+    <div id="tab-recalls"        class="tab-panel"         role="tabpanel" hidden></div>
+    <div id="tab-co-admin"       class="tab-panel"         role="tabpanel" hidden></div>
+
+  </main>
+
+  <!-- ═══════════ FOOTER ═══════════ -->
+  <footer class="footer" role="contentinfo">
+    <div class="footer-inner">
+      <div class="footer-brand-col">
+        <div class="footer-logo">
+          <span class="footer-name">RxRecon</span>
+          <span class="footer-badge">AIML 1870</span>
+        </div>
+        <p class="footer-tagline">Live FDA drug safety reconnaissance</p>
+      </div>
+      <div class="footer-disclaimers">
+        <p>
+          <strong>Data Attribution:</strong> This product uses publicly available data from the U.S. Food and Drug Administration (FDA).
+          FDA is not responsible for the product and does not endorse or recommend this or any other product.
+        </p>
+        <p>
+          <strong>Educational Disclaimer:</strong> RxRecon is an educational tool built for AIML 1870 at the University of Nebraska at Omaha.
+          It is <strong>NOT</strong> a substitute for professional medical advice, diagnosis, or treatment.
+          Always consult a healthcare professional before making any medical decisions.
+        </p>
+        <p>
+          <strong>FAERS Notice:</strong> FAERS reports are voluntarily submitted. A report linking a drug to an adverse event does not prove
+          the drug caused the event. Report counts cannot be used to estimate how common an event actually is.
+        </p>
+      </div>
+      <div class="footer-links-col">
+        <a href="https://open.fda.gov" target="_blank" rel="noopener noreferrer">OpenFDA API</a>
+        <a href="https://www.fda.gov/drugs/questions-and-answers-fdas-adverse-event-reporting-system-faers" target="_blank" rel="noopener noreferrer">FAERS Dashboard</a>
+        <span class="footer-copy">© 2026 AIML-1870-2026</span>
+      </div>
+    </div>
+  </footer>
+
+</div><!-- #app -->
+
+<!-- ═══════════ MODAL SYSTEM ═══════════ -->
+<div class="modal-backdrop hidden" id="modal-backdrop" aria-hidden="true">
+  <div class="modal-container" id="modal-container" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-header">
+      <h2 class="modal-title" id="modal-title"></h2>
+      <button class="modal-close" id="modal-close" aria-label="Close dialog">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M2 2l12 12M14 2L2 14" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
