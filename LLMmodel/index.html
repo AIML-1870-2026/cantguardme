@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LLM Switchboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- Narrow viewport fallback -->
+  <div class="narrow-msg">
+    <strong>LLM Switchboard</strong>
+    <p>This dashboard requires a viewport of at least 1024px wide.<br>Please open it in a desktop browser.</p>
+  </div>
+
+  <!-- ═══ TOP BAR ═══ -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <span class="brand-dot"></span>
+      <span class="brand-name">LLM Switchboard</span>
+    </div>
+    <div class="topbar-keys">
+      <div class="key-badge">
+        <span class="key-dot" id="dot-openai"></span>
+        <span class="key-label" id="lbl-openai">OpenAI — no key</span>
+      </div>
+      <div class="key-badge">
+        <span class="key-dot" id="dot-anthropic"></span>
+        <span class="key-label" id="lbl-anthropic">Anthropic — no key</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══ MAIN BODY ═══ -->
+  <div class="app-body">
+
+    <!-- ─── SIDEBAR ─── -->
+    <aside class="sidebar">
+      <div class="sidebar-scroll">
+
+        <!-- Provider -->
+        <div class="cgroup">
+          <span class="clabel">Provider</span>
+          <div class="segtog" id="prov-tog">
+            <button class="seg active" data-v="openai">OpenAI</button>
+            <button class="seg" data-v="anthropic">Anthropic</button>
+          </div>
+        </div>
+
+        <!-- Model A -->
+        <div class="cgroup">
+          <label class="clabel" for="sel-a">Model</label>
+          <select class="csel" id="sel-a"></select>
+        </div>
+
+        <!-- Output Mode -->
+        <div class="cgroup">
+          <span class="clabel">Output Mode</span>
+          <div class="segtog" id="mode-tog">
+            <button class="seg active" data-v="unstructured">Unstructured</button>
+            <button class="seg" data-v="structured">Structured</button>
+          </div>
+        </div>
+
+        <!-- Schema Editor — collapsible, structured mode only -->
+        <div class="collapse-wrap" id="wrap-schema">
+          <div class="cgroup">
+            <label class="clabel" for="sel-schema">Schema Template</label>
+            <select class="csel" id="sel-schema">
+              <option value="element">Element Card</option>
+              <option value="sentiment">Sentiment Analysis</option>
+              <option value="character">RPG Character</option>
+              <option value="threat">Threat Classification</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div class="schema-wrap">
+            <textarea class="schema-ta" id="schema-ta" spellcheck="false"></textarea>
+            <div class="schema-status" id="schema-status">
+              <span class="schema-icon" id="schema-icon">✓</span>
+              <span class="schema-msg" id="schema-msg">Valid JSON</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Compare Mode -->
+        <div class="cgroup">
+          <div class="tog-row">
+            <span class="clabel no-mb">Compare Mode</span>
+            <label class="switch">
+              <input type="checkbox" id="chk-compare" />
+              <span class="sw-track"><span class="sw-thumb"></span></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Model B — collapsible, compare mode only -->
+        <div class="collapse-wrap" id="wrap-b">
+          <div class="cgroup">
+            <span class="clabel">Provider B</span>
+            <div class="segtog mini" id="prov-b-tog">
+              <button class="seg active" data-v="openai">OpenAI</button>
+              <button class="seg" data-v="anthropic">Anthropic</button>
+            </div>
+          </div>
+          <div class="cgroup">
+            <label class="clabel" for="sel-b">Model B</label>
+            <select class="csel" id="sel-b"></select>
+          </div>
+        </div>
+
+        <!-- API Key -->
+        <div class="cgroup">
+          <span class="clabel">API Key</span>
+          <div class="key-card">
+            <div class="key-display-row">
+              <span class="key-lock">🔒</span>
+              <span class="key-masked" id="key-masked">No key loaded</span>
+            </div>
+            <div class="key-btns">
+              <button class="kbtn" id="btn-paste">Paste Key</button>
+              <button class="kbtn" id="btn-upload">Upload File</button>
+              <input type="file" id="file-inp" accept=".env,.csv,.txt" hidden />
+            </div>
+            <div class="key-input-row" id="key-input-row" hidden>
+              <input type="password" class="key-inp" id="key-inp" placeholder="sk-..." />
+              <button class="kbtn-save" id="btn-key-save">Save</button>
+              <button class="kbtn-x" id="btn-key-cancel">✕</button>
+            </div>
+            <p class="key-priv">🔒 In-memory only — never stored</p>
+          </div>
+        </div>
+
+        <!-- Example Prompts -->
+        <div class="cgroup">
+          <span class="clabel">Examples</span>
+          <div class="ex-list" id="ex-list"></div>
+        </div>
+
+      </div><!-- /sidebar-scroll -->
+
+      <!-- Prompt Library button — pinned bottom -->
+      <div class="sidebar-footer">
+        <button class="lib-btn" id="btn-lib">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+          Prompt Library
+        </button>
+      </div>
+    </aside>
+
+    <!-- ─── RIGHT PANE ─── -->
+    <div class="rpane">
+
+      <!-- Prompt Input -->
+      <div class="prompt-zone">
+        <textarea class="prompt-ta" id="prompt-ta" placeholder="Enter your prompt…"></textarea>
+        <div class="prompt-toolbar">
+          <button class="btn-save-p" id="btn-save-p" title="Save to library">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
+          </button>
+          <button class="btn-send" id="btn-send">
+            <span id="send-lbl">Send</span>
+            <span class="spin" id="spin" aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Response Zone -->
+      <div class="resp-zone" id="resp-zone">
+        <div class="load-bar" id="load-bar"></div>
+
+        <div class="resp-grid" id="resp-grid">
+          <!-- Column A -->
+          <div class="rcol" id="col-a">
+            <div class="rcol-hdr">
+              <span class="rcol-name" id="name-a"></span>
+            </div>
+            <div class="rcol-body" id="body-a">
+              <div class="empty-st" id="empty-a">
+                <div class="empty-arrow">↖</div>
+                <p>Add an API key in the sidebar to get started</p>
+              </div>
+            </div>
+            <div class="imet" id="imet-a"></div>
+          </div>
+
+          <!-- Column B (compare mode) -->
+          <div class="rcol rcol-b" id="col-b" style="display:none;">
+            <div class="rcol-hdr">
+              <span class="rcol-name" id="name-b"></span>
+            </div>
+            <div class="rcol-body" id="body-b">
+              <div class="empty-st">
+                <p>Model B response will appear here</p>
+              </div>
+            </div>
+            <div class="imet" id="imet-b"></div>
+          </div>
+        </div>
+
+        <!-- Validation Report -->
+        <div class="val-wrap" id="val-wrap"></div>
+      </div>
+
+      <!-- Metrics Bar -->
+      <footer class="mbar">
+        <div class="mcell">
+          <span class="mlbl">Time</span>
+          <span class="mval" id="m-time">—</span>
+        </div>
+        <div class="msep"></div>
+        <div class="mcell">
+          <span class="mlbl">Tokens</span>
+          <span class="mval" id="m-tok">—</span>
+        </div>
+        <div class="msep"></div>
+        <div class="mcell">
+          <span class="mlbl">Characters</span>
+          <span class="mval" id="m-chr">—</span>
+        </div>
+        <div class="msep"></div>
+        <div class="mcell">
+          <span class="mlbl">Words</span>
+          <span class="mval" id="m-wrd">—</span>
+        </div>
+        <div class="mcopy">
+          <button class="btn-copy" id="btn-copy">Copy Response</button>
+          <span class="copy-ok" id="copy-ok">Copied!</span>
+        </div>
+      </footer>
+
+    </div><!-- /rpane -->
+  </div><!-- /app-body -->
+
+  <!-- ═══ PROMPT LIBRARY DRAWER ═══ -->
+  <div class="backdrop" id="backdrop"></div>
+  <div class="drawer" id="drawer">
+    <div class="drw-hdr">
+      <h2 class="drw-title">Prompt Library</h2>
+      <button class="drw-x" id="drw-x" aria-label="Close drawer">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="drw-body" id="drw-body"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
