@@ -767,9 +767,10 @@ function initCADControls() {
    TAB 3 — SENTRY WATCH
    ========================================================= */
 async function loadSentry() {
-  // limit=30 keeps response small enough for corsproxy (all=1 is ~2MB → 413)
-  const url = `${SENTRY_API}?limit=30&ps-min=-3`;
-  const cacheKey = 'sentry_top30';
+  // ps-min=-5 filters to highest-threat objects; keeps response under proxy size limit
+  // (no 'limit' param exists in this API; ps-min is the correct filter)
+  const url = `${SENTRY_API}?ps-min=-5`;
+  const cacheKey = 'sentry_ps5';
 
   try {
     const data = await apiFetch(url, cacheKey);
@@ -1099,12 +1100,9 @@ function initGlobe() {
   const fail = () => {
     loading.innerHTML = `<div style="color:var(--danger);font-family:var(--font-data);font-size:0.75rem;text-align:center;">Failed to load 3D libraries.<br>Check your connection.</div>`;
   };
-  // Load Three.js first, then globe.gl — customThreeObject needs THREE in scope
-  loadScript(
-    'https://unpkg.com/three@0.165.0/build/three.min.js',
-    () => loadScript('https://unpkg.com/globe.gl@2/dist/globe.gl.min.js', () => setupGlobe(loading), fail),
-    fail
-  );
+  // Load globe.gl only — no external Three.js (three@0.16x build/ files removed;
+  // globe.gl@2 uses its own bundled Three.js internally)
+  loadScript('https://unpkg.com/globe.gl@2/dist/globe.gl.min.js', () => setupGlobe(loading), fail);
 }
 
 function setupGlobe(loading) {
@@ -1159,12 +1157,6 @@ function setupGlobe(loading) {
     return;
   }
 
-  const THREE = window.THREE;
-  if (!THREE) {
-    loading.innerHTML = `<div style="color:var(--danger);font-family:var(--font-data);font-size:0.75rem;">THREE.js failed to load.</div>`;
-    return;
-  }
-
   try {
     const globe = GlobeFn()(container)
       .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
@@ -1172,25 +1164,30 @@ function setupGlobe(loading) {
       .showAtmosphere(true)
       .atmosphereColor('#00d4ff')
       .atmosphereAltitude(0.12)
-      .customThreeObjectsData(points)
-      .customThreeObject(d => {
-        const r = d.isMoon ? 0.025 : Math.max(0.008, Math.min(0.03, Math.log10((d.neo ? (d.neo.diamMin + d.neo.diamMax) / 2 : 1) + 1) * 0.012));
-        const geo = new THREE.SphereGeometry(r, 10, 10);
-        const mat = new THREE.MeshBasicMaterial({ color: d.color });
-        const mesh = new THREE.Mesh(geo, mat);
-        // glow ring
-        const ringGeo = new THREE.RingGeometry(r * 1.4, r * 1.9, 20);
-        const ringMat = new THREE.MeshBasicMaterial({ color: d.color, side: THREE.DoubleSide, transparent: true, opacity: 0.35 });
-        mesh.add(new THREE.Mesh(ringGeo, ringMat));
-        return mesh;
-      })
-      .customThreeObjectUpdate((obj, d) => {
-        Object.assign(obj.position, globe.getCoords(d.lat, d.lng, d.alt));
-      })
-      .customLayerLabel(d => `<div style="font-family:IBM Plex Mono,monospace;background:rgba(5,8,15,0.9);border:1px solid rgba(0,212,255,0.2);padding:6px 10px;border-radius:6px;font-size:11px;color:#e6edf3;">${d.name}${d.isMoon?'':('<br>'+d.missDist.toFixed(3)+' LD | '+d.velocity.toFixed(2)+' km/s')}</div>`)
-      .onCustomObjectClick(d => {
-        if (d.isMoon) return;
-        showGlobeDetail(d);
+      .htmlElementsData(points)
+      .htmlLat('lat')
+      .htmlLng('lng')
+      .htmlAltitude('alt')
+      .htmlElement(d => {
+        const size = d.isMoon ? 14 : Math.max(6, Math.min(12, Math.log10((d.neo ? (d.neo.diamMin + d.neo.diamMax) / 2 : 0.5) + 1) * 10 + 5));
+        const el = document.createElement('div');
+        el.style.cssText = [
+          `width:${size}px`, `height:${size}px`,
+          `border-radius:50%`,
+          `background:${d.color}`,
+          `box-shadow:0 0 ${size + 4}px ${d.color}, 0 0 ${size * 2}px ${d.color}44`,
+          `border:1px solid ${d.color}cc`,
+          `cursor:${d.isMoon ? 'default' : 'pointer'}`,
+          `pointer-events:auto`,
+          `transition:transform 0.15s`,
+        ].join(';');
+        el.title = d.isMoon ? d.name : `${d.name}\n${d.missDist.toFixed(3)} LD | ${d.velocity.toFixed(2)} km/s`;
+        if (!d.isMoon) {
+          el.addEventListener('click', () => showGlobeDetail(d));
+          el.addEventListener('mouseenter', () => { el.style.transform = 'scale(1.8)'; });
+          el.addEventListener('mouseleave', () => { el.style.transform = 'scale(1)'; });
+        }
+        return el;
       });
 
     globe.controls().autoRotate = true;
