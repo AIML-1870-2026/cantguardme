@@ -6,10 +6,11 @@
 'use strict';
 
 /* ── Constants ── */
-const NASA_KEY  = 'c1gVyjytBTtRq22pO4WjUqH8E7SFoVsVIig7Rhcf';
+const NASA_KEY   = 'c1gVyjytBTtRq22pO4WjUqH8E7SFoVsVIig7Rhcf';
 const NEOWS_BASE = 'https://api.nasa.gov/neo/rest/v1';
-const SBDB_CAD   = 'https://ssd-api.jpl.nasa.gov/cad.api';
-const SENTRY_API = 'https://ssd-api.jpl.nasa.gov/sentry.api';
+const CORS_PROXY = 'https://corsproxy.io/?';
+const SBDB_CAD   = CORS_PROXY + 'https://ssd-api.jpl.nasa.gov/cad.api';
+const SENTRY_API = CORS_PROXY + 'https://ssd-api.jpl.nasa.gov/sentry.api';
 const CACHE_TTL  = 15 * 60 * 1000; // 15 min
 
 /* ── State ── */
@@ -489,7 +490,6 @@ function renderNeoRow(neo) {
   const dMax     = neo.estimated_diameter?.meters?.estimated_diameter_max;
   const dAvg     = dMin != null ? Math.round((dMin + dMax) / 2) : null;
   const isHaz    = neo.is_potentially_hazardous_asteroid;
-  const id       = `neo-row-${neo.id}`;
 
   return `
     <div class="neo-row ${isHaz?'hazardous':'safe-row'}" onclick="toggleNeoDetail('${neo.id}')">
@@ -535,12 +535,11 @@ async function loadCAD() {
   const sizeEl  = document.getElementById('cad-size');
 
   const distLD = parseFloat(distEl.value);
-  const distAU = (distLD * 0.00257).toFixed(6);
   const hMax   = sizeEl.value ? `&h-max=${sizeEl.value}` : '';
   const start  = startEl.value || daysAgoYMD(30);
   const end    = endEl.value   || daysFromNow(30);
 
-  const url = `${SBDB_CAD}?dist-max=${distAU}&date-min=${start}&date-max=${end}${hMax}&sort=dist&limit=500`;
+  const url = `${SBDB_CAD}?dist-max=${distLD}LD&date-min=${start}&date-max=${end}&fullname=true&diameter=true${hMax}&sort=dist&limit=500`;
   const cacheKey = `cad_${start}_${end}_${distLD}_${sizeEl.value}`;
 
   document.getElementById('cad-rows').innerHTML = `<div style="display:flex;align-items:center;justify-content:center;padding:40px;"><div class="loading-spinner"></div></div>`;
@@ -802,8 +801,6 @@ function renderGauge(data) {
   const W = 260, H = 160;
   const cx = W/2, cy = H - 20;
   const R = 100;
-  const startAngle = Math.PI; // left
-  const endAngle   = 0;       // right (but we go 180 deg)
 
   // Map ps to angle: -10 = π, 0 = 0, >0 = a bit past
   const ps_min = -10, ps_max = 2;
@@ -887,8 +884,8 @@ function renderGauge(data) {
 function renderSentryStats(data) {
   const objs = data.data || [];
   const torinoPos = objs.filter(o => parseInt(o.ts_max||0) > 0);
-  const allDates  = objs.flatMap(o => [o.range_min_date, o.range_max_date]).filter(Boolean).sort();
-  const earliest  = allDates[0] || '—';
+  const allDates  = objs.map(o => o.range ? o.range.split('-')[0] : null).filter(Boolean).sort();
+  const earliest  = allDates[0] ? allDates[0] : '—';
 
   document.getElementById('sentry-summary-stats').innerHTML = `
     <div class="sentry-stat-card">
@@ -920,7 +917,7 @@ function renderSentryTable(data) {
       if (col === 'h')         return parseFloat(o.h ?? 99);
       if (col === 'ts_max')    return parseInt(o.ts_max ?? 0);
       if (col === 'n_imp')     return parseInt(o.n_imp ?? 0);
-      if (col === 'v_imp')     return parseFloat(o.v_imp ?? 0);
+      if (col === 'v_imp')     return parseFloat(o.v_inf ?? 0);
       if (col === 'last_obs')  return new Date(o.last_obs || '2000-01-01').getTime();
       return 0;
     };
@@ -945,7 +942,7 @@ function renderSentryTable(data) {
     const obsColor = yearsDiff < 1 ? 'var(--safe)' : yearsDiff < 3 ? 'var(--amber)' : 'var(--danger)';
     const psColor  = ps > 0 ? 'var(--danger)' : ps > -2 ? 'var(--amber)' : ps > -3 ? 'var(--text)' : 'var(--text2)';
     const torinoClass = ts === 0 ? 'torino-0' : ts === 1 ? 'torino-1' : ts <= 4 ? 'torino-24' : ts <= 7 ? 'torino-57' : 'torino-810';
-    const range = `${o.range_min_date||'?'} – ${o.range_max_date||'?'}`;
+    const range = o.range || '—';
 
     const safeId = (o.des||Math.random()).toString().replace(/[^a-zA-Z0-9]/g,'_');
     return `
@@ -958,7 +955,7 @@ function renderSentryTable(data) {
         <div class="sentry-cell" style="color:${psColor}">${parseFloat(o.ps_max??-99).toFixed(2)}</div>
         <div class="sentry-cell"><span class="torino-badge ${torinoClass}">${ts}</span></div>
         <div class="sentry-cell dim">${o.n_imp??'—'}</div>
-        <div class="sentry-cell dim">${o.v_imp ? parseFloat(o.v_imp).toFixed(2)+' km/s' : '—'}</div>
+        <div class="sentry-cell dim">${o.v_inf ? parseFloat(o.v_inf).toFixed(2)+' km/s' : '—'}</div>
         <div class="sentry-cell dim" style="font-size:0.55rem;">${range}</div>
         <div class="sentry-cell" style="color:${obsColor}">${o.last_obs||'—'}</div>
         <button class="cad-expand-btn" onclick="event.stopPropagation();toggleSentryDetail('${safeId}')">▾</button>
@@ -993,7 +990,6 @@ window.toggleSentryDetail = async function(safeId) {
     }
     const fields = data.fields || [];
     const fi = f => fields.indexOf(f);
-    const hiro = 15; // Hiroshima bombs per MT: 1 MT ≈ 66.7 kilotons, 1 Hiroshima ≈ 15 kilotons => ~66.7 Hiroshimas per MT
     el.innerHTML = `
       <div class="vi-table-wrap">
         <table class="vi-table">
@@ -1094,16 +1090,20 @@ function initGlobe() {
   state.globeLoaded = true;
   const loading = document.getElementById('globe-loading');
 
-  // Load globe.gl dynamically
-  const script = document.createElement('script');
-  script.src = 'https://unpkg.com/globe.gl@2/dist/globe.gl.min.js';
-  script.onload = () => setupGlobe(loading);
-  script.onerror = () => {
-    loading.innerHTML = `<div style="color:var(--danger);font-family:var(--font-data);font-size:0.75rem;text-align:center;">
-      Failed to load globe.gl library.<br>Check your connection.
-    </div>`;
+  function loadScript(src, onload, onerror) {
+    const s = document.createElement('script');
+    s.src = src; s.onload = onload; s.onerror = onerror;
+    document.head.appendChild(s);
+  }
+  const fail = () => {
+    loading.innerHTML = `<div style="color:var(--danger);font-family:var(--font-data);font-size:0.75rem;text-align:center;">Failed to load 3D libraries.<br>Check your connection.</div>`;
   };
-  document.head.appendChild(script);
+  // Load Three.js first, then globe.gl — customThreeObject needs THREE in scope
+  loadScript(
+    'https://unpkg.com/three@0.160.0/build/three.min.js',
+    () => loadScript('https://unpkg.com/globe.gl@2/dist/globe.gl.min.js', () => setupGlobe(loading), fail),
+    fail
+  );
 }
 
 function setupGlobe(loading) {
@@ -1126,7 +1126,7 @@ function setupGlobe(loading) {
   const points = neos.map(neo => {
     const { lat, lng } = idToLatLng(neo.id);
     const diam = (neo.diamMin + neo.diamMax) / 2;
-    const alt  = Math.max(0.05, Math.log2(1 + neo.missDist) * 0.5);
+    const alt  = Math.max(0.15, Math.min(1.2, Math.log2(1 + neo.missDist) * 0.22));
     return {
       lat, lng, alt,
       name:      neo.name,
@@ -1141,7 +1141,7 @@ function setupGlobe(loading) {
 
   // Moon point
   points.push({
-    lat: 0, lng: 0, alt: 0.5,
+    lat: 0, lng: 0, alt: 1.35,
     name: 'Moon — 1 LD',
     color: '#888888',
     radius: 1.5,
@@ -1152,19 +1152,42 @@ function setupGlobe(loading) {
     neo: null,
   });
 
+  const GlobeFn = window.Globe;
+  if (!GlobeFn) {
+    loading.innerHTML = `<div style="color:var(--danger);font-family:var(--font-data);font-size:0.75rem;">globe.gl failed to load.</div>`;
+    return;
+  }
+
+  const THREE = window.THREE;
+  if (!THREE) {
+    loading.innerHTML = `<div style="color:var(--danger);font-family:var(--font-data);font-size:0.75rem;">THREE.js failed to load.</div>`;
+    return;
+  }
+
   try {
-    const globe = Globe()(container)
+    const globe = GlobeFn()(container)
       .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
-      .backgroundColor('rgba(0,0,0,0)')
-      .pointsData(points)
-      .pointLat('lat')
-      .pointLng('lng')
-      .pointAltitude('alt')
-      .pointColor('color')
-      .pointRadius('radius')
-      .pointResolution(8)
-      .pointLabel(d => `<div style="font-family:IBM Plex Mono,monospace;background:rgba(5,8,15,0.9);border:1px solid rgba(0,212,255,0.2);padding:6px 10px;border-radius:6px;font-size:11px;color:#e6edf3;">${d.name}${d.isMoon?'':('<br>'+d.missDist.toFixed(3)+' LD | '+d.velocity.toFixed(2)+' km/s')}</div>`)
-      .onPointClick(d => {
+      .backgroundColor('#05080f')
+      .showAtmosphere(true)
+      .atmosphereColor('#00d4ff')
+      .atmosphereAltitude(0.12)
+      .customThreeObjectsData(points)
+      .customThreeObject(d => {
+        const r = d.isMoon ? 0.025 : Math.max(0.008, Math.min(0.03, Math.log10((d.neo ? (d.neo.diamMin + d.neo.diamMax) / 2 : 1) + 1) * 0.012));
+        const geo = new THREE.SphereGeometry(r, 10, 10);
+        const mat = new THREE.MeshBasicMaterial({ color: d.color });
+        const mesh = new THREE.Mesh(geo, mat);
+        // glow ring
+        const ringGeo = new THREE.RingGeometry(r * 1.4, r * 1.9, 20);
+        const ringMat = new THREE.MeshBasicMaterial({ color: d.color, side: THREE.DoubleSide, transparent: true, opacity: 0.35 });
+        mesh.add(new THREE.Mesh(ringGeo, ringMat));
+        return mesh;
+      })
+      .customThreeObjectUpdate((obj, d) => {
+        Object.assign(obj.position, globe.getCoords(d.lat, d.lng, d.alt));
+      })
+      .customLayerLabel(d => `<div style="font-family:IBM Plex Mono,monospace;background:rgba(5,8,15,0.9);border:1px solid rgba(0,212,255,0.2);padding:6px 10px;border-radius:6px;font-size:11px;color:#e6edf3;">${d.name}${d.isMoon?'':('<br>'+d.missDist.toFixed(3)+' LD | '+d.velocity.toFixed(2)+' km/s')}</div>`)
+      .onCustomObjectClick(d => {
         if (d.isMoon) return;
         showGlobeDetail(d);
       });
@@ -1173,7 +1196,6 @@ function setupGlobe(loading) {
     globe.controls().autoRotateSpeed = 0.3;
     state.globeInstance = globe;
 
-    // Populate sidebar
     renderGlobeSidebar(points.filter(p => !p.isMoon), globe);
 
     loading.style.display = 'none';
@@ -1247,13 +1269,10 @@ const Game = (() => {
   let particles;
   let scorePopups;
   let waveNum, waveActive, wavePending;
-  let currentNEOs;
   let nextSpawnIdx, spawnTimer, waveSpawnDelay, waveSpeedMult;
-  let weaponCooldown, weaponDisabledUntil;
   let lastShotTime;
   let shakeIntensity;
   let gameOver;
-  let victory;
 
   // Spawn timing per wave
   const WAVE_CONFIG = [
@@ -1278,7 +1297,7 @@ const Game = (() => {
     orbitR = Math.min(W, H) * 0.28;
   }
 
-  function init(neoData) {
+  function init() {
     canvas = document.getElementById('game-canvas');
     ctx    = canvas.getContext('2d');
     resize();
@@ -1296,17 +1315,11 @@ const Game = (() => {
     waveNum   = 0;
     waveActive = false;
     wavePending = false;
-    weaponCooldown    = 0;
-    weaponDisabledUntil = 0;
     lastShotTime = 0;
     shakeIntensity = 0;
     gameOver = false;
-    victory  = false;
 
     // Flatten neoData into wave batches
-    const all = neoData ? [...neoData] : [];
-    // 7 waves from days
-    currentNEOs = all;
 
     setupInputs();
     startWave(1);
@@ -1349,7 +1362,6 @@ const Game = (() => {
     const now = Date.now();
     if (now - lastShotTime < 120) return; // ~8 shots/sec
     lastShotTime = now;
-    weaponCooldown = 120;
 
     const sx = cx + orbitR * Math.cos(shipAngle);
     const sy = cy + orbitR * Math.sin(shipAngle);
@@ -1476,8 +1488,6 @@ const Game = (() => {
   function update() {
     if (gameOver) return;
 
-    const now = Date.now();
-
     // Ship rotation
     const turnAcc = 0.003;
     const friction = 0.88;
@@ -1516,13 +1526,11 @@ const Game = (() => {
         continue;
       }
       // Check vs asteroids
-      let hit = false;
       for (let j = asteroids.length - 1; j >= 0; j--) {
         const a = asteroids[j];
         const dx = l.x - a.x, dy = l.y - a.y;
         if (Math.sqrt(dx*dx + dy*dy) < a.radius) {
           lasers.splice(i, 1);
-          hit = true;
           a.hp--;
           // Flash
           a.flashTimer = 6;
@@ -1881,7 +1889,6 @@ const Game = (() => {
   }
 
   function drawReticle() {
-    const now = Date.now();
     ctx.strokeStyle = 'rgba(0,212,255,0.5)';
     ctx.lineWidth = 1.5;
 
@@ -1903,7 +1910,6 @@ const Game = (() => {
 
   function endGame(isVictory) {
     gameOver = true;
-    victory  = isVictory;
     running  = false;
 
     const title    = document.getElementById('go-title');
@@ -1976,7 +1982,7 @@ function initGameUI() {
     briefing.classList.add('hidden');
     canvasWrap.classList.add('active');
     document.getElementById('game-over').classList.remove('open');
-    Game.init(state.neoList);
+    Game.init();
   }
 
   playBtn.addEventListener('click', openGame);
