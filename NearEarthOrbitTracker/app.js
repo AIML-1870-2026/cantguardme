@@ -767,8 +767,9 @@ function initCADControls() {
    TAB 3 — SENTRY WATCH
    ========================================================= */
 async function loadSentry() {
-  const url = `${SENTRY_API}?all=1`;
-  const cacheKey = 'sentry_all';
+  // limit=30 keeps response small enough for corsproxy (all=1 is ~2MB → 413)
+  const url = `${SENTRY_API}?limit=30&ps-min=-3`;
+  const cacheKey = 'sentry_top30';
 
   try {
     const data = await apiFetch(url, cacheKey);
@@ -1100,7 +1101,7 @@ function initGlobe() {
   };
   // Load Three.js first, then globe.gl — customThreeObject needs THREE in scope
   loadScript(
-    'https://unpkg.com/three@0.160.0/build/three.min.js',
+    'https://unpkg.com/three@0.165.0/build/three.min.js',
     () => loadScript('https://unpkg.com/globe.gl@2/dist/globe.gl.min.js', () => setupGlobe(loading), fail),
     fail
   );
