@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Product Review Generator</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- marked.js for Markdown rendering -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/11.1.1/marked.min.js"></script>
+
+  <!-- DOMPurify for sanitization -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ── HEADER ────────────────────────────────────────────── -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="header-brand">
+        <span class="brand-icon">✦</span>
+        <div>
+          <h1 class="brand-title">ReviewCraft</h1>
+          <p class="brand-sub">AI-Powered Product Review Generator</p>
+        </div>
+      </div>
+      <div class="header-status">
+        <div class="status-pill" id="key-status">
+          <span class="status-dot" id="status-dot"></span>
+          <span class="status-text" id="status-text">Load .env to begin</span>
+        </div>
+        <div class="model-badge" id="model-badge" style="display:none"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── MAIN LAYOUT ───────────────────────────────────────── -->
+  <main class="layout">
+
+    <!-- LEFT COLUMN: Controls -->
+    <div class="col-controls">
+
+      <!-- ── CARD: API Key ── -->
+      <section class="card" id="card-apikey">
+        <div class="card-header">
+          <h2 class="card-title">API Key</h2>
+        </div>
+        <div class="key-card">
+
+          <!-- Drop zone -->
+          <div class="key-drop-zone" id="key-drop-zone">
+            <input type="file" id="env-file-input" accept=".env,.csv,text/plain,text/csv" style="display:none" />
+            <div class="key-drop-inner" id="key-drop-inner">
+              <span class="key-drop-icon" id="key-drop-icon">⊕</span>
+              <p class="key-drop-title" id="key-drop-title">Drop <code>.env</code> or <code>.csv</code> here</p>
+              <p class="key-drop-sub">or <button class="key-browse-btn" id="key-browse-btn">browse to select</button></p>
+            </div>
+          </div>
+
+          <!-- Masked display -->
+          <div class="key-display-row">
+            <span class="key-lock">🔒</span>
+            <span class="key-masked" id="key-masked">No key loaded</span>
+          </div>
+
+          <!-- Paste key option -->
+          <div class="key-btns">
+            <button class="kbtn" id="btn-paste">Paste Key</button>
+          </div>
+          <div class="key-input-row" id="key-input-row" hidden>
+            <input type="password" class="key-inp" id="key-inp" placeholder="sk-…" autocomplete="off" />
+            <button class="kbtn-save" id="btn-key-save">Save</button>
+            <button class="kbtn-x" id="btn-key-cancel">✕</button>
+          </div>
+
+          <p class="key-priv">🔒 In-memory only — never stored</p>
+        </div>
+      </section>
+
+      <!-- FTC Disclaimer -->
+      <div class="disclaimer-banner">
+        <span class="disclaimer-icon">⚠</span>
+        <p><strong>Educational Use Only.</strong> AI-generated reviews are prohibited by FTC rule (effective Oct 21, 2024) from being published as genuine consumer reviews.</p>
+      </div>
+
+      <!-- ── CARD: LLM Selection ── -->
+      <section class="card" id="card-model">
+        <div class="card-header">
+          <h2 class="card-title">Model Selection</h2>
+          <span class="card-badge" id="model-count-badge">Discovering…</span>
+        </div>
+        <div class="field">
+          <label class="field-label" for="model-select">GPT Model</label>
+          <div class="select-wrapper">
+            <select id="model-select" class="select-input" disabled>
+              <option value="">Loading models…</option>
+            </select>
+            <span class="select-arrow">▾</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── CARD: Product Info ── -->
+      <section class="card" id="card-product">
+        <div class="card-header">
+          <h2 class="card-title">Product Info</h2>
+        </div>
+        <div class="field">
+          <label class="field-label" for="product-name">Product Name <span class="required">*</span></label>
+          <input type="text" id="product-name" class="text-input" placeholder="e.g. Sony WH-1000XM5 Headphones" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label class="field-label" for="category-select">Category <span class="required">*</span></label>
+          <div class="select-wrapper">
+            <select id="category-select" class="select-input">
+              <option value="Electronics">Electronics</option>
+              <option value="Home & Kitchen">Home &amp; Kitchen</option>
+              <option value="Clothing & Apparel">Clothing &amp; Apparel</option>
+              <option value="Books & Media">Books &amp; Media</option>
+              <option value="Food & Beverage">Food &amp; Beverage</option>
+              <option value="Health & Beauty">Health &amp; Beauty</option>
+              <option value="Sports & Outdoors">Sports &amp; Outdoors</option>
+              <option value="Toys & Games">Toys &amp; Games</option>
+              <option value="Automotive">Automotive</option>
+              <option value="Software & Apps">Software &amp; Apps</option>
+              <option value="Other">Other</option>
+            </select>
+            <span class="select-arrow">▾</span>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="comments">Comments &amp; Instructions</label>
+          <textarea id="comments" class="textarea-input" rows="4"
+            placeholder="Describe key features, strengths, weaknesses, specific experiences, or any custom instructions for the AI…"></textarea>
+        </div>
+      </section>
+
+      <!-- ── CARD: Review Controls ── -->
+      <section class="card" id="card-controls">
+        <div class="card-header">
+          <h2 class="card-title">Review Controls</h2>
+        </div>
+
+        <!-- Length Slider -->
+        <div class="field">
+          <div class="slider-header">
+            <label class="field-label" for="length-slider">Review Length</label>
+            <span class="slider-value-label" id="length-label">Short</span>
+          </div>
+          <div class="slider-track-wrap">
+            <input type="range" id="length-slider" class="snap-slider"
+              min="0" max="3" step="1" value="1"
+              aria-label="Review Length" aria-valuemin="0" aria-valuemax="3" aria-valuenow="1" />
+            <div class="snap-detents">
+              <span>Brief</span><span>Short</span><span>Medium</span><span>Detailed</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tone Slider -->
+        <div class="field">
+          <div class="slider-header">
+            <label class="field-label" for="tone-slider">Tone / Style</label>
+            <span class="slider-value-label" id="tone-label">Balanced</span>
+          </div>
+          <div class="slider-track-wrap">
+            <input type="range" id="tone-slider" class="snap-slider"
+              min="0" max="4" step="1" value="2"
+              aria-label="Tone and Style" aria-valuemin="0" aria-valuemax="4" aria-valuenow="2" />
+            <div class="snap-detents">
+              <span>Casual</span><span>Conversational</span><span>Balanced</span><span>Professional</span><span>Technical</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── CARD: Sentiment ── -->
+      <section class="card" id="card-sentiment">
+        <div class="card-header">
+          <h2 class="card-title">Sentiment</h2>
+          <button class="btn-ghost" id="reset-sentiments">Reset All</button>
+        </div>
+
+        <!-- Overall (master) -->
+        <div class="sentiment-row master-row">
+          <div class="sentiment-info">
+            <span class="sentiment-name">Overall Sentiment</span>
+            <span class="sentiment-badge" id="badge-overall">50 — Neutral</span>
+          </div>
+          <div class="sentiment-track">
+            <input type="range" id="slider-overall" class="sentiment-slider"
+              min="0" max="100" step="1" value="50"
+              aria-label="Overall Sentiment" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" />
+          </div>
+        </div>
+
+        <div class="sentiment-divider">
+          <span>Aspect Breakdown</span>
+        </div>
+
+        <!-- Price -->
+        <div class="sentiment-row">
+          <div class="sentiment-info">
+            <span class="sentiment-name">Price / Value</span>
+            <span class="sentiment-badge" id="badge-price">50 — Neutral</span>
+          </div>
+          <div class="sentiment-track">
+            <input type="range" id="slider-price" class="sentiment-slider aspect-slider"
+              min="0" max="100" step="1" value="50"
+              aria-label="Price and Value sentiment" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" />
+          </div>
+        </div>
+
+        <!-- Features -->
+        <div class="sentiment-row">
+          <div class="sentiment-info">
+            <span class="sentiment-name">Features / Functionality</span>
+            <span class="sentiment-badge" id="badge-features">50 — Neutral</span>
+          </div>
+          <div class="sentiment-track">
+            <input type="range" id="slider-features" class="sentiment-slider aspect-slider"
+              min="0" max="100" step="1" value="50"
+              aria-label="Features and Functionality sentiment" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" />
+          </div>
+        </div>
+
+        <!-- Usability -->
+        <div class="sentiment-row">
+          <div class="sentiment-info">
+            <span class="sentiment-name">Usability / Ease of Use</span>
+            <span class="sentiment-badge" id="badge-usability">50 — Neutral</span>
+          </div>
+          <div class="sentiment-track">
+            <input type="range" id="slider-usability" class="sentiment-slider aspect-slider"
+              min="0" max="100" step="1" value="50"
+              aria-label="Usability and Ease of Use sentiment" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" />
+          </div>
+        </div>
+
+        <!-- Quality -->
+        <div class="sentiment-row">
+          <div class="sentiment-info">
+            <span class="sentiment-name">Quality / Durability</span>
+            <span class="sentiment-badge" id="badge-quality">50 — Neutral</span>
+          </div>
+          <div class="sentiment-track">
+            <input type="range" id="slider-quality" class="sentiment-slider aspect-slider"
+              min="0" max="100" step="1" value="50"
+              aria-label="Quality and Durability sentiment" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" />
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Generate Button ── -->
+      <button class="btn-generate" id="btn-generate" disabled>
+        <span class="btn-generate-inner">
+          <span class="btn-icon" id="btn-icon">✦</span>
+          <span id="btn-text">Generate Review</span>
+        </span>
+      </button>
+
+    </div><!-- /col-controls -->
+
+    <!-- RIGHT COLUMN: Output -->
+    <div class="col-output">
+      <div class="output-panel" id="output-panel">
+
+        <div class="output-header">
+          <h2 class="output-title">Generated Review</h2>
+          <button class="btn-download" id="btn-download" style="display:none">
+            <span>↓</span> Download .md
+          </button>
+        </div>
+
+        <!-- Empty state -->
+        <div class="output-empty" id="output-empty">
+          <div class="empty-icon">✦</div>
+          <p class="empty-title">Your review will appear here</p>
+          <p class="empty-sub">Fill in product details and click Generate Review</p>
+        </div>
+
+        <!-- Skeleton loader -->
+        <div class="skeleton-wrap" id="skeleton-wrap" style="display:none">
+          <div class="skeleton-line w-60"></div>
+          <div class="skeleton-line w-90"></div>
+          <div class="skeleton-line w-75"></div>
+          <div class="skeleton-line w-90"></div>
+          <div class="skeleton-line w-50"></div>
+          <div class="skeleton-line w-90"></div>
+          <div class="skeleton-line w-80"></div>
+          <div class="skeleton-line w-90"></div>
+          <div class="skeleton-line w-65"></div>
+          <div class="skeleton-line w-90"></div>
+          <div class="skeleton-line w-40"></div>
+        </div>
+
+        <!-- Review content -->
+        <div class="review-content" id="review-content" style="display:none"></div>
+
+        <!-- Error state -->
+        <div class="error-message" id="error-message" style="display:none">
+          <span class="error-icon">⚠</span>
+          <div>
+            <strong>Generation Failed</strong>
+            <p id="error-text"></p>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /col-output -->
+
+  </main>
+
+  <footer class="site-footer">
+    <p>ReviewCraft — Educational use only. AI-generated reviews may not be published as genuine consumer reviews per FTC guidelines.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
