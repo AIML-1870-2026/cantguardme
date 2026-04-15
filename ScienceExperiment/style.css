@@ -31,6 +31,10 @@
 ═══════════════════════════════════════════════════════════════ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Reinforce the hidden attribute — Chrome's UA stylesheet omits !important,
+   so any author display: flex/block would silently override it otherwise. */
+[hidden] { display: none !important; }
+
 html { scroll-behavior: smooth; }
 
 body {
