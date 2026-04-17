@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Blackjack — AI Agent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/table.css" />
+  <link rel="stylesheet" href="css/orb.css" />
+  <link rel="stylesheet" href="css/panels.css" />
+  <link rel="stylesheet" href="css/levels.css" />
+</head>
+<body class="level-1">
+
+  <!-- Atmospheric background layers -->
+  <div class="bg-base" aria-hidden="true"></div>
+  <div class="bg-grain" aria-hidden="true"></div>
+  <div class="bg-vignette" aria-hidden="true"></div>
+  <div class="bg-particles" id="bg-particles" aria-hidden="true"></div>
+
+  <!-- ═══ TOP BAR ═══ -->
+  <header class="top-bar">
+    <div class="level-indicator" id="level-indicator" aria-label="Current level">
+      <span class="level-roman" id="level-roman">I</span>
+      <div class="level-info">
+        <span class="level-name" id="level-name">The Lounge</span>
+        <span class="level-progress-bar"><span class="level-progress-fill" id="level-progress-fill"></span></span>
+      </div>
+    </div>
+
+    <div class="title-block">
+      <h1 class="game-title">Blackjack <em>with</em> <span class="title-ai">AI Agents</span></h1>
+    </div>
+
+    <div class="top-actions">
+      <button class="top-btn" id="btn-about" aria-label="About this game">About</button>
+      <button class="top-btn icon-btn" id="btn-history" aria-label="Hand history" title="Hand History">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4">
+          <rect x="2" y="2" width="16" height="16" rx="2"/><line x1="6" y1="7" x2="14" y2="7"/><line x1="6" y1="10" x2="14" y2="10"/><line x1="6" y1="13" x2="11" y2="13"/>
+        </svg>
+      </button>
+      <button class="top-btn icon-btn" id="btn-dashboard-toggle" aria-label="Analytics dashboard" title="Shift+D">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4">
+          <rect x="2" y="10" width="4" height="8" rx="1"/><rect x="8" y="6" width="4" height="12" rx="1"/><rect x="14" y="2" width="4" height="16" rx="1"/>
+        </svg>
+      </button>
+      <button class="top-btn icon-btn" id="btn-mute" aria-label="Toggle mute" title="M">
+        <svg id="icon-sound" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4">
+          <polygon points="8 4 4 7 2 7 2 13 4 13 8 16 8 4"/>
+          <path d="M11.5 7.5a4 4 0 0 1 0 5"/><path d="M14 5.5a7 7 0 0 1 0 9"/>
+        </svg>
+        <svg id="icon-muted" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" hidden>
+          <polygon points="8 4 4 7 2 7 2 13 4 13 8 16 8 4"/>
+          <line x1="13" y1="7" x2="19" y2="13"/><line x1="19" y1="7" x2="13" y2="13"/>
+        </svg>
+      </button>
+      <button class="top-btn icon-btn" id="btn-settings" aria-label="Settings" title="Shift+S">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4">
+          <circle cx="10" cy="10" r="2.5"/>
+          <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ═══ MAIN GAME AREA ═══ -->
+  <main class="game-area" id="game-area">
+
+    <!-- Felt table -->
+    <div class="felt-table" id="felt-table">
+      <div class="table-inner">
+
+        <!-- Deck indicator (top-right) -->
+        <div class="deck-indicator" id="deck-indicator" aria-label="Deck position">
+          <div class="deck-visual" id="deck-visual">
+            <div class="deck-card dc-1"></div>
+            <div class="deck-card dc-2"></div>
+            <div class="deck-card dc-3"></div>
+          </div>
+          <span class="deck-label">Deck</span>
+        </div>
+
+        <!-- Dealer zone -->
+        <div class="dealer-zone" id="dealer-zone">
+          <div class="zone-label">Dealer</div>
+          <div class="cards-row dealer-cards-row" id="dealer-cards" aria-label="Dealer's hand"></div>
+          <div class="hand-score dealer-score-display" id="dealer-score" aria-live="polite"></div>
+        </div>
+
+        <!-- Table center -->
+        <div class="table-center">
+          <div class="table-brand">♠ &nbsp; Blackjack &nbsp; ♠</div>
+          <div class="bet-circle" id="bet-circle">
+            <div class="bet-chips-stack" id="bet-chips-stack"></div>
+            <div class="bet-circle-label">Bet</div>
+            <div class="bet-amount-display" id="bet-amount-display">$0</div>
+          </div>
+        </div>
+
+        <!-- Player zone -->
+        <div class="player-zone" id="player-zone">
+          <div class="hand-score player-score-display" id="player-score" aria-live="polite"></div>
+          <div class="cards-row player-cards-row" id="player-cards" aria-label="Your hand"></div>
+          <div class="zone-label player-label">You</div>
+        </div>
+
+        <!-- Outcome overlay -->
+        <div class="outcome-overlay" id="outcome-overlay" hidden aria-live="assertive">
+          <div class="outcome-text" id="outcome-text"></div>
+          <div class="outcome-sub" id="outcome-sub"></div>
+        </div>
+
+        <!-- Action buttons -->
+        <div class="action-row" id="action-row" hidden>
+          <button class="action-btn btn-hit"       id="btn-hit"       aria-label="Hit (H)" hidden>Hit <kbd>H</kbd></button>
+          <button class="action-btn btn-stand"     id="btn-stand"     aria-label="Stand (S)" hidden>Stand <kbd>S</kbd></button>
+          <button class="action-btn btn-double"    id="btn-double"    aria-label="Double Down (D)" hidden>Double <kbd>D</kbd></button>
+          <button class="action-btn btn-split"     id="btn-split"     aria-label="Split (P)" hidden>Split <kbd>P</kbd></button>
+          <button class="action-btn btn-surrender" id="btn-surrender" aria-label="Surrender (R)" hidden>Surrender <kbd>R</kbd></button>
+        </div>
+
+        <!-- Execute recommendation (Advisor mode) -->
+        <div class="execute-row" id="execute-row" hidden>
+          <button class="btn-execute" id="btn-execute" aria-label="Execute AI recommendation (Space)">
+            <span class="execute-chevron">▶</span> Execute Recommendation <kbd>Space</kbd>
+          </button>
+        </div>
+
+        <!-- Betting zone (shown during betting phase) -->
+        <div class="betting-zone" id="betting-zone">
+          <div class="balance-block">
+            <div class="balance-label">Balance</div>
+            <div class="balance-amount" id="balance-amount" aria-live="polite">$1,000</div>
+            <div class="balance-chips" id="balance-chips"></div>
+          </div>
+
+          <div class="chip-tray-wrap">
+            <div class="chip-tray" id="chip-tray" role="group" aria-label="Chip denominations"></div>
+          </div>
+
+          <div class="bet-controls">
+            <div class="bet-input-wrap">
+              <label for="bet-input" class="bet-input-label">Bet Amount</label>
+              <div class="bet-input-row">
+                <button class="bet-adj" id="bet-dec" aria-label="Decrease bet">−</button>
+                <input type="number" id="bet-input" class="bet-input" value="10" min="5" step="5" aria-label="Bet amount" />
+                <button class="bet-adj" id="bet-inc" aria-label="Increase bet">+</button>
+              </div>
+            </div>
+            <button class="btn-clear-bet" id="btn-clear-bet" aria-label="Clear bet">Clear</button>
+            <button class="btn-deal" id="btn-deal" aria-label="Deal cards (Space)" disabled>
+              Deal <kbd>Space</kbd>
+            </button>
+          </div>
+        </div>
+
+        <!-- New hand button (shown after round complete) -->
+        <div class="new-hand-row" id="new-hand-row" hidden>
+          <button class="btn-new-hand" id="btn-new-hand" aria-label="Deal next hand (Space)">
+            New Hand <kbd>Space</kbd>
+          </button>
+        </div>
+
+      </div><!-- /table-inner -->
+    </div><!-- /felt-table -->
+
+    <!-- ═══ DEALER AI ORB ═══ -->
+    <div class="orb-container" id="orb-container">
+      <div class="orb-wrap" id="orb-wrap">
+        <div class="orb" id="orb" aria-label="AI Dealer Orb">
+          <div class="orb-glow orb-glow-3"></div>
+          <div class="orb-glow orb-glow-2"></div>
+          <div class="orb-glow orb-glow-1"></div>
+          <div class="orb-core" id="orb-core"></div>
+          <div class="orb-thinking-dots" id="orb-dots">
+            <span class="orb-dot"></span><span class="orb-dot"></span><span class="orb-dot"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Speech bubble -->
+      <div class="bubble" id="bubble" hidden aria-live="polite">
+        <div class="bubble-inner">
+          <div class="bubble-text" id="bubble-text"></div><span class="bubble-cursor" id="bubble-cursor"></span>
+          <div class="bubble-footer">
+            <div class="bubble-meta" id="bubble-meta"></div>
+            <button class="bubble-why-btn" id="bubble-why" hidden>Why?</button>
+          </div>
+          <div class="bubble-strategy-row" id="bubble-strategy-row" hidden>
+            <span class="strategy-badge" id="strategy-badge"></span>
+          </div>
+        </div>
+        <div class="bubble-tail"></div>
+      </div>
+
+      <!-- Long reasoning expand panel -->
+      <div class="why-panel" id="why-panel" hidden>
+        <button class="why-close" id="why-close" aria-label="Close reasoning">✕</button>
+        <div class="why-text" id="why-text"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ═══ DASHBOARD DRAWER (bottom) ═══ -->
+  <div class="dashboard-drawer" id="dashboard-drawer" aria-hidden="true">
+    <button class="drawer-tab" id="dashboard-tab" aria-label="Toggle analytics dashboard">
+      <span>Analytics</span>
+      <svg class="tab-caret" viewBox="0 0 16 10" fill="none" stroke="currentColor" stroke-width="1.5">
+        <polyline points="1 9 8 2 15 9"/>
+      </svg>
+    </button>
+    <div class="drawer-body" id="dashboard-body">
+      <div class="dash-stats-grid">
+        <div class="dash-stat">
+          <div class="dash-stat-val" id="stat-winrate">—</div>
+          <div class="dash-stat-lbl">Win Rate</div>
+        </div>
+        <div class="dash-stat">
+          <div class="dash-stat-val" id="stat-roi">—</div>
+          <div class="dash-stat-lbl">ROI</div>
+        </div>
+        <div class="dash-stat">
+          <div class="dash-stat-val" id="stat-quality">—</div>
+          <div class="dash-stat-lbl">Strategy Match</div>
+        </div>
+        <div class="dash-stat">
+          <div class="dash-stat-val" id="stat-confidence">—</div>
+          <div class="dash-stat-lbl">Avg Confidence</div>
+        </div>
+        <div class="dash-stat">
+          <div class="dash-stat-val" id="stat-hands">0</div>
+          <div class="dash-stat-lbl">Hands Played</div>
+        </div>
+        <div class="dash-stat">
+          <div class="dash-stat-val" id="stat-cost">$0.00</div>
+          <div class="dash-stat-lbl">Est. Token Cost</div>
+        </div>
+      </div>
+      <div class="bankroll-chart-wrap">
+        <div class="chart-label">Bankroll History</div>
+        <canvas id="bankroll-chart" height="80" aria-label="Bankroll over time chart"></canvas>
+      </div>
+      <div class="dash-actions">
+        <button class="btn-export" id="btn-export-log">Export Session JSON</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SETTINGS DRAWER (right) ═══ -->
+  <div class="settings-overlay" id="settings-overlay" aria-hidden="true">
+    <div class="settings-drawer" id="settings-drawer" role="dialog" aria-label="Settings" aria-modal="true">
+      <div class="settings-header">
+        <h2>Settings</h2>
+        <button class="btn-close-panel" id="btn-close-settings" aria-label="Close settings">✕</button>
+      </div>
+      <div class="settings-body">
+
+        <!-- API Keys -->
+        <section class="settings-section">
+          <h3>API Keys</h3>
+          <p class="settings-note">Keys are held in memory only — never persisted or logged.</p>
+          <div class="drop-zone" id="env-drop-zone" tabindex="0" role="button" aria-label="Upload .env file">
+            <span class="drop-icon">⬆</span>
+            <span>Drop <code>.env</code> file here or <label class="browse-label">browse<input type="file" id="env-file-input" accept=".env,.txt" hidden /></label></span>
+          </div>
+          <div class="key-status-list" id="key-status-list">
+            <div class="key-row"><span class="key-dot" id="dot-openai"></span><span id="lbl-openai">OpenAI: no key</span></div>
+            <div class="key-row"><span class="key-dot" id="dot-anthropic"></span><span id="lbl-anthropic">Anthropic: no key</span></div>
+            <div class="key-row"><span class="key-dot" id="dot-gemini"></span><span id="lbl-gemini">Gemini: no key</span></div>
+          </div>
+        </section>
+
+        <!-- Provider / Model -->
+        <section class="settings-section">
+          <h3>AI Provider</h3>
+          <div class="settings-field">
+            <label for="provider-select">Provider</label>
+            <select id="provider-select" class="settings-select">
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="gemini">Gemini</option>
+            </select>
+          </div>
+          <div class="settings-field">
+            <label for="model-select">Model</label>
+            <select id="model-select" class="settings-select">
+              <option value="gpt-4o-mini">gpt-4o-mini</option>
+              <option value="gpt-4o">gpt-4o</option>
+              <option value="gpt-4-turbo">gpt-4-turbo</option>
+              <option value="o1-mini">o1-mini</option>
+            </select>
+          </div>
+          <button class="btn-refresh-models" id="btn-refresh-models" aria-label="Refresh model list">↻ Refresh Models</button>
+        </section>
+
+        <!-- Risk Profile -->
+        <section class="settings-section">
+          <h3>Risk Profile</h3>
+          <div class="risk-btns" role="group" aria-label="Risk profile">
+            <button class="risk-btn" data-profile="conservative">Conservative</button>
+            <button class="risk-btn active" data-profile="balanced">Balanced</button>
+            <button class="risk-btn" data-profile="aggressive">Aggressive</button>
+          </div>
+          <p class="risk-desc" id="risk-desc">Follow basic strategy closely. Take positive-EV risks but avoid marginal plays.</p>
+        </section>
+
+        <!-- Play Mode -->
+        <section class="settings-section">
+          <h3>Play Mode</h3>
+          <div class="mode-btns" role="group" aria-label="Play mode">
+            <button class="mode-btn active" id="mode-advisor">Advisor</button>
+            <button class="mode-btn" id="mode-autoplay">Autoplay</button>
+          </div>
+          <p class="mode-desc" id="mode-desc">AI recommends an action. You confirm before it executes.</p>
+        </section>
+
+        <!-- Audio -->
+        <section class="settings-section">
+          <h3>Audio</h3>
+          <div class="settings-field volume-field">
+            <label for="volume-slider">Volume</label>
+            <input type="range" id="volume-slider" min="0" max="100" value="60" class="volume-slider" aria-label="Master volume" />
+            <span id="volume-pct">60%</span>
+          </div>
+          <label class="checkbox-label">
+            <input type="checkbox" id="captions-toggle" />
+            Show audio captions
+          </label>
+        </section>
+
+        <!-- Keyboard shortcuts reference -->
+        <section class="settings-section">
+          <h3>Keyboard Shortcuts</h3>
+          <div class="shortcuts-ref">
+            <div><kbd>Space</kbd><span>Play / Execute</span></div>
+            <div><kbd>H</kbd><span>Hit</span></div>
+            <div><kbd>S</kbd><span>Stand</span></div>
+            <div><kbd>D</kbd><span>Double</span></div>
+            <div><kbd>P</kbd><span>Split</span></div>
+            <div><kbd>R</kbd><span>Surrender</span></div>
+            <div><kbd>M</kbd><span>Mute</span></div>
+            <div><kbd>⇧S</kbd><span>Settings</span></div>
+            <div><kbd>⇧D</kbd><span>Dashboard</span></div>
+            <div><kbd>?</kbd><span>Shortcuts</span></div>
+          </div>
+        </section>
+
+      </div><!-- /settings-body -->
+    </div>
+    <div class="settings-backdrop" id="settings-backdrop"></div>
+  </div>
+
+  <!-- ═══ HISTORY PANEL ═══ -->
+  <div class="history-overlay" id="history-overlay" hidden>
+    <div class="history-panel" role="dialog" aria-label="Hand history" aria-modal="true">
+      <div class="history-header">
+        <h2>Hand History</h2>
+        <button class="btn-close-panel" id="btn-close-history" aria-label="Close history">✕</button>
+      </div>
+      <div class="history-body" id="history-body">
+        <div class="history-empty" id="history-empty">No hands played yet.</div>
+        <div class="history-list" id="history-list"></div>
+      </div>
+    </div>
+    <div class="history-backdrop" id="history-backdrop"></div>
+  </div>
+
+  <!-- ═══ LEVEL-UP OVERLAY ═══ -->
+  <div class="levelup-overlay" id="levelup-overlay" hidden aria-live="assertive">
+    <div class="levelup-content">
+      <div class="levelup-orb" id="levelup-orb"></div>
+      <div class="levelup-text">
+        <div class="levelup-label" id="levelup-label">Level Up</div>
+        <div class="levelup-name" id="levelup-name">The Downtown Floor</div>
+        <div class="levelup-narrative" id="levelup-narrative"></div>
+      </div>
+      <div class="levelup-particles" id="levelup-particles" aria-hidden="true"></div>
+    </div>
+  </div>
+
+  <!-- ═══ ABOUT MODAL ═══ -->
+  <div class="modal-backdrop" id="about-backdrop" hidden></div>
+  <div class="about-modal" id="about-modal" role="dialog" aria-modal="true" aria-label="About" hidden>
+    <button class="btn-close-panel" id="btn-close-about" aria-label="Close about">✕</button>
+    <h2>Blackjack with AI Agents</h2>
+    <p>A full-rules Blackjack game powered by real LLM recommendations, using <strong>structured JSON output</strong> to eliminate ambiguity in action extraction.</p>
+    <ul>
+      <li>Upload a <code>.env</code> file with <code>OPENAI_API_KEY</code>, <code>ANTHROPIC_API_KEY</code>, or <code>GEMINI_API_KEY</code></li>
+      <li>Keys are in-memory only — never stored, never logged</li>
+      <li>Supports OpenAI, Anthropic, and Gemini</li>
+      <li>Advisor mode (confirm) or Autoplay mode (automatic)</li>
+      <li>Four-level climb: The Lounge → Downtown Floor → High Limit Room → The Penthouse</li>
+      <li>Basic Strategy Overlay, Performance Analytics, Risk Profile Selector</li>
+    </ul>
+    <p class="about-note">Every LLM interaction is logged to the browser console with full request, response, and parsed action — open DevTools to inspect.</p>
+  </div>
+
+  <!-- ═══ SHORTCUTS OVERLAY ═══ -->
+  <div class="shortcuts-overlay" id="shortcuts-overlay" hidden>
+    <div class="shortcuts-card" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+      <h2>Keyboard Shortcuts</h2>
+      <div class="shortcuts-grid-full">
+        <div><kbd>Space</kbd><span>Play / Execute Recommendation</span></div>
+        <div><kbd>H</kbd><span>Hit</span></div>
+        <div><kbd>S</kbd><span>Stand</span></div>
+        <div><kbd>D</kbd><span>Double Down</span></div>
+        <div><kbd>P</kbd><span>Split</span></div>
+        <div><kbd>R</kbd><span>Surrender</span></div>
+        <div><kbd>M</kbd><span>Toggle Mute</span></div>
+        <div><kbd>Shift + S</kbd><span>Settings</span></div>
+        <div><kbd>Shift + D</kbd><span>Dashboard</span></div>
+        <div><kbd>?</kbd><span>This overlay</span></div>
+        <div><kbd>Escape</kbd><span>Close panels</span></div>
+      </div>
+      <button class="btn-close-panel" id="btn-close-shortcuts" aria-label="Close shortcuts">Close</button>
+    </div>
+    <div class="shortcuts-backdrop" id="shortcuts-backdrop"></div>
+  </div>
+
+  <!-- ═══ GAME OVER MODAL ═══ -->
+  <div class="gameover-overlay" id="gameover-overlay" hidden>
+    <div class="gameover-card">
+      <div class="gameover-icon">♠</div>
+      <h2>The table is empty.</h2>
+      <p>The house always wins… unless you try again.</p>
+      <div class="gameover-stat" id="gameover-stat"></div>
+      <button class="btn-restart" id="btn-restart" aria-label="Restart game">Start Over</button>
+    </div>
+  </div>
+
+  <!-- Audio captions ticker -->
+  <div class="audio-captions" id="audio-captions" aria-live="polite" aria-atomic="true" hidden></div>
+
+  <!-- ═══ SCRIPTS (dependency order) ═══ -->
+  <script src="js/env.js"></script>
+  <script src="js/deck.js"></script>
+  <script src="js/strategy.js"></script>
+  <script src="js/history.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/providers/openai.js"></script>
+  <script src="js/providers/anthropic.js"></script>
+  <script src="js/providers/gemini.js"></script>
+  <script src="js/agent.js"></script>
+  <script src="js/ui/audio.js"></script>
+  <script src="js/ui/table.js"></script>
+  <script src="js/ui/orb.js"></script>
+  <script src="js/ui/bubble.js"></script>
+  <script src="js/ui/levels.js"></script>
+  <script src="js/ui/dashboard.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

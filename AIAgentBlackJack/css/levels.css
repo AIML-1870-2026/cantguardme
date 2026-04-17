@@ -1,0 +1,184 @@
+/* ═══════════════════════════════════════════════════════════
+   LEVELS.CSS — Per-level palette overrides + transitions
+═══════════════════════════════════════════════════════════ */
+
+/* Level 1 — The Lounge (default, set in :root) */
+/* Already defined in base.css */
+
+/* ─── Level 2 — The Downtown Floor ─── */
+body.level-2 {
+  --felt:           #1a5c3a;
+  --felt-highlight: #267a50;
+  --felt-edge:      #12452a;
+  --bg:             #0a1a0e;
+  --bg-mid:         #0e2214;
+  --gold:           #d4af70;
+  --gold-bright:    #ecd48e;
+  --gold-deep:      #9a7a40;
+  --gold-glow:      rgba(212,175,112,0.25);
+  --ivory:          #f5ebd8;
+  --card-back-1:    #1a3a8c;
+  --card-back-2:    #0e2460;
+  --orb-core:       #f2e09a;
+  --orb-glow:       rgba(242,224,154,0.35);
+}
+
+body.level-2 .bg-base {
+  background: radial-gradient(ellipse 80% 70% at 50% 40%, #0e2214 0%, #0a1a0e 100%);
+}
+
+body.level-2 .felt-table {
+  background: radial-gradient(ellipse 80% 70% at 50% 40%, #267a50 0%, #1a5c3a 60%, #12452a 100%);
+}
+
+/* ─── Level 3 — The High Limit Room ─── */
+body.level-3 {
+  --felt:           #0a1628;
+  --felt-highlight: #112040;
+  --felt-edge:      #060e1a;
+  --bg:             #050a14;
+  --bg-mid:         #081020;
+  --gold:           #b8960c;
+  --gold-bright:    #d4b028;
+  --gold-deep:      #806600;
+  --gold-glow:      rgba(184,150,12,0.3);
+  --ivory:          #f0e8d0;
+  --card-back-1:    #0a0a0a;
+  --card-back-2:    #050505;
+  --orb-core:       #e8d068;
+  --orb-glow:       rgba(232,208,104,0.4);
+  --orb-bright:     #fff4a0;
+}
+
+body.level-3 .bg-base {
+  background: radial-gradient(ellipse 80% 70% at 50% 40%, #081020 0%, #050a14 100%);
+}
+
+body.level-3 .felt-table {
+  background: radial-gradient(ellipse 80% 70% at 50% 40%, #112040 0%, #0a1628 60%, #060e1a 100%);
+  border-color: rgba(184,150,12,0.4);
+  box-shadow:
+    0 0 0 8px #060e1a,
+    0 0 0 12px rgba(184,150,12,0.1),
+    0 20px 80px rgba(0,0,0,0.8),
+    0 40px 120px rgba(0,0,0,0.6),
+    inset 0 2px 4px rgba(255,255,255,0.03);
+}
+
+body.level-3 .level-roman { color: rgba(184,150,12,0.45); }
+
+/* ─── Level 4 — The Penthouse ─── */
+body.level-4 {
+  --felt:           #0a0a0a;
+  --felt-highlight: #141414;
+  --felt-edge:      #050505;
+  --bg:             #000000;
+  --bg-mid:         #080808;
+  --gold:           #c0c0c0;
+  --gold-bright:    #e0e0e0;
+  --gold-deep:      #888888;
+  --gold-glow:      rgba(192,192,192,0.2);
+  --ivory:          #eeeae4;
+  --card-back-1:    #0e0e0e;
+  --card-back-2:    #060606;
+  --orb-core:       #e0e0f8;
+  --orb-glow:       rgba(220,220,248,0.35);
+  --orb-bright:     #ffffff;
+  --border:         rgba(192,192,192,0.18);
+  --border-bright:  rgba(192,192,192,0.4);
+}
+
+body.level-4 .bg-base {
+  background: #000;
+}
+
+body.level-4 .felt-table {
+  background: radial-gradient(ellipse 60% 50% at 50% 40%, #141414 0%, #0a0a0a 60%, #050505 100%);
+  border-color: rgba(192,192,192,0.2);
+  box-shadow:
+    0 0 0 8px #050505,
+    0 0 0 12px rgba(192,192,192,0.08),
+    0 20px 80px rgba(0,0,0,0.9),
+    0 40px 120px rgba(0,0,0,0.7),
+    inset 0 1px 4px rgba(255,255,255,0.04);
+}
+
+body.level-4 .table-brand {
+  color: rgba(192,192,192,0.2);
+}
+
+body.level-4 .card-back-pattern {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    rgba(192,192,192,0.05) 4px,
+    rgba(192,192,192,0.05) 8px
+  );
+  border-color: rgba(192,192,192,0.15);
+}
+
+body.level-4 .action-btn {
+  background: rgba(20,20,20,0.7);
+  border-color: rgba(192,192,192,0.15);
+  color: var(--ivory);
+}
+
+body.level-4 .action-btn:hover:not(:disabled) {
+  background: rgba(192,192,192,0.08);
+  border-color: rgba(192,192,192,0.4);
+  color: #fff;
+}
+
+/* Penthouse: subtle particle shimmer instead of atmospheric dust */
+body.level-4 .dust-mote {
+  background: rgba(192,192,192,0.6);
+  width: 1px; height: 1px;
+}
+
+/* ─── Level Transition Animation ─── */
+body.level-transitioning * {
+  transition: background-color 600ms ease, color 400ms ease, border-color 400ms ease, box-shadow 600ms ease !important;
+}
+
+/* Card back color variations per level */
+body.level-1 .card-back { background: var(--card-back-1); }
+body.level-2 .card-back { background: var(--card-back-1); }
+body.level-3 .card-back { background: var(--card-back-1); }
+body.level-4 .card-back { background: var(--card-back-1); }
+
+/* Level-specific bet chip accent */
+body.level-3 .bet-chip[data-color="gold"] {
+  box-shadow: 0 0 8px rgba(184,150,12,0.5);
+}
+
+body.level-4 .bet-chip {
+  filter: saturate(0.7);
+}
+
+/* Level glow ring on table for level 3/4 */
+body.level-3 .felt-table::after,
+body.level-4 .felt-table::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 162px;
+  border: 1px solid var(--gold);
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+/* ─── Level-Up Flash Colors ─── */
+.level-2 .levelup-name { color: #d4af70; }
+.level-3 .levelup-name { color: #b8960c; }
+.level-4 .levelup-name { color: #c0c0c0; }
+
+/* ─── Penthouse atmosphere: subtle particle overlay ─── */
+body.level-4 .bg-vignette {
+  background: radial-gradient(ellipse 80% 80% at 50% 50%, transparent 30%, rgba(0,0,0,0.85) 100%);
+}
+
+/* ─── Downtown Floor: brighter lighting ─── */
+body.level-2 .bg-vignette {
+  background: radial-gradient(ellipse 90% 90% at 50% 50%, transparent 50%, rgba(0,0,0,0.55) 100%);
+}

@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Science Experiment Generator</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Source+Sans+3:ital,wght@0,300;0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- marked.js + DOMPurify -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Background: grid paper texture -->
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <!-- Background: floating molecules -->
+  <div class="bg-molecules" aria-hidden="true">
+    <div class="mol mol-1">
+      <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><circle cx="30" cy="15" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="15" cy="40" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="45" cy="40" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="30" y1="21" x2="20" y2="36" stroke="currentColor" stroke-width="1.5"/><line x1="30" y1="21" x2="40" y2="36" stroke="currentColor" stroke-width="1.5"/><line x1="21" y1="42" x2="39" y2="42" stroke="currentColor" stroke-width="1.5"/></svg>
+    </div>
+    <div class="mol mol-2">
+      <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><circle cx="30" cy="30" r="10" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="30" cy="10" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="30" cy="50" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="30" y1="15" x2="30" y2="20" stroke="currentColor" stroke-width="1.5"/><line x1="30" y1="40" x2="30" y2="45" stroke="currentColor" stroke-width="1.5"/></svg>
+    </div>
+    <div class="mol mol-3">
+      <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><polygon points="30,5 55,47 5,47" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="30" cy="5" r="4" fill="currentColor" opacity="0.4"/><circle cx="55" cy="47" r="4" fill="currentColor" opacity="0.4"/><circle cx="5" cy="47" r="4" fill="currentColor" opacity="0.4"/></svg>
+    </div>
+    <div class="mol mol-4">
+      <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><circle cx="30" cy="30" r="12" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="30" y1="10" x2="30" y2="18" stroke="currentColor" stroke-width="1.5"/><line x1="30" y1="42" x2="30" y2="50" stroke="currentColor" stroke-width="1.5"/><line x1="10" y1="30" x2="18" y2="30" stroke="currentColor" stroke-width="1.5"/><line x1="42" y1="30" x2="50" y2="30" stroke="currentColor" stroke-width="1.5"/></svg>
+    </div>
+    <div class="mol mol-5">
+      <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><circle cx="15" cy="15" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="45" cy="15" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="15" cy="45" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="45" cy="45" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="21" y1="15" x2="39" y2="15" stroke="currentColor" stroke-width="1.5"/><line x1="15" y1="21" x2="15" y2="39" stroke="currentColor" stroke-width="1.5"/><line x1="45" y1="21" x2="45" y2="39" stroke="currentColor" stroke-width="1.5"/><line x1="21" y1="45" x2="39" y2="45" stroke="currentColor" stroke-width="1.5"/></svg>
+    </div>
+    <div class="mol mol-6">
+      <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><ellipse cx="30" cy="30" rx="25" ry="8" fill="none" stroke="currentColor" stroke-width="1.5"/><ellipse cx="30" cy="30" rx="25" ry="8" fill="none" stroke="currentColor" stroke-width="1.5" transform="rotate(60 30 30)"/><ellipse cx="30" cy="30" rx="25" ry="8" fill="none" stroke="currentColor" stroke-width="1.5" transform="rotate(120 30 30)"/><circle cx="30" cy="30" r="4" fill="currentColor" opacity="0.5"/></svg>
+    </div>
+    <div class="mol mol-7">
+      <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><rect x="15" y="15" width="30" height="30" rx="4" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="15" cy="15" r="4" fill="currentColor" opacity="0.4"/><circle cx="45" cy="15" r="4" fill="currentColor" opacity="0.4"/><circle cx="15" cy="45" r="4" fill="currentColor" opacity="0.4"/><circle cx="45" cy="45" r="4" fill="currentColor" opacity="0.4"/></svg>
+    </div>
+  </div>
+
+  <!-- ═══ HEADER ═══ -->
+  <header class="app-header">
+    <div class="header-brand">
+      <div class="beaker-wrap" aria-hidden="true">
+        <svg class="beaker-svg" viewBox="0 0 56 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M19 4 L19 28 L4 62 Q2 68 8 68 L48 68 Q54 68 52 62 L37 28 L37 4 Z"
+                stroke="var(--accent-cyan)" stroke-width="1.8" fill="rgba(0,240,255,0.04)"/>
+          <path d="M17 4 L39 4" stroke="var(--accent-cyan)" stroke-width="1.8" stroke-linecap="round"/>
+          <clipPath id="hdr-clip">
+            <path d="M19 4 L19 28 L4 62 Q2 68 8 68 L48 68 Q54 68 52 62 L37 28 L37 4 Z"/>
+          </clipPath>
+          <rect x="0" y="42" width="60" height="32" fill="rgba(0,240,255,0.18)" clip-path="url(#hdr-clip)"/>
+          <circle class="hdr-bub b1" cx="16" cy="63" r="2.5" fill="rgba(0,240,255,0.7)"/>
+          <circle class="hdr-bub b2" cx="28" cy="59" r="1.8" fill="rgba(57,255,20,0.7)"/>
+          <circle class="hdr-bub b3" cx="36" cy="63" r="2" fill="rgba(0,240,255,0.6)"/>
+          <circle class="hdr-bub b4" cx="22" cy="65" r="1.4" fill="rgba(57,255,20,0.5)"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1 class="brand-title">Science Experiment Generator</h1>
+        <p class="brand-sub">K–12 Lab Station • Powered by AI</p>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div class="key-status-badges">
+        <div class="key-badge-item">
+          <span class="status-dot" id="dot-openai"></span>
+          <span class="status-lbl" id="lbl-openai">OpenAI: no key</span>
+        </div>
+        <div class="key-badge-item">
+          <span class="status-dot" id="dot-google"></span>
+          <span class="status-lbl" id="lbl-google">Image Search: no key</span>
+        </div>
+      </div>
+      <button class="btn-keys" id="btn-open-keys" aria-expanded="false" aria-controls="key-panel">
+        🔑 API Keys
+      </button>
+    </div>
+  </header>
+
+  <!-- ═══ KEY MANAGEMENT PANEL ═══ -->
+  <div class="key-panel" id="key-panel" aria-hidden="true">
+    <div class="key-panel-inner glass-card">
+      <div class="key-panel-hdr">
+        <h2>API Keys</h2>
+        <button class="btn-panel-close" id="btn-close-keys" aria-label="Close key panel">✕</button>
+      </div>
+      <p class="key-note">🔒 Keys are stored in-memory only — never persisted or shared.</p>
+
+      <div class="key-section">
+        <h3>Upload .env File</h3>
+        <div class="key-drop-zone" id="key-drop-zone" tabindex="0" role="button" aria-label="Upload .env file">
+          <span>📁</span>
+          <span>Drop .env file here or</span>
+          <label class="btn-browse">Browse<input type="file" id="env-file-input" accept=".env,.txt,.csv" hidden /></label>
+        </div>
+        <p class="key-fmt-hint">Format: <code>OPENAI_API_KEY=sk-...</code><br>Optional: <code>GOOGLE_API_KEY=AIza...</code> &amp; <code>GOOGLE_CX=...</code></p>
+      </div>
+
+      <div class="key-section">
+        <h3>Manual Entry</h3>
+        <div class="key-field">
+          <label for="inp-openai-key">AI Completion API Key <span class="req">*required</span></label>
+          <div class="key-inp-row">
+            <input type="text" id="inp-openai-key" placeholder="sk-..." autocomplete="off" spellcheck="false" />
+            <button class="btn-save-key" data-target="openai">Save</button>
+          </div>
+        </div>
+        <div class="key-field">
+          <label for="inp-google-key">Image Search API Key <span class="opt">optional — custom supply images</span></label>
+          <div class="key-inp-row">
+            <input type="text" id="inp-google-key" placeholder="AIza..." autocomplete="off" spellcheck="false" />
+            <button class="btn-save-key" data-target="google">Save</button>
+          </div>
+        </div>
+        <div class="key-field">
+          <label for="inp-google-cx">Custom Search Engine ID <span class="opt">optional</span></label>
+          <div class="key-inp-row">
+            <input type="text" id="inp-google-cx" placeholder="a1b2c3d4..." autocomplete="off" />
+            <button class="btn-save-key" data-target="cx">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="key-panel-backdrop" id="key-backdrop" aria-hidden="true"></div>
+
+  <!-- ═══ TAB NAVIGATION ═══ -->
+  <nav class="tab-nav" role="tablist" aria-label="Application sections">
+    <button class="tab-btn active" role="tab" aria-selected="true" data-tab="generator">
+      <span>🧪</span> Generator
+    </button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-tab="library">
+      <span>📚</span> Library
+    </button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-tab="worksheets">
+      <span>📝</span> Worksheets
+    </button>
+  </nav>
+
+  <!-- ═══ MAIN CONTENT ═══ -->
+  <main class="app-main">
+
+    <!-- ─────────────────── GENERATOR TAB ─────────────────── -->
+    <section id="tab-generator" class="tab-content active" role="tabpanel">
+
+      <!-- Wizard Progress Bar -->
+      <div class="wizard-progress" aria-label="Wizard progress">
+        <div class="wp-track"><div class="wp-fill" id="wp-fill"></div></div>
+        <div class="wp-steps">
+          <div class="wp-step active" id="wp-step-1">
+            <div class="wp-dot">1</div>
+            <span class="wp-label">Grade Level</span>
+          </div>
+          <div class="wp-step" id="wp-step-2">
+            <div class="wp-dot">2</div>
+            <span class="wp-label">Supplies</span>
+          </div>
+          <div class="wp-step" id="wp-step-3">
+            <div class="wp-dot">3</div>
+            <span class="wp-label">Generate</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 1: Grade Level -->
+      <div id="step-1" class="wizard-step">
+        <div class="step-hdr">
+          <h2 class="step-title">Select Your Grade Level</h2>
+          <p class="step-sub">Choose the grade band that matches you or your student</p>
+        </div>
+        <div class="grade-grid">
+          <button class="grade-card" data-grade="K-2" aria-label="Grades K to 2">
+            <div class="gc-glow"></div>
+            <div class="gc-icon">🖍️</div>
+            <div class="gc-band">K – 2</div>
+            <div class="gc-desc">Kindergarten to 2nd Grade</div>
+            <div class="gc-tags">
+              <span class="gc-tag">Simple</span>
+              <span class="gc-tag">Visual</span>
+              <span class="gc-tag">Fun</span>
+            </div>
+          </button>
+          <button class="grade-card" data-grade="3-5" aria-label="Grades 3 to 5">
+            <div class="gc-glow"></div>
+            <div class="gc-icon">🔍</div>
+            <div class="gc-band">3 – 5</div>
+            <div class="gc-desc">3rd to 5th Grade</div>
+            <div class="gc-tags">
+              <span class="gc-tag">Curious</span>
+              <span class="gc-tag">Hands-On</span>
+              <span class="gc-tag">Exploring</span>
+            </div>
+          </button>
+          <button class="grade-card" data-grade="6-8" aria-label="Grades 6 to 8">
+            <div class="gc-glow"></div>
+            <div class="gc-icon">🔬</div>
+            <div class="gc-band">6 – 8</div>
+            <div class="gc-desc">6th to 8th Grade</div>
+            <div class="gc-tags">
+              <span class="gc-tag">Scientific</span>
+              <span class="gc-tag">Data-Driven</span>
+              <span class="gc-tag">Precise</span>
+            </div>
+          </button>
+          <button class="grade-card" data-grade="9-12" aria-label="Grades 9 to 12">
+            <div class="gc-glow"></div>
+            <div class="gc-icon">⚛️</div>
+            <div class="gc-band">9 – 12</div>
+            <div class="gc-desc">9th to 12th Grade</div>
+            <div class="gc-tags">
+              <span class="gc-tag">Advanced</span>
+              <span class="gc-tag">Hypothesis</span>
+              <span class="gc-tag">Research</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 2: Supplies -->
+      <div id="step-2" class="wizard-step" hidden>
+        <div class="step-hdr">
+          <button class="btn-back" id="back-to-1">← Back</button>
+          <div>
+            <h2 class="step-title">Select Your Supplies</h2>
+            <p class="step-sub">Pick everything you have available at home or in the classroom</p>
+          </div>
+        </div>
+
+        <div id="supply-categories" class="supply-categories"></div>
+
+        <div class="custom-supply-block">
+          <h3 class="cat-label">➕ Add Custom Supply</h3>
+          <div class="custom-inp-row">
+            <input type="text" id="custom-supply-inp" placeholder="Type a supply name…" aria-label="Add custom supply" />
+            <button class="btn-add-custom" id="btn-add-custom">Add</button>
+          </div>
+          <div id="custom-chips-area" class="custom-chips"></div>
+        </div>
+
+        <!-- Selected tray -->
+        <div class="tray-wrapper">
+          <div class="tray-hdr">
+            <span class="tray-title">Selected Supplies</span>
+            <span class="tray-count" id="tray-count">0 selected</span>
+          </div>
+          <div class="supply-tray" id="supply-tray" role="list" aria-label="Selected supplies">
+            <p class="tray-empty" id="tray-empty">No supplies selected yet — pick some above!</p>
+          </div>
+        </div>
+
+        <div class="step-actions">
+          <button class="btn-next" id="btn-to-3" disabled>
+            Next: Generate Experiment →
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 3: Generate -->
+      <div id="step-3" class="wizard-step" hidden>
+        <div class="step-hdr">
+          <button class="btn-back" id="back-to-2">← Back</button>
+          <div>
+            <h2 class="step-title">Generate Your Experiment</h2>
+            <p class="step-sub">Review your selections and launch the AI experiment generator</p>
+          </div>
+        </div>
+
+        <!-- Summary card -->
+        <div class="summary-card glass-card">
+          <div class="summary-row">
+            <span class="summary-lbl">Grade Level</span>
+            <span class="grade-badge" id="sum-grade">—</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-lbl">Supplies</span>
+            <div class="summary-supplies" id="sum-supplies"></div>
+          </div>
+        </div>
+
+        <!-- Generate button -->
+        <div class="gen-action">
+          <button class="btn-generate" id="btn-generate">
+            <span class="gen-icon">🧪</span>
+            <span class="gen-label">Generate Experiment</span>
+          </button>
+        </div>
+
+        <!-- Loading -->
+        <div class="loading-state" id="loading-state" hidden>
+          <div class="loading-beaker" aria-hidden="true">
+            <svg viewBox="0 0 80 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M27 8 L27 42 L7 80 Q4 88 11 88 L69 88 Q76 88 73 80 L53 42 L53 8 Z"
+                    stroke="var(--accent-cyan)" stroke-width="2.2" fill="rgba(0,240,255,0.06)"/>
+              <path d="M25 8 L55 8" stroke="var(--accent-cyan)" stroke-width="2.2" stroke-linecap="round"/>
+              <clipPath id="load-clip">
+                <path d="M27 8 L27 42 L7 80 Q4 88 11 88 L69 88 Q76 88 73 80 L53 42 L53 8 Z"/>
+              </clipPath>
+              <rect class="load-liq" x="0" y="55" width="80" height="40"
+                    fill="rgba(0,240,255,0.22)" clip-path="url(#load-clip)"/>
+              <circle class="lbub lb1" cx="25" cy="82" r="4" fill="rgba(0,240,255,0.65)"/>
+              <circle class="lbub lb2" cx="40" cy="77" r="3" fill="rgba(57,255,20,0.65)"/>
+              <circle class="lbub lb3" cx="54" cy="82" r="3.5" fill="rgba(0,240,255,0.5)"/>
+              <circle class="lbub lb4" cx="32" cy="84" r="2.5" fill="rgba(179,136,255,0.6)"/>
+            </svg>
+          </div>
+          <p class="loading-txt">Designing your experiment…</p>
+          <p class="loading-sub">Consulting the scientific archives</p>
+        </div>
+
+        <!-- Error state -->
+        <div class="error-state" id="error-state" hidden>
+          <div class="error-icon">⚠️</div>
+          <h3 id="error-title">Something went wrong</h3>
+          <p id="error-msg">Could not generate experiment. Please check your API key and try again.</p>
+          <button class="btn-retry" id="btn-retry">🔄 Try Again</button>
+        </div>
+
+        <!-- Result -->
+        <div class="result-wrap" id="result-wrap" hidden>
+          <div class="result-header-row">
+            <h2 class="result-title" id="result-title">Experiment</h2>
+            <span class="diff-badge" id="diff-badge">Medium</span>
+          </div>
+          <div class="result-card glass-card" id="result-content"></div>
+          <div class="result-actions">
+            <button class="ra-btn ra-save" id="btn-save-exp">💾 Save to Library</button>
+            <button class="ra-btn ra-print" id="btn-print-exp">🖨️ Print Worksheet</button>
+            <button class="ra-btn ra-another" id="btn-another">🔄 Generate Another</button>
+            <button class="ra-btn ra-restart" id="btn-restart">↩️ Start Over</button>
+          </div>
+        </div>
+
+      </div><!-- /step-3 -->
+    </section><!-- /tab-generator -->
+
+    <!-- ─────────────────── LIBRARY TAB ─────────────────── -->
+    <section id="tab-library" class="tab-content" role="tabpanel" hidden>
+      <div class="section-hdr">
+        <div class="section-title-row">
+          <h2 class="section-title">📚 Saved Experiments</h2>
+          <button class="btn-clear-all" id="btn-clear-lib">Clear All</button>
+        </div>
+        <div class="lib-controls">
+          <input type="search" id="lib-search" class="lib-search" placeholder="Search experiments…" aria-label="Search saved experiments" />
+          <select id="lib-sort" class="lib-sort" aria-label="Sort experiments">
+            <option value="newest">Newest First</option>
+            <option value="favorites">Favorites First</option>
+            <option value="grade">By Grade Level</option>
+          </select>
+        </div>
+        <div class="lib-filters">
+          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="K-2">K-2</button>
+          <button class="filter-btn" data-filter="3-5">3-5</button>
+          <button class="filter-btn" data-filter="6-8">6-8</button>
+          <button class="filter-btn" data-filter="9-12">9-12</button>
+        </div>
+      </div>
+
+      <div class="lib-grid" id="lib-grid" role="list"></div>
+
+      <div class="lib-empty" id="lib-empty" hidden>
+        <div class="empty-icon">🧪</div>
+        <h3>No Experiments Saved Yet</h3>
+        <p>Generate your first experiment and save it here for future reference!</p>
+        <button class="btn-go-gen" data-tab="generator">Go to Generator →</button>
+      </div>
+    </section>
+
+    <!-- ─────────────────── WORKSHEETS TAB ─────────────────── -->
+    <section id="tab-worksheets" class="tab-content" role="tabpanel" hidden>
+      <div class="section-hdr">
+        <h2 class="section-title">📝 Printable Worksheets</h2>
+        <p class="section-sub">Select a saved experiment to generate a printable student observation sheet.</p>
+      </div>
+
+      <div class="ws-controls glass-card">
+        <div class="ws-field">
+          <label for="ws-select">Select Saved Experiment</label>
+          <select id="ws-select" class="ws-select" aria-label="Select experiment for worksheet">
+            <option value="">— Select an experiment —</option>
+          </select>
+        </div>
+        <button class="btn-print-ws" id="btn-print-ws" disabled>🖨️ Print Worksheet</button>
+      </div>
+
+      <div class="ws-preview glass-card" id="ws-preview" hidden>
+        <div id="ws-preview-body"></div>
+      </div>
+
+      <div class="ws-empty" id="ws-empty">
+        <p>Save some experiments to the Library first, then come back here to print worksheets!</p>
+        <button class="btn-go-gen" data-tab="generator">Go to Generator →</button>
+      </div>
+    </section>
+
+  </main><!-- /app-main -->
+
+  <!-- ═══ EXPERIMENT DETAIL MODAL ═══ -->
+  <div class="modal-backdrop" id="modal-backdrop" hidden></div>
+  <div class="modal glass-card" id="exp-modal" hidden role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-hdr">
+      <h2 id="modal-title">Experiment</h2>
+      <button class="btn-modal-close" id="btn-modal-close" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="ra-btn ra-print" id="modal-print-btn">🖨️ Print Worksheet</button>
+      <button class="ra-btn ra-fav" id="modal-fav-btn">⭐ Favorite</button>
+      <button class="ra-btn ra-delete" id="modal-delete-btn">🗑️ Delete</button>
+    </div>
+  </div>
+
+  <!-- ═══ CONFIRM MODAL ═══ -->
+  <div class="modal glass-card confirm-modal" id="confirm-modal" hidden role="dialog" aria-modal="true">
+    <div class="modal-hdr">
+      <h2 id="confirm-title">Confirm</h2>
+    </div>
+    <div class="modal-body">
+      <p id="confirm-msg">Are you sure?</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-confirm-yes" id="confirm-yes">Yes, Continue</button>
+      <button class="btn-confirm-no" id="confirm-no">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Hidden print target -->
+  <div id="print-area" aria-hidden="true"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,383 @@
+/* ═══════════════════════════════════════════════════════════
+   ORB.CSS — AI Dealer Orb, Speech Bubble, Why Panel
+═══════════════════════════════════════════════════════════ */
+
+/* ─── Orb Container ─── */
+.orb-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  z-index: 30;
+  width: 180px;
+  flex-shrink: 0;
+  padding-top: 40px;
+}
+
+/* ─── Orb Wrapper ─── */
+.orb-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ─── The Orb ─── */
+.orb {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  cursor: default;
+  transition: transform 0.4s var(--ease-bounce);
+}
+
+.orb-glow {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.orb-glow-1 {
+  inset: -8px;
+  background: radial-gradient(circle, var(--orb-glow) 0%, transparent 70%);
+  animation: orb-breathe-1 3s ease-in-out infinite;
+}
+
+.orb-glow-2 {
+  inset: -18px;
+  background: radial-gradient(circle, rgba(240,217,140,0.12) 0%, transparent 70%);
+  animation: orb-breathe-2 3s ease-in-out infinite;
+}
+
+.orb-glow-3 {
+  inset: -32px;
+  background: radial-gradient(circle, rgba(240,217,140,0.05) 0%, transparent 70%);
+  animation: orb-breathe-3 4s ease-in-out infinite;
+}
+
+.orb-core {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--orb-bright) 0%, var(--orb-core) 40%, rgba(201,169,97,0.6) 80%, transparent 100%);
+  box-shadow:
+    0 0 20px rgba(240,217,140,0.4),
+    0 0 40px rgba(240,217,140,0.2),
+    inset 0 1px 3px rgba(255,255,255,0.5);
+  animation: orb-breathe-core 3s ease-in-out infinite;
+}
+
+@keyframes orb-breathe-core {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(240,217,140,0.4), 0 0 40px rgba(240,217,140,0.2), inset 0 1px 3px rgba(255,255,255,0.5); }
+  50%       { transform: scale(1.04); box-shadow: 0 0 28px rgba(240,217,140,0.55), 0 0 55px rgba(240,217,140,0.25), inset 0 1px 3px rgba(255,255,255,0.5); }
+}
+
+@keyframes orb-breathe-1 {
+  0%, 100% { opacity: 0.8; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.05); }
+}
+@keyframes orb-breathe-2 {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50%       { opacity: 0.9; transform: scale(1.06); }
+}
+@keyframes orb-breathe-3 {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 0.7; }
+}
+
+/* ─── Orb State: Thinking ─── */
+.orb.thinking .orb-core {
+  animation: orb-think-pulse 0.8s ease-in-out infinite;
+  background: radial-gradient(circle at 35% 35%, #fffde8 0%, var(--orb-bright) 30%, var(--orb-core) 70%, rgba(201,169,97,0.4) 100%);
+}
+
+@keyframes orb-think-pulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.06); box-shadow: 0 0 35px rgba(240,217,140,0.7), 0 0 60px rgba(240,217,140,0.3), inset 0 1px 3px rgba(255,255,255,0.6); }
+}
+
+.orb.thinking .orb-glow-1 {
+  animation: orb-think-ring 0.8s ease-in-out infinite;
+}
+
+@keyframes orb-think-ring {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.1); }
+}
+
+/* Thinking dots */
+.orb-thinking-dots {
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.orb.thinking .orb-thinking-dots { opacity: 1; }
+
+.orb-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold);
+  animation: dot-orbit 2s linear infinite;
+}
+
+.orb-dot:nth-child(1) { animation-delay: 0s; }
+.orb-dot:nth-child(2) { animation-delay: 0.66s; }
+.orb-dot:nth-child(3) { animation-delay: 1.33s; }
+
+@keyframes dot-orbit {
+  0%   { transform: rotate(0deg) translateX(44px) rotate(0deg); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: rotate(360deg) translateX(44px) rotate(-360deg); opacity: 0; }
+}
+
+/* ─── Orb State: Speaking ─── */
+.orb.speaking .orb-core {
+  animation: orb-speak-stable 0.1s ease-in-out infinite;
+}
+
+@keyframes orb-speak-stable {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.015); }
+}
+
+.orb.speaking .word-pulse {
+  animation: ring-expand 0.5s ease-out forwards;
+}
+
+/* ─── Orb State: Win Reaction ─── */
+.orb.win .orb-core {
+  animation: orb-win-flare 1.2s ease-out forwards;
+  background: radial-gradient(circle at 35% 35%, #ffffff 0%, #fff8d0 20%, var(--gold-bright) 50%, var(--gold) 80%);
+}
+
+@keyframes orb-win-flare {
+  0%   { transform: scale(1); box-shadow: 0 0 20px rgba(240,217,140,0.4); }
+  20%  { transform: scale(1.18); box-shadow: 0 0 60px rgba(240,217,140,0.9), 0 0 100px rgba(240,217,140,0.4); }
+  100% { transform: scale(1);  box-shadow: 0 0 20px rgba(240,217,140,0.4); }
+}
+
+.orb-ring-pulse {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  border: 2px solid var(--gold);
+  pointer-events: none;
+  animation: ring-expand 0.8s ease-out forwards;
+}
+
+/* ─── Orb State: Loss ─── */
+.orb.loss .orb-core {
+  animation: orb-dim 0.5s ease-out forwards;
+  filter: saturate(0.3) brightness(0.7);
+}
+
+@keyframes orb-dim {
+  0%   { filter: saturate(1) brightness(1); }
+  100% { filter: saturate(0.3) brightness(0.7); }
+}
+
+/* ─── Orb State: Bust ─── */
+.orb.bust .orb-core {
+  animation: orb-bust-shake 0.18s ease-in-out 2;
+  box-shadow: 0 0 25px rgba(140,28,28,0.6) !important;
+}
+
+@keyframes orb-bust-shake {
+  0%, 100% { transform: translate(0,0); }
+  25%       { transform: translate(-3px, 0); }
+  75%       { transform: translate(3px, 0); }
+}
+
+.orb.bust .orb-glow-1 {
+  background: radial-gradient(circle, rgba(140,28,28,0.3) 0%, transparent 70%);
+}
+
+/* ─── Orb State: Blackjack ─── */
+.orb.blackjack .orb-core {
+  animation: orb-blackjack-celebrate 1.4s ease-out forwards;
+}
+
+@keyframes orb-blackjack-celebrate {
+  0%   { transform: scale(1); }
+  10%  { transform: scale(1.3); box-shadow: 0 0 80px rgba(255,255,200,0.9), 0 0 120px rgba(240,217,140,0.5); }
+  30%  { transform: scale(1.2); }
+  50%  { transform: scale(1.25); }
+  100% { transform: scale(1); box-shadow: 0 0 20px rgba(240,217,140,0.4); }
+}
+
+/* ─── Speech Bubble ─── */
+.bubble {
+  position: relative;
+  background: var(--ivory);
+  border-radius: 14px;
+  padding: 14px 16px 10px;
+  max-width: 240px;
+  min-width: 160px;
+  box-shadow:
+    0 4px 20px rgba(0,0,0,0.35),
+    inset 0 -1px 3px rgba(0,0,0,0.08);
+  animation: bubble-appear 0.3s var(--ease-bounce) forwards;
+  width: 100%;
+}
+
+@keyframes bubble-appear {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.bubble-tail {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-bottom: 10px solid var(--ivory);
+  filter: drop-shadow(0 -2px 3px rgba(0,0,0,0.15));
+}
+
+.bubble-inner { position: relative; }
+
+.bubble-text {
+  font-family: 'EB Garamond', serif;
+  font-size: 0.95rem;
+  color: #2a1a0a;
+  line-height: 1.5;
+  min-height: 1.5em;
+}
+
+.bubble-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 1em;
+  background: #2a1a0a;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+  animation: typewriter-blink 0.8s step-end infinite;
+}
+
+.bubble-cursor.done { display: none; }
+
+.bubble-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.bubble-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.62rem;
+  color: rgba(42,26,10,0.45);
+  line-height: 1.4;
+}
+
+.bubble-why-btn {
+  font-family: 'EB Garamond', serif;
+  font-size: 0.78rem;
+  color: rgba(42,26,10,0.5);
+  text-decoration: underline;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.bubble-why-btn:hover { color: rgba(42,26,10,0.85); }
+
+.bubble-strategy-row {
+  margin-top: 6px;
+  border-top: 1px solid rgba(42,26,10,0.1);
+  padding-top: 6px;
+}
+
+.strategy-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.02em;
+}
+
+.strategy-badge.agree {
+  background: rgba(20,88,20,0.15);
+  color: #2a6a2a;
+  border: 1px solid rgba(20,88,20,0.25);
+}
+
+.strategy-badge.disagree {
+  background: rgba(140,80,0,0.15);
+  color: #7a4400;
+  border: 1px solid rgba(140,80,0,0.25);
+}
+
+/* ─── Why Panel ─── */
+.why-panel {
+  background: var(--ivory);
+  border-radius: 14px;
+  padding: 14px 16px;
+  max-width: 240px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+  position: relative;
+  animation: bubble-appear 0.25s var(--ease-bounce) forwards;
+  width: 100%;
+}
+
+.why-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: none;
+  border: none;
+  color: rgba(42,26,10,0.4);
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: color 0.2s;
+}
+.why-close:hover { color: rgba(42,26,10,0.85); }
+
+.why-text {
+  font-family: 'EB Garamond', serif;
+  font-size: 0.88rem;
+  color: #2a1a0a;
+  line-height: 1.6;
+  padding-right: 20px;
+}
+
+/* ─── Responsive: orb on mobile ─── */
+@media (max-width: 900px) {
+  .orb-container {
+    position: fixed;
+    top: 72px;
+    right: 16px;
+    width: 160px;
+    padding-top: 0;
+  }
+
+  .orb { width: 52px; height: 52px; }
+  .orb-thinking-dots { inset: -14px; }
+  .orb-dot { width: 4px; height: 4px; animation-name: dot-orbit-sm; }
+
+  @keyframes dot-orbit-sm {
+    0%   { transform: rotate(0deg) translateX(32px) rotate(0deg); opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { transform: rotate(360deg) translateX(32px) rotate(-360deg); opacity: 0; }
+  }
+
+  .bubble { max-width: 180px; font-size: 0.85rem; }
+}
